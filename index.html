@@ -19,6 +19,20 @@
 </head>
 <body>
 
+<!-- Flow Mode's animated aurora background — purely decorative, hidden
+     entirely unless data-theme="flow" (see style.css's .flow-bg rule).
+     Lives outside .app-shell so it renders behind everything at a fixed,
+     full-viewport z-index:-1, and outside any scrolling container. -->
+<div class="flow-bg" aria-hidden="true">
+  <div class="flow-bg-layer flow-bg-1"></div>
+  <div class="flow-bg-layer flow-bg-2"></div>
+  <div class="flow-bg-layer flow-bg-3"></div>
+  <div class="flow-bg-layer flow-bg-4"></div>
+</div>
+<!-- One shared overlay for the Kalimba-reactive "light waves" pulse — see
+     style.css's .flow-reactive-pulse and app.js's onFlowReactivePluck(). -->
+<div class="flow-reactive-pulse" id="flowReactivePulse" aria-hidden="true"></div>
+
 <div class="app-shell">
   <header class="top">
     <div>
@@ -370,12 +384,14 @@
       </div>
       <label class="switch"><input type="checkbox" id="highContrastToggle"><span class="track"><span class="knob"></span></span></label>
     </div>
-    <div class="setting-row">
-      <div>
-        <div class="label">Dark mode</div>
-        <div class="desc">Overrides system theme</div>
+    <div class="settings-block">
+      <div class="settings-block-label">appearance</div>
+      <div class="pill-row" id="appearanceChips" role="group" aria-label="Appearance">
+        <button class="pill" type="button" data-appearance="light" aria-pressed="false">☀ Light</button>
+        <button class="pill" type="button" data-appearance="dark" aria-pressed="false">🌙 Dark</button>
+        <button class="pill" type="button" data-appearance="flow" aria-pressed="false">✨ Flow</button>
       </div>
-      <label class="switch"><input type="checkbox" id="darkModeToggle"><span class="track"><span class="knob"></span></span></label>
+      <div class="desc" style="margin-top:6px;">Flow is an optional, calming animated theme — fully accessible, and it respects Reduced Motion/High Contrast just like Light and Dark.</div>
     </div>
     <button class="close-sheet" id="resetAudioDefaultsBtn" style="background:var(--surface); border:1px solid var(--line); margin-top:10px;">Reset auditory settings to defaults</button>
     <button class="close-sheet" id="closeSettings">Done</button>
@@ -491,6 +507,7 @@
 <script src="echorecorder.js"></script>
 <script src="explorationtracker.js"></script>
 <script src="echomarkerclustering.js"></script>
+<script src="flowtheme.js"></script>
 <script src="shared/interfaces.js"></script>
 <script src="shared/routeTransfer.js"></script>
 <script src="shared/rerouteBackoff.js"></script>

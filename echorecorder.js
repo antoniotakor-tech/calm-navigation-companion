@@ -128,11 +128,17 @@
   //   audioManager: for duck("ambient", ...)/restore("ambient", ...) around playback.
   //   hapticManager: optional — one short pulse per note during playback, kept
   //     in sync with the melody the same way live plucking already is.
+  //   onNote: optional (tineIndex, velocity01) => void, fired once per note
+  //     during playback only (live plucks already reach app.js through
+  //     KalimbaController's own onPluck) — this is what lets Flow Mode's
+  //     reactive light-pulse react to a *played-back* Echo, not just live
+  //     playing. Purely additive/optional: omitting it changes nothing.
   //   now: optional () => ms, injectable for tests; defaults to Date.now.
   function EchoRecorder(options) {
     this.engine = options.engine;
     this.audioManager = options.audioManager;
     this.hapticManager = options.hapticManager || null;
+    this.onNote = options.onNote || null;
     this.now = options.now || (() => Date.now());
     this.state = initialRecorderState();
     this._playbackTimers = [];
@@ -201,6 +207,7 @@
       const id = setTimeout(() => {
         this.engine.pluck(note.tine, note.v);
         if (this.hapticManager) this.hapticManager.vibratePulse(12);
+        if (this.onNote) this.onNote(note.tine, note.v);
       }, note.t);
       this._playbackTimers.push(id);
     });

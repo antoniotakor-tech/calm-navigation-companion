@@ -41,13 +41,240 @@
   --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 18px 36px rgba(0,0,0,0.4);
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
+  :root:not([data-theme="light"]):not([data-theme="flow"]) {
     --bg: #1E2A1F; --surface: #263323; --surface-2: #2F3F2A; --ink: #F3EEDC;
     --ink-soft: #C9D4BE; --muted: #8FA083; --line: #3A4A34; --accent: #FF9270;
     --accent-ink: #1E2A1F; --calm: #8FCB8A; --calm-soft: #33472F; --busy: #FFD873; --sky: #8FD9F2;
     --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 18px 36px rgba(0,0,0,0.4);
   }
 }
+
+/* ==========================================================================
+   Flow Mode — a third, fully optional appearance alongside Light/Dark.
+   "Organic, fluid, calming, mesmerising, premium, alive" per spec, while
+   navigation legibility stays the highest priority: every existing
+   component (cards, buttons, route panel, sheets) already reads its colors
+   from the same --bg/--surface/--ink/etc. custom properties Light and Dark
+   use — this block only supplies Flow's own values for them, the same
+   mechanism that already makes Dark mode work, not a parallel system.
+   See flowtheme.js for the palette/timing constants this block's specific
+   values are drawn from (kept in sync by hand — this project has no
+   CSS-in-JS build step to share them automatically).
+   ========================================================================== */
+:root[data-theme="flow"] {
+  --bg: #0B1030;
+  --surface: rgba(32, 38, 74, 0.6);
+  --surface-2: rgba(46, 40, 92, 0.5);
+  --ink: #F1ECFB;
+  --ink-soft: #C9C3E8;
+  --muted: #9088C0;
+  --line: rgba(255, 255, 255, 0.14);
+  --accent: #E8C170;
+  --accent-ink: #1B1030;
+  --calm: #3FD1D9;
+  --calm-soft: rgba(63, 209, 217, 0.18);
+  --busy: #E38FB0;
+  --sky: #7FE0EA;
+  --shadow: 0 8px 32px rgba(6, 4, 30, 0.5);
+  /* The 7-color palette itself (deep blue, violet, teal, emerald, cyan,
+     gold, soft pink) — matches flowtheme.js's FLOW_PALETTE order exactly,
+     since paletteColorForTine() cycles through it in that same order. */
+  --flow-1: #1B2A6B;
+  --flow-2: #5B3FA0;
+  --flow-3: #1F8A8C;
+  --flow-4: #1E8F6B;
+  --flow-5: #3FD1D9;
+  --flow-6: #E8C170;
+  --flow-7: #E38FB0;
+  --flow-glass-blur: 20px;
+}
+:root[data-theme="flow"][data-contrast="high"] {
+  /* A themed wood-gradient/glass look isn't a high-contrast-safe visual —
+     replaced outright with the flat, maximum-contrast palette rather than
+     just darkened, same convention as the Kalimba's own high-contrast
+     override below. */
+  --bg: #000000; --surface: #000000; --surface-2: #000000; --ink: #FFFFFF;
+  --ink-soft: #FFFFFF; --muted: #DDDDDD; --line: #FFFFFF; --accent: #FFD873;
+  --accent-ink: #000000; --calm: #5FE0BE; --calm-soft: #000000; --busy: #FFC96B;
+  --shadow: none;
+}
+
+/* --- Animated aurora background (Flow only) ---
+   Four blurred, layered gradient blobs, each with its own slow, independent
+   drift animation. Deliberately CSS `transform`/`opacity` only (never
+   `background-position`/`filter` blur re-computed per frame — the blur is
+   baked into each layer once and only its position/opacity animates), which
+   is what keeps this compositor-only and cheap on a phone GPU, per the
+   spec's "keep GPU usage low" / "hardware accelerated" requirements. See
+   flowtheme.js's TIMING.backgroundLayerDurationsSec for why the four
+   durations (47/61/83/97s, all prime) are chosen specifically so the
+   combined pattern doesn't visibly repeat for days — "no loops that feel
+   repetitive" without needing a canvas/WebGL shader (a deliberate,
+   documented simplification — see FLOW_MODE.md).
+   `aria-hidden` in the markup; this layer is purely decorative. */
+.flow-bg { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; display: none; }
+:root[data-theme="flow"] .flow-bg { display: block; }
+.flow-bg-layer {
+  position: absolute; width: 140%; height: 140%; left: -20%; top: -20%;
+  border-radius: 40%; filter: blur(70px); opacity: 0.55; will-change: transform;
+}
+.flow-bg-1 { background: radial-gradient(circle, var(--flow-2), transparent 60%); animation: flow-drift-1 47s ease-in-out infinite; }
+.flow-bg-2 { background: radial-gradient(circle, var(--flow-5), transparent 60%); animation: flow-drift-2 61s ease-in-out infinite; }
+.flow-bg-3 { background: radial-gradient(circle, var(--flow-4), transparent 60%); animation: flow-drift-3 83s ease-in-out infinite; }
+.flow-bg-4 { background: radial-gradient(circle, var(--flow-7), transparent 60%); animation: flow-drift-4 97s ease-in-out infinite; opacity: 0.35; }
+@keyframes flow-drift-1 {
+  0%, 100% { transform: translate(0%, 0%) scale(1); }
+  50% { transform: translate(12%, 8%) scale(1.15); }
+}
+@keyframes flow-drift-2 {
+  0%, 100% { transform: translate(0%, 0%) scale(1.1); }
+  50% { transform: translate(-10%, 10%) scale(0.95); }
+}
+@keyframes flow-drift-3 {
+  0%, 100% { transform: translate(0%, 0%) scale(0.95); }
+  50% { transform: translate(8%, -12%) scale(1.1); }
+}
+@keyframes flow-drift-4 {
+  0%, 100% { transform: translate(0%, 0%) scale(1); }
+  50% { transform: translate(-8%, -6%) scale(1.05); }
+}
+/* Reduced motion: freeze in place (the global `data-motion="reduced"` rule
+   already forces animation-duration to ~0 everywhere), but ALSO explicitly
+   lower opacity/blur here per the spec's "reduce glow intensity" — freezing
+   alone would still leave four full-strength blobs permanently on screen,
+   which reads as static clutter rather than a calm, reduced-motion-safe
+   background. */
+:root[data-motion="reduced"] .flow-bg-layer { opacity: 0.25; filter: blur(50px); }
+/* Distinct from data-motion="reduced" (a user accessibility choice) — this
+   is app.js pausing purely for battery/backgrounded reasons via
+   FlowTheme.shouldAnimateFlowDecor(), never touching the user's own
+   reduced-motion preference. Freezes in place rather than hiding, so the
+   scene doesn't visibly jump when it resumes. */
+:root[data-flow-decor="paused"] .flow-bg-layer,
+:root[data-flow-decor="paused"] .map-wrap,
+:root[data-flow-decor="paused"] .user-dot-inner,
+:root[data-flow-decor="paused"] .echo-marker-pin::before,
+:root[data-flow-decor="paused"] .echo-marker-pin::after,
+:root[data-flow-decor="paused"] .flow-route-glow { animation-play-state: paused !important; }
+
+/* --- Glass / translucent UI (Flow only) ---
+   Adds ONLY the blur-behind effect; the translucent background color
+   itself already flows through automatically from --surface/--surface-2
+   above, since every one of these selectors already reads that variable —
+   no separate color rule needed here, which is the entire point of having
+   reused the existing design-system variables instead of writing a parallel
+   Flow-specific stylesheet. */
+:root[data-theme="flow"] .tool-card,
+:root[data-theme="flow"] .route-input-row,
+:root[data-theme="flow"] .settings-sheet,
+:root[data-theme="flow"] .echo-sheet,
+:root[data-theme="flow"] .steps-list,
+:root[data-theme="flow"] .route-card,
+:root[data-theme="flow"] .nav-banner,
+:root[data-theme="flow"] .nav-bottom,
+:root[data-theme="flow"] .ac-list,
+:root[data-theme="flow"] .icon-btn,
+:root[data-theme="flow"] .kalimba-wrap {
+  backdrop-filter: blur(var(--flow-glass-blur));
+  -webkit-backdrop-filter: blur(var(--flow-glass-blur));
+}
+/* Elegant hover/press feedback on real pointers only — touch devices get
+   the existing :active scale-down everywhere already, unaffected by this. */
+@media (hover: hover) {
+  :root[data-theme="flow"] .find-btn:hover,
+  :root[data-theme="flow"] .start-nav-btn:hover,
+  :root[data-theme="flow"] .echo-record-btn:hover {
+    box-shadow: 0 0 22px color-mix(in srgb, var(--accent) 45%, transparent), var(--shadow);
+    transition: box-shadow var(--motion-fast) ease;
+  }
+}
+
+/* --- Map surround tint (Flow only) — never touches the Leaflet tiles/labels
+   themselves, only the frame around them, per "the map itself must remain
+   readable." A slow-shifting gradient border, independent of the aurora
+   background behind it. */
+:root[data-theme="flow"] .map-wrap {
+  padding: 3px; border-radius: 25px;
+  background: linear-gradient(135deg, var(--flow-2), var(--flow-5), var(--flow-6), var(--flow-2));
+  background-size: 300% 300%;
+  animation: flow-tint-shift 20s ease-in-out infinite;
+}
+:root[data-theme="flow"] .map-wrap #map { border-radius: 22px; }
+@keyframes flow-tint-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* --- User marker: gentle breathing glow (Flow only), slower/richer than
+   the default --sky pulse already used in Light/Dark. --- */
+:root[data-theme="flow"] .user-dot-inner {
+  background: var(--flow-5);
+  animation: flow-marker-breathe 4.2s ease-in-out infinite;
+}
+@keyframes flow-marker-breathe {
+  0%, 100% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--flow-5) 30%, transparent), 0 0 14px color-mix(in srgb, var(--flow-5) 55%, transparent); }
+  50% { box-shadow: 0 0 0 12px color-mix(in srgb, var(--flow-5) 10%, transparent), 0 0 26px color-mix(in srgb, var(--flow-5) 80%, transparent); }
+}
+
+/* --- Route: slow, subtle shimmer suggesting calm energy toward the
+   destination. Applied via a class app.js toggles on the calm route's
+   rendered SVG path (Leaflet renders polylines as real <path> elements),
+   only while Flow is active. --- */
+.flow-route-glow { animation: flow-route-shimmer 6s ease-in-out infinite; }
+@keyframes flow-route-shimmer {
+  0%, 100% { stroke-opacity: 0.85; filter: drop-shadow(0 0 3px var(--flow-5)); }
+  50% { stroke-opacity: 1; filter: drop-shadow(0 0 10px var(--flow-5)); }
+}
+
+/* --- Calm Echo markers: soft particles / tiny floating lights (Flow only).
+   Two small glowing dots per marker, gentle independent float — kept to
+   two, not a true particle system, per "minimal battery impact." --- */
+:root[data-theme="flow"] .echo-marker-pin { position: relative; }
+:root[data-theme="flow"] .echo-marker-pin::before,
+:root[data-theme="flow"] .echo-marker-pin::after {
+  content: ""; position: absolute; width: 4px; height: 4px; border-radius: 50%;
+  animation: flow-particle-float 5.5s ease-in-out infinite;
+}
+:root[data-theme="flow"] .echo-marker-pin::before {
+  top: -6px; left: 4px; background: var(--flow-6); box-shadow: 0 0 6px var(--flow-6); animation-delay: 0s;
+}
+:root[data-theme="flow"] .echo-marker-pin::after {
+  bottom: -4px; right: 2px; background: var(--flow-5); box-shadow: 0 0 6px var(--flow-5); animation-delay: 2.2s;
+}
+@keyframes flow-particle-float {
+  0%, 100% { transform: translateY(0) scale(1); opacity: 0.85; }
+  50% { transform: translateY(-6px) scale(1.3); opacity: 0.4; }
+}
+:root[data-motion="reduced"] .echo-marker-pin::before,
+:root[data-motion="reduced"] .echo-marker-pin::after {
+  display: none; /* "disable decorative particles" under reduced motion */
+}
+
+/* --- Discovery tap ripple (Flow only) — a one-shot expanding ring, added/
+   removed by app.js on marker tap, positioned at the tapped screen point. --- */
+.flow-tap-ripple {
+  position: fixed; z-index: 40; width: 12px; height: 12px; border-radius: 50%;
+  border: 2px solid var(--flow-6); pointer-events: none; opacity: 0.9;
+  transform: translate(-50%, -50%) scale(1);
+  animation: flow-ripple-expand 0.7s ease-out forwards;
+}
+@keyframes flow-ripple-expand {
+  to { transform: translate(-50%, -50%) scale(8); opacity: 0; }
+}
+
+/* --- Kalimba-reactive glow (Flow only) — one-shot, per-note pulse tying the
+   melody to the ambient scene ("tiny light waves travel through the
+   interface... colours gently shift with the melody... everything remains
+   subtle"). A single fixed overlay whose color/opacity app.js nudges per
+   pluck via `--flow-reactive-tint`, never a continuous per-frame loop — see
+   flowtheme.js's TIMING.reactivePulseMs. --- */
+.flow-reactive-pulse {
+  position: fixed; inset: 0; z-index: 4; pointer-events: none; opacity: 0;
+  background: radial-gradient(circle at 50% 30%, var(--flow-reactive-tint, transparent) 0%, transparent 70%);
+  transition: opacity 0.9s ease-out;
+}
+.flow-reactive-pulse.active { opacity: 0.3; transition: opacity 0.05s ease-in; }
+:root[data-motion="reduced"] .flow-reactive-pulse { display: none; }
 
 /* High contrast mode overrides both themes */
 :root[data-contrast="high"] {

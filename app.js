@@ -6,24 +6,45 @@
   // ---------------------------------------------------------------------
   const root = document.documentElement;
 
-  // "Moon button": toggles the app's existing light/dark theme AND, via
-  // setNightMode() (defined later, in the auditory-regulation section),
-  // calm/night audio behavior — reduced effects intensity, slower fades,
-  // no unnecessarily loud alerts. This does not replace the theme system;
-  // night mode is *derived from* dark theme, not a second independent
-  // toggle, per the fix task's "integrate with it" requirement. setNightMode/
-  // prefs/ambient/audioManager are declared further down in this same file
-  // but this handler only ever runs on a later click, by which point the
-  // whole script has already finished loading — safe to reference here.
-  document.getElementById("themeToggle").addEventListener("click", () => {
-    const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const cur = root.getAttribute("data-theme");
-    const effectiveDark = cur ? cur === "dark" : prefersDark;
-    const goingDark = !effectiveDark;
-    root.setAttribute("data-theme", goingDark ? "dark" : "light");
-    darkModeToggle.checked = goingDark;
+  // Appearance: Light / Dark / Flow. setTheme() is the one place that
+  // actually applies a theme (attribute + persistence + map tiles + the
+  // settings pills + night-mode-derived audio behavior) — the header's
+  // quick-toggle button and the settings sheet's pill row both just call it,
+  // rather than duplicating this logic twice. setNightMode()/refreshMapTheme()
+  // are declared further down in this file but this only ever runs on a
+  // later click/load, by which point the whole script has finished loading.
+  //
+  // Persisted via flowtheme.js's own localStorage key (not prefs.js — theme
+  // is an orthogonal concern from the audio/haptics settings prefs.js owns,
+  // same reasoning as Calm Echoes' creatorToken living outside prefs.js too).
+  // Previously (before Flow Mode) theme was never persisted at all and reset
+  // to system preference on every reload — this fixes that for all three
+  // appearances, not just Flow, since "remember the user's preference" only
+  // makes sense applied uniformly.
+  function setTheme(theme) {
+    if (!FlowTheme.isValidTheme(theme)) return;
+    root.setAttribute("data-theme", theme);
+    FlowTheme.saveTheme(theme);
+    appearanceChips.forEach((chip) => {
+      const active = chip.dataset.appearance === theme;
+      chip.classList.toggle("active", active);
+      chip.setAttribute("aria-pressed", String(active));
+    });
+    const labels = { light: "Switch to dark theme", dark: "Switch to Flow theme", flow: "Switch to light theme" };
+    themeToggleBtn.setAttribute("aria-label", labels[theme] || "Toggle theme");
     refreshMapTheme();
-    setNightMode(goingDark);
+    setNightMode(FlowTheme.usesDarkMapTiles(theme));
+  }
+
+  const themeToggleBtn = document.getElementById("themeToggle");
+  const appearanceChips = Array.from(document.querySelectorAll("#appearanceChips .pill"));
+
+  themeToggleBtn.addEventListener("click", () => {
+    const cur = root.getAttribute("data-theme") || FlowTheme.DEFAULT_THEME;
+    setTheme(FlowTheme.nextTheme(cur));
+  });
+  appearanceChips.forEach((chip) => {
+    chip.addEventListener("click", () => setTheme(chip.dataset.appearance));
   });
 
   const settingsBtn = document.getElementById("settingsBtn");
@@ -66,20 +87,46 @@
 
   const reducedMotionToggle = document.getElementById("reducedMotionToggle");
   const highContrastToggle = document.getElementById("highContrastToggle");
-  const darkModeToggle = document.getElementById("darkModeToggle");
 
   reducedMotionToggle.addEventListener("change", () => {
     root.setAttribute("data-motion", reducedMotionToggle.checked ? "reduced" : "full");
     prefs.set({ audio: { reducedMotion: reducedMotionToggle.checked } });
+    // updateFlowDecorPauseState is defined later in this file (Calm Echoes
+    // section) but is a hoisted function declaration, so it's always safe
+    // to call from an event handler that only ever fires after the whole
+    // script has finished loading — same convention already used for
+    // setNightMode()/refreshMapTheme() referenced earlier than their own
+    // definitions in this same file.
+    if (typeof updateFlowDecorPauseState === "function") updateFlowDecorPauseState();
   });
   highContrastToggle.addEventListener("change", () => {
     root.setAttribute("data-contrast", highContrastToggle.checked ? "high" : "normal");
   });
-  darkModeToggle.addEventListener("change", () => {
-    root.setAttribute("data-theme", darkModeToggle.checked ? "dark" : "light");
-    refreshMapTheme();
-    setNightMode(darkModeToggle.checked);
-  });
+
+  // Apply the persisted theme (or fall back to system preference, exactly
+  // as before Flow Mode existed) once, on load — after setTheme/appearanceChips
+  // above are defined but before the map below reads isDark() for its
+  // initial tile choice.
+  (function initTheme() {
+    const stored = FlowTheme.loadStoredTheme();
+    if (stored) {
+      setTheme(stored);
+    } else {
+      const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      appearanceChips.forEach((chip) => {
+        const active = chip.dataset.appearance === (prefersDark ? "dark" : "light");
+        chip.classList.toggle("active", active);
+        chip.setAttribute("aria-pressed", String(active));
+      });
+      // Deliberately does NOT call setTheme()/set a data-theme attribute here:
+      // the existing @media(prefers-color-scheme) CSS block already renders
+      // the right colors with no attribute set at all, and setting one now
+      // would stop this app from following a LATER OS-level theme change —
+      // exactly the same "no attribute = follow the system live" behavior
+      // this app had before Flow Mode, preserved for anyone who's never
+      // touched the appearance picker.
+    }
+  })();
 
   // ---------------------------------------------------------------------
   // Map (Leaflet + CARTO tiles, built on OpenStreetMap data)
@@ -93,7 +140,10 @@
   // fallback for switching pages from directly on top of the map.
   const isDark = () => {
     const t = root.getAttribute("data-theme");
-    return t ? t === "dark" : (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    // Flow uses the dark CARTO tileset too (see flowtheme.js's usesDarkMapTiles
+    // for why: a night-sky base is what the aurora-style overlay is designed
+    // to sit on top of).
+    return t ? FlowTheme.usesDarkMapTiles(t) : (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
   };
   const map = L.map("map", { zoomControl: false, attributionControl: false }).setView(
     [CONFIG.DEFAULT_START.lat, CONFIG.DEFAULT_START.lon], 14
@@ -131,6 +181,13 @@
 
     fastLine = L.polyline(fastLatLngs, { color: getVar("--busy"), weight: 3, opacity: 0.55, dashArray: "5,7" }).addTo(map);
     calmLine = L.polyline(calmLatLngs, { color: getVar("--calm"), weight: 5, opacity: 0.95 }).addTo(map);
+    // Flow Mode's "route slowly shimmers, suggesting calm energy flowing
+    // toward the destination" — a CSS animation class on the calm route's
+    // real rendered <path> element (Leaflet's SVG renderer), applied only
+    // while Flow is active so Light/Dark keep the exact same static line.
+    if (FlowTheme.isFlowActive(root.getAttribute("data-theme")) && calmLine.getElement()) {
+      calmLine.getElement().classList.add("flow-route-glow");
+    }
 
     startMarker = L.marker([start.lat, start.lon], { icon: makePinIcon(getVar("--calm")) }).addTo(map);
     endMarker = L.marker([end.lat, end.lon], { icon: makePinIcon(getVar("--accent")) }).addTo(map);
@@ -1540,7 +1597,62 @@
   // disclosed battery tradeoff chosen over coupling two independent concerns.
   // ---------------------------------------------------------------------
   const kalimbaEngine = new KalimbaEngine(audioManager);
-  const echoRecorder = new EchoRecorder({ engine: kalimbaEngine, audioManager, hapticManager });
+  const echoRecorder = new EchoRecorder({
+    engine: kalimbaEngine, audioManager, hapticManager,
+    onNote: (tineIndex) => triggerFlowReactivePulse(tineIndex),
+  });
+
+  // Flow Mode's Kalimba reactivity: "tiny light waves travel through the
+  // interface... colours gently shift with the melody... everything remains
+  // subtle." One shared fixed overlay (#flowReactivePulse), nudged per note
+  // via a CSS custom property + a class toggle — a single cheap transition,
+  // never a continuous requestAnimationFrame loop, so this costs nothing
+  // when idle and very little even during a fast sweep across the tines.
+  // No-ops entirely outside Flow Mode and under reduced motion (the element
+  // is display:none there — see style.css).
+  // Performance: "pause decorative animations when battery saver is enabled
+  // [or] the app is backgrounded." Battery state uses the exact same
+  // honest-limitation pattern as hapticmanager.js's own battery check — the
+  // Battery Status API is gone from Chrome and was never in Safari, so this
+  // real code activates on the shrinking set of browsers that still expose
+  // it and is simply inert everywhere else (a platform gap, not a bug).
+  // Deliberately NOT gated on navigation state — see FLOW_MODE.md for why
+  // "pause outside active navigation" was interpreted as inapplicable here.
+  let flowBatterySaver = false;
+  if (typeof navigator !== "undefined" && typeof navigator.getBattery === "function") {
+    navigator.getBattery().then((battery) => {
+      const update = () => {
+        flowBatterySaver = battery.level <= 0.2 && !battery.charging;
+        updateFlowDecorPauseState();
+      };
+      update();
+      battery.addEventListener("levelchange", update);
+      battery.addEventListener("chargingchange", update);
+    }).catch(() => {});
+  }
+  function updateFlowDecorPauseState() {
+    const shouldAnimate = FlowTheme.shouldAnimateFlowDecor({
+      reducedMotion: root.getAttribute("data-motion") === "reduced",
+      batterySaver: flowBatterySaver,
+      backgrounded: typeof document !== "undefined" && document.hidden,
+    });
+    root.setAttribute("data-flow-decor", shouldAnimate ? "running" : "paused");
+  }
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", updateFlowDecorPauseState);
+  }
+  updateFlowDecorPauseState();
+
+  const flowReactivePulseEl = document.getElementById("flowReactivePulse");
+  function triggerFlowReactivePulse(tineIndex) {
+    if (!FlowTheme.isFlowActive(root.getAttribute("data-theme"))) return;
+    flowReactivePulseEl.style.setProperty("--flow-reactive-tint", FlowTheme.paletteColorForTine(tineIndex));
+    flowReactivePulseEl.classList.remove("active");
+    // Force a reflow so re-adding the class restarts the fade-in transition
+    // even if the previous pulse hasn't finished fading out yet.
+    void flowReactivePulseEl.offsetWidth;
+    flowReactivePulseEl.classList.add("active");
+  }
 
   // A random, per-device pseudonymous identifier — generated here, hashed
   // server-side on arrival, and never itself sent anywhere but this app's own
@@ -1601,11 +1713,27 @@
       });
       L.marker([cluster.lat, cluster.lon], { icon, keyboard: false })
         .addTo(echoMarkersLayer)
-        .on("click", () => {
+        .on("click", (e) => {
+          if (FlowTheme.isFlowActive(root.getAttribute("data-theme")) && e.originalEvent) {
+            spawnFlowTapRipple(e.originalEvent.clientX, e.originalEvent.clientY);
+          }
           if (isCluster) { map.setView([cluster.lat, cluster.lon], Math.min(19, map.getZoom() + 2)); return; }
           openEchoDetail(cluster.echoes[0]);
         });
     });
+  }
+
+  // Flow Mode: "when tapped, a small ripple expands." One-shot, removed
+  // after its own animation ends — never accumulates DOM nodes even if a
+  // person taps many markers in a row.
+  function spawnFlowTapRipple(clientX, clientY) {
+    const ripple = document.createElement("div");
+    ripple.className = "flow-tap-ripple";
+    ripple.style.left = `${clientX}px`;
+    ripple.style.top = `${clientY}px`;
+    ripple.setAttribute("aria-hidden", "true");
+    document.body.appendChild(ripple);
+    ripple.addEventListener("animationend", () => ripple.remove());
   }
 
   async function fetchNearbyEchoes(lat, lon) {
@@ -1674,6 +1802,7 @@
     onPluck: (tineIndex, velocity) => {
       if (echoRecorder.state.phase === "recording") echoRecorder.registerPluck(tineIndex, velocity);
       flashTineButton(tineIndex);
+      triggerFlowReactivePulse(tineIndex);
     },
   });
 
@@ -1692,6 +1821,7 @@
       if (hapticManager) hapticManager.vibratePulse(12);
       if (echoRecorder.state.phase === "recording") echoRecorder.registerPluck(tineIndex, velocity);
       flashTineButton(tineIndex);
+      triggerFlowReactivePulse(tineIndex);
     });
   });
 
