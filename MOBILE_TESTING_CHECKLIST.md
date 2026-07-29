@@ -42,7 +42,7 @@
 
 ## Build and verification (can be run without a physical device)
 
-1. `npm test` — all 119 existing + new tests should pass.
+1. `npm test` — all 257 existing + new tests should pass.
 2. `npm run build:web` — should print a file count with no errors, and its own secret-scan should not abort.
 3. `npm run build:plugin` (`tsc --noEmit` equivalent) — should report zero TypeScript errors.
 4. `npx cap sync` — should complete without errors and report the `calm-nav-background` plugin found for both platforms.

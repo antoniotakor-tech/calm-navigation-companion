@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Calm Companion</string>
+    <string name="title_activity_main">Calm Companion</string>
+    <string name="package_name">com.calmnav.companion</string>
+    <string name="custom_url_scheme">com.calmnav.companion</string>
+</resources>

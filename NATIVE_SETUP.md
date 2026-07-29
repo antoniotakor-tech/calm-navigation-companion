@@ -72,19 +72,22 @@ npx cap open android           # opens Android Studio
 
 ## What was verified in this environment vs. what still needs a real Mac with Xcode/Android Studio
 
+**Re-verified 2026-07-29**, after `plugins/calm-nav-background/` was lost in an unrelated data-loss incident and rebuilt from scratch against this same document (see IOS_/ANDROID_BACKGROUND_NAVIGATION.md's own "Rebuilt" notes) — the checks below were re-run against the rebuilt source, not assumed to still hold:
+
 Verified here (no Xcode/Android SDK required for these):
 - `npx cap add ios` / `npx cap add android` completed successfully; both platforms build a valid project structure.
-- The custom plugin is correctly linked into both: confirmed present in `ios/App/CapApp-SPM/Package.swift` and `android/capacitor.settings.gradle`/`android/app/capacitor.build.gradle`.
-- The plugin's TypeScript (`plugins/calm-nav-background/src/*.ts`) compiles cleanly (`tsc --noEmit`, zero errors).
+- The custom plugin is correctly linked into both: confirmed present in `ios/App/CapApp-SPM/Package.swift` (`.package(name: "CalmNavBackground", path: "../../../plugins/calm-nav-background")`) and `android/capacitor.settings.gradle`/`android/app/capacitor.build.gradle` (`include ':calm-nav-background'` / `implementation project(':calm-nav-background')`).
+- The plugin's TypeScript (`plugins/calm-nav-background/src/*.ts`) compiles cleanly (`tsc --noEmit`, exit code 0, zero errors) and builds (`tsc`, `dist/esm/*.js` generated).
 - No API secret appears anywhere under `ios/`, `android/`, `www/`, or `plugins/` (grepped for the key pattern and for any copy of `.dev.vars`).
-- All 119 `node --test` unit tests pass, including the new shared-logic tests.
-- App icons and splash screens were generated for both platforms from the existing `icon-512.png` via `@capacitor/assets` — **note: 512×512 is below Apple's recommended 1024×1024 source for the App Store marketing icon; regenerate from a higher-resolution source (`assets/icon.png`) before a real App Store submission, or the icon will look soft.**
+- All 257 `node --test` unit tests pass (up from 119 at the last check — this project has grown substantially since; none of that growth touches the native plugin, which has no JS unit tests of its own since it's Swift/Kotlin).
+- App icons and splash screens were regenerated for both platforms from `assets/icon.png` via `@capacitor/assets` — **note: still 512×512, below Apple's recommended 1024×1024 source for the App Store marketing icon; same disclosed gap as before, not newly introduced. Regenerate from a higher-resolution source before a real App Store submission or the icon will look soft.**
 
 **Not verified — genuinely requires Xcode/Android Studio + a physical device, none of which exist in this authoring environment:**
 - Whether `ios/` actually compiles in Xcode (`xcodebuild` here fails immediately: *"active developer directory ... is a command line tools instance"* — full Xcode isn't installed).
 - Whether `android/` actually compiles with Gradle (`./gradlew tasks` here fails immediately: *"Unable to locate a Java Runtime"* — no JDK installed).
 - Whether the app runs at all on a simulator/emulator or physical device.
 - Whether locked-screen GPS and locked-screen audio genuinely work — **this is the core claim of the whole feature, and it has only been implemented and statically reviewed, never run.** See MOBILE_TESTING_CHECKLIST.md for the exact steps to verify this yourself, which you must do before trusting this on a real trip.
+- Everything in the newest feature request's own testing list (screen lock + walk + unlock, incoming call, Bluetooth connect/disconnect, Wi-Fi/cellular switch, GPS loss/regain, backgrounding/foregrounding, app restart mid-navigation) — these are exactly the scenarios `MOBILE_TESTING_CHECKLIST.md` already lists as required manual verification, none of which a Mac without Xcode can exercise even on the iOS Simulator (no real GPS radio, no real Bluetooth, no real cellular modem, and background execution/suspension behaves differently in Simulator than on a physical device under real memory pressure).
 
 ## Environment / configuration
 

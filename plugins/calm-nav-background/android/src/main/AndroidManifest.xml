@@ -1,0 +1,26 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Foreground location: standard runtime-requested permission,
+         staged per ANDROID_BACKGROUND_NAVIGATION.md (foreground only, on
+         first navigation start). -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Android 10+ only; requested separately and later, only if the user
+         checks "keep navigating when locked" — never on first launch. -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <!-- Required to start/run a foreground service at all (Android 9+). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- Android 14+ requires a type-specific foreground-service permission
+         matching the service's own android:foregroundServiceType below. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <!-- Android 13+: needed to show the persistent navigation notification;
+         requested just-in-time, immediately before the service starts. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+    <application>
+        <service
+            android:name="com.calmnav.background.NavigationForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+    </application>
+</manifest>
