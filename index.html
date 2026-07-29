@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>Calm Navigation Companion</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1E2A1F">
@@ -108,19 +108,34 @@
         <div class="map-wrap" id="mapWrap">
           <div id="map"></div>
           <div class="sim-badge" id="simBadge" style="display:none;">SIMULATED GPS — not real location</div>
-          <div class="nav-banner" id="navBanner" style="display:none;">
-            <span class="nav-banner-icon" id="navIcon">↑</span>
-            <div class="nav-banner-text">
-              <div class="nav-banner-dist" id="navDist">—</div>
-              <div class="nav-banner-instr" id="navInstr">—</div>
+
+          <!-- Top card: next manoeuvre, distance, street name, ETA/arrival
+               time — nothing else, per the "keep it compact" requirement.
+               Never auto-hidden (see app.js's smart-controls timer, which
+               only ever touches #navBottom) — this is the one thing that
+               must always stay visible while walking. -->
+          <div class="nav-top-card" id="navBanner">
+            <div class="nav-maneuver-row">
+              <span class="nav-banner-icon" id="navIcon" aria-hidden="true">↑</span>
+              <div class="nav-banner-text">
+                <div class="nav-banner-dist" id="navDist">—</div>
+                <!-- aria-live so VoiceOver/TalkBack users hear a new
+                     manoeuvre the moment it changes, even with the (opt-in,
+                     off-by-default) spoken voice guidance muted — screen
+                     readers only announce on an actual content change, so
+                     this stays quiet between fixes where the text is
+                     unchanged rather than re-announcing every GPS update. -->
+                <div class="nav-banner-instr" id="navInstr" aria-live="polite">—</div>
+                <div class="nav-banner-street" id="navStreet" aria-live="polite"></div>
+              </div>
             </div>
-            <button class="nav-mute-btn" id="navMuteBtn" aria-label="Toggle voice guidance" title="Voice guidance">
-              <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path id="navMuteWave" d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>
-            </button>
+            <div class="nav-top-meta">
+              <span id="navEta">—</span>
+              <span class="nav-top-meta-sep" aria-hidden="true">·</span>
+              <span id="navArrivalClock">—</span>
+            </div>
           </div>
-          <button class="recenter-btn" id="recenterBtn" style="display:none;" aria-label="Recenter map on my location">
-            <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
-          </button>
+
           <div class="nav-caption" id="navCaption" style="display:none;"></div>
 
           <!-- Calm Echoes: exploration progress / unlock CTA. Text-only and
@@ -136,10 +151,28 @@
                "Someone discovered your Calm Echo.", and save confirmations
                all reuse this one element rather than three near-identical ones. -->
           <div class="echo-toast" id="echoToast" role="status" aria-live="polite" style="display:none;"></div>
-          <div class="nav-bottom" id="navBottom" style="display:none;">
-            <div class="nav-eta" id="navEta">—</div>
-            <button class="nav-end-btn" id="navEndBtn">End</button>
+
+          <!-- Bottom card: exactly the 5 controls the spec calls for, and
+               nothing else. Auto-hidden after idle walking, tap-to-reveal —
+               see app.js's smart-controls section. -->
+          <div class="nav-controls-card" id="navBottom">
+            <button class="nav-control-btn" id="navEndBtn" aria-label="Stop navigation" title="Stop navigation">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+            </button>
+            <button class="nav-control-btn" id="navMuteBtn" aria-label="Toggle voice guidance" title="Voice guidance">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path id="navMuteWave" d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>
+            </button>
+            <button class="nav-control-btn" id="navHapticBtn" aria-label="Toggle haptic feedback" title="Haptic feedback">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M9 12a3 3 0 1 1 6 0v3a3 3 0 0 1-6 0z"/><path d="M9 12V7a3 3 0 0 1 6 0v5"/></svg>
+            </button>
+            <button class="nav-control-btn" id="recenterBtn" aria-label="Recenter map on my location" title="Recenter">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+            </button>
+            <button class="nav-control-btn" id="navSettingsBtn" aria-label="Settings" title="Settings">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.2a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.2a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.2a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.2a1.7 1.7 0 0 0-1.4 1z"/></svg>
+            </button>
           </div>
+
           <div class="nav-arrived" id="navArrived" style="display:none;">
             <div class="arrived-icon">🏁</div>
             <div class="arrived-title">You've arrived</div>

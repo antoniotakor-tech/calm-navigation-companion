@@ -75,6 +75,56 @@
     return (toDeg(Math.atan2(y, x)) + 360) % 360;
   }
 
+  // ---- Camera / user-marker intelligence (pure math; app.js does the
+  // actual DOM/Leaflet tweening on top of these) ----------------------------
+
+  // Linear interpolation between two fixes, t in 0..1 (clamped). Consecutive
+  // GPS fixes on foot/bike are only ever a few metres to a few tens of
+  // metres apart, where straight-line and great-circle interpolation are
+  // indistinguishable — this is what lets the on-screen marker glide
+  // smoothly between fixes instead of teleporting from one to the next.
+  function lerpLatLon(lat1, lon1, lat2, lon2, t) {
+    const clamped = Math.max(0, Math.min(1, t));
+    return { lat: lat1 + (lat2 - lat1) * clamped, lon: lon1 + (lon2 - lon1) * clamped };
+  }
+
+  // Exponential smoothing over a circular quantity (compass heading),
+  // handling the 0/360 wraparound correctly by smoothing the shortest
+  // signed delta rather than the raw values — smoothing 355° toward 5°
+  // naively would otherwise swing the marker the long way around through
+  // 180°. `factor` (0..1) is how much of the NEW reading to blend in; a
+  // smaller factor means calmer, more heavily-filtered rotation (less
+  // jitter from noisy compass/movement-derived bearings) at the cost of
+  // slower response to a genuine turn.
+  function smoothHeading(prevHeadingDeg, newHeadingDeg, factor) {
+    if (newHeadingDeg == null) return prevHeadingDeg == null ? null : prevHeadingDeg;
+    if (prevHeadingDeg == null) return newHeadingDeg;
+    const f = Math.max(0, Math.min(1, factor == null ? 0.35 : factor));
+    let delta = newHeadingDeg - prevHeadingDeg;
+    while (delta > 180) delta -= 360;
+    while (delta < -180) delta += 360;
+    return (prevHeadingDeg + delta * f + 360) % 360;
+  }
+
+  // Standard "destination point given start, bearing, distance" spherical
+  // formula — used for the camera's walking/cycling look-ahead (biasing the
+  // map center a little ahead of the user's real position, in the direction
+  // of travel, so more of what's coming up is visible instead of the user
+  // dot sitting dead-center).
+  function destinationPoint(lat, lon, headingDeg, distanceM) {
+    const R = 6371000;
+    const delta = distanceM / R;
+    const theta = toRad(headingDeg);
+    const phi1 = toRad(lat);
+    const lambda1 = toRad(lon);
+    const phi2 = Math.asin(Math.sin(phi1) * Math.cos(delta) + Math.cos(phi1) * Math.sin(delta) * Math.cos(theta));
+    const lambda2 = lambda1 + Math.atan2(
+      Math.sin(theta) * Math.sin(delta) * Math.cos(phi1),
+      Math.cos(delta) - Math.sin(phi1) * Math.sin(phi2)
+    );
+    return { lat: toDeg(phi2), lon: ((toDeg(lambda2) + 540) % 360) - 180 };
+  }
+
   // Nearest distance from (lat,lon) to any vertex of the route's coordinate
   // array. An approximation of true point-to-segment distance, but at the
   // point density GraphHopper returns for a walking/biking route this is
@@ -237,6 +287,9 @@
     CALM_ROAD_CLASSES,
     haversineM,
     bearingDeg,
+    lerpLatLon,
+    smoothHeading,
+    destinationPoint,
     nearestRouteDistanceM,
     nearestRouteIndex,
     roadClassAt,

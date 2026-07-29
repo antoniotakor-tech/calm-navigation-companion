@@ -13,6 +13,22 @@
   --busy: #FFC84D;
   --sky: #7FCCEA;
   --shadow: 0 2px 4px rgba(43,58,42,0.08), 0 14px 30px rgba(43,58,42,0.10);
+  /* ---- Formal design-system aliases ----
+     Semantic names for a small existing palette, not a second parallel one:
+     Primary=accent, Secondary=sky, Success=calm, Warning=busy — each of
+     those already has real, tested usage throughout this file. Danger is
+     genuinely new (the error banner previously used hardcoded hex with no
+     variable at all); Glass/Border formalize patterns (translucent card
+     backgrounds, the --line border color) that were already repeated
+     inline in several places. */
+  --secondary: var(--sky);
+  --success: var(--calm);
+  --warning: var(--busy);
+  --danger: #E0492F;
+  --danger-bg: #FBE3DC;
+  --danger-ink: #7A2E1A;
+  --glass: color-mix(in srgb, var(--surface) 88%, transparent);
+  --border: var(--line);
   --motion-fast: 0.2s;
   --motion-slow: 0.45s;
   --squish: cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -39,6 +55,9 @@
   --busy: #FFD873;
   --sky: #8FD9F2;
   --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 18px 36px rgba(0,0,0,0.4);
+  --secondary: var(--sky); --success: var(--calm); --warning: var(--busy);
+  --danger: #FF6B4A; --danger-bg: #3A241D; --danger-ink: #FFC7B0;
+  --glass: color-mix(in srgb, var(--surface) 82%, transparent); --border: var(--line);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]):not([data-theme="flow"]) {
@@ -46,6 +65,9 @@
     --ink-soft: #C9D4BE; --muted: #8FA083; --line: #3A4A34; --accent: #FF9270;
     --accent-ink: #1E2A1F; --calm: #8FCB8A; --calm-soft: #33472F; --busy: #FFD873; --sky: #8FD9F2;
     --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 18px 36px rgba(0,0,0,0.4);
+    --secondary: #8FD9F2; --success: #8FCB8A; --warning: #FFD873;
+    --danger: #FF6B4A; --danger-bg: #3A241D; --danger-ink: #FFC7B0;
+    --glass: color-mix(in srgb, #263323 82%, transparent); --border: #3A4A34;
   }
 }
 
@@ -87,6 +109,9 @@
   --flow-6: #E8C170;
   --flow-7: #E38FB0;
   --flow-glass-blur: 20px;
+  --secondary: #7FE0EA; --success: #3FD1D9; --warning: #E38FB0;
+  --danger: #FF6B81; --danger-bg: rgba(58, 20, 30, 0.85); --danger-ink: #FFC7D6;
+  --glass: color-mix(in srgb, var(--surface) 88%, transparent); --border: var(--line);
 }
 :root[data-theme="flow"][data-contrast="high"] {
   /* A themed wood-gradient/glass look isn't a high-contrast-safe visual —
@@ -97,6 +122,9 @@
   --ink-soft: #FFFFFF; --muted: #DDDDDD; --line: #FFFFFF; --accent: #FFD873;
   --accent-ink: #000000; --calm: #5FE0BE; --calm-soft: #000000; --busy: #FFC96B;
   --shadow: none;
+  --secondary: #5FE0BE; --success: #5FE0BE; --warning: #FFC96B;
+  --danger: #FF8A70; --danger-bg: #000000; --danger-ink: #FFFFFF;
+  --glass: #000000; --border: #FFFFFF;
 }
 
 /* --- Animated aurora background (Flow only) ---
@@ -282,11 +310,17 @@
   --ink-soft: #000000; --muted: #333333; --line: #000000; --accent: #B3400A;
   --accent-ink: #FFFFFF; --calm: #0B5E48; --calm-soft: #FFFFFF; --busy: #8A5A00;
   --shadow: none;
+  --secondary: #0B5E48; --success: #0B5E48; --warning: #8A5A00;
+  --danger: #B3400A; --danger-bg: #FFFFFF; --danger-ink: #000000;
+  --glass: #FFFFFF; --border: #000000;
 }
 :root[data-theme="dark"][data-contrast="high"] {
   --bg: #000000; --surface: #000000; --surface-2: #000000; --ink: #FFFFFF;
   --ink-soft: #FFFFFF; --muted: #DDDDDD; --line: #FFFFFF; --accent: #FF8A50;
   --accent-ink: #000000; --calm: #5FE0BE; --calm-soft: #000000; --busy: #FFC96B;
+  --secondary: #5FE0BE; --success: #5FE0BE; --warning: #FFC96B;
+  --danger: #FF8A70; --danger-bg: #000000; --danger-ink: #FFFFFF;
+  --glass: #000000; --border: #FFFFFF;
 }
 :root[data-contrast="high"] .tool-card,
 :root[data-contrast="high"] .pill,
@@ -297,6 +331,25 @@
 :root[data-contrast="high"] {
   --kalimba-wood-1: var(--surface); --kalimba-wood-2: var(--surface);
   --kalimba-tine-1: var(--ink); --kalimba-tine-2: var(--ink);
+}
+
+/* Reduced transparency: High Contrast already sets --glass to a fully
+   opaque color per theme above, but the blur filter itself is still
+   pointless (and non-zero-cost) work on top of an opaque layer — turned
+   off outright. `prefers-reduced-transparency` (Safari/Chromium, newer)
+   gets the same treatment for anyone who prefers less see-through UI
+   without necessarily wanting full high-contrast colors too. */
+:root[data-contrast="high"] .nav-top-card,
+:root[data-contrast="high"] .nav-controls-card,
+:root[data-contrast="high"] .tool-card,
+:root[data-contrast="high"] .kalimba-wrap,
+:root[data-contrast="high"] .ac-list,
+:root[data-contrast="high"] .icon-btn { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+@media (prefers-reduced-transparency: reduce) {
+  .nav-top-card, .nav-controls-card, .tool-card, .kalimba-wrap, .ac-list, .icon-btn {
+    backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+    background: var(--surface) !important;
+  }
 }
 
 * { box-sizing: border-box; }
@@ -322,7 +375,13 @@ body {
   display: flex; flex-direction: column;
 }
 
-header.top { display: flex; align-items: flex-start; justify-content: space-between; padding: 18px 18px 4px; flex-shrink: 0; }
+header.top {
+  display: flex; align-items: flex-start; justify-content: space-between; flex-shrink: 0;
+  padding: 18px 18px 4px;
+  padding-top: calc(18px + env(safe-area-inset-top, 0px));
+  padding-left: calc(18px + env(safe-area-inset-left, 0px));
+  padding-right: calc(18px + env(safe-area-inset-right, 0px));
+}
 header.top h1 { font-size: 23px; margin: 0; }
 header.top .tagline { font-size: 12px; color: var(--muted); margin-top: 2px; font-weight: 600; }
 .top-actions { display: flex; gap: 8px; }
@@ -430,7 +489,13 @@ button:focus-visible, [tabindex]:focus-visible, input:focus-visible { outline: 2
 @keyframes leaf-sway { 0%, 100% { transform: rotate(-18deg); } 50% { transform: rotate(18deg); } }
 
 /* --- Map --- */
-.map-wrap { position: relative; margin: 10px 0; transition: height var(--motion-slow) ease; }
+/* Explicit height (matching #map's own base height, not `auto`) so this
+   actually has a real, resolvable start point to transition from — CSS
+   cannot animate to/from `auto`, so without this, entering/leaving
+   full-screen nav mode never fires a `transitionend` at all, silently
+   defeating waitForMapResizeThenInvalidate() in app.js and leaving Leaflet's
+   tile grid permanently sized for the wrong viewport. */
+.map-wrap { position: relative; height: 190px; margin: 10px 0; transition: height var(--motion-slow) ease; }
 /* z-index:0 (not just position:relative) is load-bearing: it makes #map
    establish its own stacking context, containing Leaflet's internal panes
    (tile/marker/popup/control panes go up to z-index 1000 in leaflet.css)
@@ -473,37 +538,92 @@ button:focus-visible, [tabindex]:focus-visible, input:focus-visible { outline: 2
 .start-nav-btn svg { width: 17px; height: 17px; stroke: currentColor; }
 .start-nav-btn:active { transform: scale(0.96) translateY(1px); box-shadow: 0 2px 0 rgba(0,0,0,0.14), var(--shadow); }
 
-.nav-banner {
-  position: absolute; top: 10px; left: 10px; right: 10px; z-index: 20;
-  background: var(--surface); border-radius: 20px; box-shadow: var(--shadow);
-  padding: 12px 14px; display: flex; align-items: center; gap: 12px;
+/* ==========================================================================
+   Navigation mode — map-first, full-screen, floating glass cards.
+   The map is the application: everything else floats above it in two
+   compact cards (top = information, bottom = controls) rather than the
+   old fixed banners. Both cards use the same --surface/--shadow tokens as
+   every other card in the app, plus a backdrop-filter blur so the map stays
+   visible and legible underneath them ("float above the map rather than
+   covering it") in every theme, not just Flow.
+   ========================================================================== */
+.nav-top-card, .nav-controls-card {
+  display: none;
+  position: absolute; left: 10px; right: 10px; z-index: 20;
+  background: var(--glass);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border); box-shadow: var(--shadow);
+  /* Fading/sliding is how the bottom card auto-hides (see app.js's smart-
+     controls timer) and how both cards ease in when navigation starts —
+     never an abrupt display:none snap. */
+  transition: opacity var(--motion-slow) ease, transform var(--motion-slow) var(--squish);
 }
+.nav-top-card {
+  top: calc(10px + env(safe-area-inset-top, 0px));
+  border-radius: 20px; padding: 12px 14px 10px;
+}
+/* Both cards are only ever shown while navigation is active — driven purely
+   by this ancestor class, not by JS toggling `style.display` (a leftover
+   inline `display: flex` on the top card once fought its own block-stacking
+   layout: with both rows forced into one flex row, the ETA/arrival-time
+   meta row rendered beside the instruction text instead of below it). Higher
+   specificity than the plain `.nav-top-card`/`.nav-controls-card` rules above,
+   so this wins regardless of source order. */
+.page-inner.nav-active .nav-top-card { display: block; }
+.page-inner.nav-active .nav-controls-card { display: flex; }
+.nav-maneuver-row { display: flex; align-items: center; gap: 12px; }
 .nav-banner-icon {
   width: 40px; height: 40px; flex-shrink: 0; border-radius: 50%; background: var(--calm-soft);
   color: var(--calm); display: flex; align-items: center; justify-content: center; font-size: 20px;
 }
 .nav-banner-text { min-width: 0; flex: 1; }
-.nav-banner-dist { font-size: 18px; font-weight: 700; font-family: "Baloo 2", sans-serif; color: var(--calm); }
-.nav-banner-instr { font-size: 12.5px; color: var(--ink-soft); font-weight: 600; line-height: 1.3; }
+.nav-banner-dist { font-size: 19px; font-weight: 700; font-family: "Baloo 2", sans-serif; color: var(--calm); }
+/* Outdoor-visibility pass: the one line a person actually needs while
+   mid-stride reads clearly at a glance — bumped up from 12.5px/600 and
+   given a touch more line-height, sized/weighted independently of the
+   street-name sub-line so the hierarchy (instruction > street) stays clear
+   even in direct sunlight on a small phone screen. */
+.nav-banner-instr { font-size: 15px; color: var(--ink); font-weight: 700; line-height: 1.3; }
+.nav-banner-street { font-size: 11.5px; color: var(--ink-soft); font-weight: 600; margin-top: 1px; }
+.nav-top-meta {
+  margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line);
+  display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--ink-soft);
+}
+.nav-top-meta-sep { color: var(--muted); }
 
 .nav-caption {
-  position: absolute; bottom: 68px; left: 10px; right: 10px; z-index: 21;
+  position: absolute; bottom: calc(78px + env(safe-area-inset-bottom, 0px)); left: 10px; right: 10px; z-index: 21;
   background: rgba(0,0,0,0.72); color: #fff; font-size: 12.5px; font-weight: 600;
   padding: 8px 14px; border-radius: 12px; text-align: center; line-height: 1.35;
 }
 
-.nav-bottom {
-  position: absolute; bottom: 10px; left: 10px; right: 10px; z-index: 20;
-  background: var(--surface); border-radius: 999px; box-shadow: var(--shadow);
-  padding: 8px 8px 8px 16px; display: flex; align-items: center; justify-content: space-between;
+/* Exactly 5 controls, evenly spaced, icon-first — "keep it compact,
+   everything else stays hidden." */
+.nav-controls-card {
+  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  border-radius: 999px; padding: 6px; display: flex; align-items: center; justify-content: space-between; gap: 4px;
 }
-.nav-eta { font-size: 12.5px; font-weight: 700; color: var(--ink-soft); }
-.nav-end-btn {
-  background: var(--accent); color: var(--accent-ink); border: none; border-radius: 999px;
-  padding: 9px 18px; font-size: 13px; font-weight: 700; cursor: pointer;
-  transition: transform var(--motion-fast) var(--squish);
+.nav-control-btn {
+  flex: 1 1 0; min-width: 44px; min-height: 44px; border-radius: 50%; background: transparent;
+  border: none; color: var(--ink-soft); display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: transform var(--motion-fast) var(--squish), color var(--motion-fast) ease, background var(--motion-fast) ease;
 }
-.nav-end-btn:active { transform: scale(0.92); }
+.nav-control-btn svg { width: 19px; height: 19px; stroke: currentColor; }
+.nav-control-btn:active { transform: scale(0.86); }
+.nav-control-btn.active { color: var(--calm); background: var(--calm-soft); }
+.nav-control-btn.muted #navMuteWave { display: none; }
+/* Stop navigation is the one destructive/ends-the-session control here —
+   given a distinct color so it doesn't blend into four otherwise-identical
+   toggle buttons (visual hierarchy within the controls card itself). */
+#navEndBtn { color: var(--accent); }
+#navEndBtn:active { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+
+/* Smart controls: after idle walking the bottom card fades and lifts
+   slightly out of the way; tapping the map (see app.js) reveals it again.
+   The top card and map are never affected — "never interrupt navigation." */
+.nav-controls-card.nav-controls-hidden {
+  opacity: 0; transform: translateY(8px); pointer-events: none;
+}
 
 .page-inner.nav-active .route-inputs,
 .page-inner.nav-active .find-btn,
@@ -516,8 +636,39 @@ button:focus-visible, [tabindex]:focus-visible, input:focus-visible { outline: 2
 .page-inner.nav-active .route-compare,
 .page-inner.nav-active .steps-panel,
 .page-inner.nav-active #travelModePills { display: none !important; }
-.page-inner.nav-active .map-wrap,
-.page-inner.nav-active #map { height: 62vh; }
+
+/* Full-screen navigation: the map IS the app. header/page-dots/footer are
+   hidden (not removed — swiping away from page-0 while navigating remains
+   technically possible via keyboard, but there is nothing left to swipe TO
+   that isn't hidden the same way) and .page-inner/.map-wrap/#map expand to
+   fill the entire viewport, edge to edge. The map element itself is never
+   destroyed/recreated for this — only its container is resized — which is
+   what keeps "the route remains visible during the transition" true for
+   free, with no special-case animation code needed for the route line
+   itself. `dvh` (not vh) so mobile browser chrome showing/hiding doesn't
+   leave a gap or clip content. */
+.app-shell.nav-fullscreen header.top,
+.app-shell.nav-fullscreen .page-dots,
+.app-shell.nav-fullscreen footer.foot { display: none; }
+.app-shell.nav-fullscreen .pages-wrap,
+.app-shell.nav-fullscreen .page,
+.app-shell.nav-fullscreen .page-inner { height: 100dvh; overflow: hidden; }
+.page-inner.nav-active { padding: 0; }
+/* Reuses the exact transition mechanism that already worked for the old
+   62vh nav height (both .map-wrap and #map already declare
+   `transition: height var(--motion-slow) ease` above) — just raised to a
+   true full-viewport target and with margin/radius removed to reach the
+   real edges. A plain height transition (not flex-basis) is what makes
+   this smoothly interpolate instead of snapping: app.js listens for this
+   transition's `transitionend` before calling map.invalidateSize(), so
+   Leaflet only ever re-tiles once the resize is visually complete, not
+   continuously mid-animation. */
+.page-inner.nav-active .map-wrap { height: 100dvh; margin: 0; }
+/* Absolute value, not 100% — a percentage here would just track
+   .map-wrap's own in-progress transition instead of running its own,
+   independently-resolvable one (see the comment on the base .map-wrap rule
+   above for why that matters for transitionend firing reliably). */
+.page-inner.nav-active #map { height: 100dvh; border-radius: 0; }
 
 /* --- Travel mode + dev simulate row --- */
 #travelModePills { margin: 2px 0 10px; }
@@ -527,46 +678,43 @@ button:focus-visible, [tabindex]:focus-visible, input:focus-visible { outline: 2
   flex-shrink: 0; background: var(--surface-2); color: var(--muted); border: 1px dashed var(--muted);
   border-radius: 999px; padding: 10px 14px; font-size: 11px; font-weight: 700; cursor: pointer;
 }
+/* Dev-only indicator (?simulate=1) — the nav-top-card spans nearly the full
+   width (left:10/right:10), so any top-anchored position still sits behind/
+   over it. Anchored just above the bottom controls card instead, clear of
+   both floating cards regardless of how long the current instruction text
+   or how tall the top card gets. */
 .sim-badge {
-  position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 25;
+  position: absolute; bottom: calc(70px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); z-index: 25;
   background: var(--accent); color: var(--accent-ink); font-size: 10.5px; font-weight: 800;
   letter-spacing: 0.04em; padding: 5px 12px; border-radius: 999px; box-shadow: var(--shadow);
+  white-space: nowrap;
 }
 
-/* --- Error banner (permission denied, GPS unavailable, routing failure, etc.) --- */
+/* --- Error banner (permission denied, GPS unavailable, routing failure, etc.) ---
+   Now themed via the formal --danger/--danger-bg/--danger-ink tokens (see
+   each theme's own root block) instead of hardcoded hex repeated per
+   theme — Flow Mode and High Contrast get a correctly-themed error banner
+   "for free" as a result, where before only Light/Dark had one defined. */
 .error-banner {
-  background: #FBE3DC; border: 1.5px solid var(--accent); color: #7A2E1A; border-radius: 16px;
+  background: var(--danger-bg); border: 1.5px solid var(--danger); color: var(--danger-ink); border-radius: 16px;
   padding: 11px 14px; font-size: 12.5px; font-weight: 600; line-height: 1.4; margin: 8px 0 4px;
 }
-:root[data-theme="dark"] .error-banner { background: #3A241D; color: #FFC7B0; }
-
-/* --- Recenter button --- */
-.recenter-btn {
-  position: absolute; bottom: 78px; right: 10px; z-index: 20; width: 42px; height: 42px;
-  border-radius: 50%; background: var(--surface); border: 1px solid var(--line); color: var(--calm);
-  display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: var(--shadow);
-  transition: transform var(--motion-fast) var(--squish);
-}
-.recenter-btn:active { transform: scale(0.88); }
-.recenter-btn svg { width: 20px; height: 20px; stroke: currentColor; }
-
-/* --- Voice mute toggle inside the nav banner --- */
-.nav-mute-btn {
-  flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%; background: var(--surface-2);
-  border: none; color: var(--ink-soft); display: flex; align-items: center; justify-content: center;
-  cursor: pointer; transition: transform var(--motion-fast) var(--squish), color var(--motion-fast) ease;
-}
-.nav-mute-btn.active { color: var(--calm); background: var(--calm-soft); }
-.nav-mute-btn:active { transform: scale(0.88); }
-.nav-mute-btn svg { width: 17px; height: 17px; stroke: currentColor; }
-.nav-mute-btn.muted #navMuteWave { display: none; }
 
 /* --- Dedicated arrival screen --- */
 .nav-arrived {
   position: absolute; inset: 0; z-index: 1000; background: var(--surface);
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
   border-radius: 22px; text-align: center; padding: 20px;
+  padding-top: calc(20px + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  /* Arrival flourish: a soft scale+fade entrance rather than an instant
+     display:none -> flex snap (app.js adds .visible one frame after
+     setting display:flex, so the transition actually has something to
+     animate from). */
+  opacity: 0; transform: scale(0.96);
+  transition: opacity var(--motion-slow) ease, transform var(--motion-slow) var(--squish);
 }
+.nav-arrived.visible { opacity: 1; transform: scale(1); }
 .arrived-icon { font-size: 40px; margin-bottom: 4px; }
 .arrived-title { font-family: "Baloo 2", sans-serif; font-size: 22px; font-weight: 700; color: var(--calm); }
 .arrived-sub { font-size: 13px; color: var(--muted); font-weight: 600; margin-bottom: 10px; }
@@ -687,7 +835,10 @@ canvas.fidget-canvas { width: 100%; height: 84px; border-radius: 16px; backgroun
 }
 .close-sheet:active { transform: scale(0.96); }
 
-footer.foot { flex-shrink: 0; padding: 6px 18px 10px; text-align: center; font-size: 10px; color: var(--muted); line-height: 1.4; }
+footer.foot {
+  flex-shrink: 0; padding: 6px 18px 10px; text-align: center; font-size: 10px; color: var(--muted); line-height: 1.4;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+}
 
 /* ==========================================================================
    Calm Echoes

@@ -107,7 +107,15 @@
   // as before Flow Mode existed) once, on load — after setTheme/appearanceChips
   // above are defined but before the map below reads isDark() for its
   // initial tile choice.
-  (function initTheme() {
+  // Actually invoked at the very end of this file (see the final
+  // `initTheme();` call) — setTheme() reaches into refreshMapTheme() (needs
+  // `map`/`tileLayer`) and setNightMode() (needs `prefs`, `audioManager`,
+  // and the ambient engines), all declared/constructed later in this same
+  // top-level scope. Calling it from here would hit the const/let temporal
+  // dead zone and throw on every returning visitor who has a persisted
+  // theme, before the rest of the script (route inputs, nav wiring,
+  // everything) ever runs.
+  function initTheme() {
     const stored = FlowTheme.loadStoredTheme();
     if (stored) {
       setTheme(stored);
@@ -126,7 +134,7 @@
       // this app had before Flow Mode, preserved for anyone who's never
       // touched the appearance picker.
     }
-  })();
+  }
 
   // ---------------------------------------------------------------------
   // Map (Leaflet + CARTO tiles, built on OpenStreetMap data)
@@ -156,6 +164,33 @@
   ).addTo(map);
   L.control.attribution({ prefix: false }).addAttribution("&copy; OpenStreetMap contributors &copy; CARTO").addTo(map);
 
+  // Entering/leaving full-screen nav mode resizes #map via a plain CSS
+  // `height` transition (style.css's `.page-inner.nav-active #map` rule) —
+  // smooth and free, but Leaflet's own tile grid doesn't know the resize
+  // happened until told. Calling invalidateSize() repeatedly mid-transition
+  // (e.g. on every animation frame) would work but re-tiles far more than
+  // needed and can visibly stutter; calling it once, right as the CSS
+  // transition finishes, gives a seamless "route stays visible throughout"
+  // resize with a single re-tile. Falls back to a fixed delay matching
+  // --motion-slow if `transitionend` never fires (e.g. reduced-motion
+  // collapses the transition to ~0ms faster than the listener can attach).
+  // Keeps Leaflet's tile grid in sync with .map-wrap's real, observed box
+  // size instead of guessing when a CSS transition has "finished". Timing-
+  // based approaches (transitionend + a delay, even a retry ladder of
+  // several invalidateSize() calls spread across ~1.6s) were confirmed via
+  // repeated manual testing to be flaky — intermittently leaving the tile
+  // grid gray/half-loaded below the fold, evidently because the grid
+  // layer's own tile-fetch pass doesn't reliably "catch up" on any fixed
+  // schedule. A ResizeObserver instead fires on every genuine layout-box
+  // change (every frame of the .map-wrap height transition, plus its final
+  // settled size), so Leaflet is told about the real size continuously
+  // rather than at one guessed moment — this is the standard fix for
+  // Leaflet living inside an animated/CSS-transitioning container. Runs for
+  // the whole app lifetime (not just during nav), which is harmless: an
+  // invalidateSize() call when the size hasn't meaningfully changed is a
+  // cheap no-op.
+  new ResizeObserver(() => map.invalidateSize({ animate: false })).observe(document.querySelector(".map-wrap"));
+
   function refreshMapTheme() {
     map.removeLayer(tileLayer);
     tileLayer = L.tileLayer(
@@ -169,18 +204,61 @@
 
   let calmLine = null, fastLine = null, startMarker = null, endMarker = null;
 
-  function clearRouteLayers() {
-    [calmLine, fastLine, startMarker, endMarker].forEach((l) => { if (l) map.removeLayer(l); });
+  // "Animate route creation/recalculation... no harsh redraws, no
+  // flickering." A reroute fades the OLD layers out (rather than an
+  // instant removal) while the new ones are created and drawn-on beneath —
+  // the two animations overlap in time, which reads as a single continuous
+  // transition rather than a flash-to-black gap. `fadeOutMs` is only ever
+  // passed on a genuine reroute; a first search (no prior layers to fade)
+  // just removes nothing, same as before.
+  function clearRouteLayers(fadeOutMs) {
+    const layers = [calmLine, fastLine, startMarker, endMarker].filter(Boolean);
+    if (fadeOutMs && layers.length) {
+      layers.forEach((l) => {
+        const el = typeof l.getElement === "function" ? l.getElement() : null;
+        if (el) { el.style.transition = `opacity ${fadeOutMs}ms ease`; el.style.opacity = "0"; }
+      });
+      setTimeout(() => layers.forEach((l) => map.removeLayer(l)), fadeOutMs);
+    } else {
+      layers.forEach((l) => map.removeLayer(l));
+    }
     calmLine = fastLine = startMarker = endMarker = null;
   }
 
-  function drawRoute(result, start, end) {
-    clearRouteLayers();
+  // SVG-only "line drawing on" effect (stroke-dasharray/dashoffset) for the
+  // primary calm route — the one line actually in the spec's own visual-
+  // hierarchy priority list. The secondary dashed fastest-route line keeps
+  // its instant appearance: it already uses Leaflet's own `dashArray` style
+  // option for its permanent dashed look, which would otherwise fight this
+  // technique's direct manipulation of the same SVG attribute. No-op
+  // (silently) if the browser ever renders via Canvas instead of SVG,
+  // where `getTotalLength()` doesn't exist on the returned element.
+  function animateRouteDrawOn(polyline, durationMs) {
+    const path = polyline && typeof polyline.getElement === "function" ? polyline.getElement() : null;
+    if (!path || typeof path.getTotalLength !== "function") return;
+    const length = path.getTotalLength();
+    path.style.transition = "none";
+    path.style.strokeDasharray = `${length}`;
+    path.style.strokeDashoffset = `${length}`;
+    // Force a reflow so the browser commits the "fully hidden" starting
+    // state before animating to visible — otherwise the two style writes
+    // in the same tick can get batched and the transition never visibly
+    // starts. Same forced-reflow technique already used for Flow Mode's
+    // reactive pulse.
+    void path.getBoundingClientRect();
+    path.style.transition = `stroke-dashoffset ${durationMs}ms ease-out`;
+    path.style.strokeDashoffset = "0";
+  }
+
+  function drawRoute(result, start, end, options) {
+    const isReroute = !!(options && options.isReroute);
+    clearRouteLayers(isReroute ? 280 : 0);
     const calmLatLngs = result.calm.coordinates.map(([lon, lat]) => [lat, lon]);
     const fastLatLngs = result.fastest.coordinates.map(([lon, lat]) => [lat, lon]);
 
     fastLine = L.polyline(fastLatLngs, { color: getVar("--busy"), weight: 3, opacity: 0.55, dashArray: "5,7" }).addTo(map);
     calmLine = L.polyline(calmLatLngs, { color: getVar("--calm"), weight: 5, opacity: 0.95 }).addTo(map);
+    animateRouteDrawOn(calmLine, isReroute ? 700 : 1000);
     // Flow Mode's "route slowly shimmers, suggesting calm energy flowing
     // toward the destination" — a CSS animation class on the calm route's
     // real rendered <path> element (Leaflet's SVG renderer), applied only
@@ -281,8 +359,12 @@
   const navIcon = document.getElementById("navIcon");
   const navDist = document.getElementById("navDist");
   const navInstr = document.getElementById("navInstr");
+  const navStreet = document.getElementById("navStreet");
   const navEta = document.getElementById("navEta");
+  const navArrivalClock = document.getElementById("navArrivalClock");
   const navEndBtn = document.getElementById("navEndBtn");
+  const navHapticBtn = document.getElementById("navHapticBtn");
+  const navSettingsBtn = document.getElementById("navSettingsBtn");
   const errorBanner = document.getElementById("errorBanner");
   const travelModePills = document.querySelectorAll("#travelModePills .pill");
 
@@ -440,6 +522,14 @@
 
   function fmtMin(ms) { return Math.round(ms / 60000) + " min"; }
   function fmtDist(m) { return m >= 1000 ? (m / 1000).toFixed(1) + " km" : Math.round(m) + " m"; }
+  // Wall-clock arrival time (e.g. "14:32") for the top card's "Arrival time"
+  // field — computed fresh from the current time + remaining duration on
+  // every fix, not tracked as separate state, so it's never stale even if a
+  // fix is missed.
+  function fmtArrivalClock(remainingMs) {
+    const d = new Date(Date.now() + Math.max(0, remainingMs));
+    return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  }
 
   let lastResult = null;
   let selected = "calm";
@@ -632,6 +722,7 @@
   // explicit below.
   // ---------------------------------------------------------------------
   const pageInner0 = document.querySelector("#page-0 .page-inner");
+  const appShellEl = document.querySelector(".app-shell");
   const recenterBtn = document.getElementById("recenterBtn");
   const navMuteBtn = document.getElementById("navMuteBtn");
   const navArrived = document.getElementById("navArrived");
@@ -671,47 +762,167 @@
   let usingSimulatedGps = false;
   let userDotMarker = null;
   let userAccuracyCircle = null;
+  let smoothedHeadingDeg = null;
+  let markerTweenRAF = null;
+  let markerTweenFrom = null;
+  let markerTweenTo = null;
+  let markerTweenStartMs = 0;
+  const MARKER_TWEEN_MS = 450; // matches --motion-slow — camera/marker motion reads as one consistent "speed of calm" with the rest of the app's animation timing
 
+  function cancelMarkerTween() {
+    if (markerTweenRAF != null) { cancelAnimationFrame(markerTweenRAF); markerTweenRAF = null; }
+  }
+  function stepMarkerTween(nowMs) {
+    const t = (nowMs - markerTweenStartMs) / MARKER_TWEEN_MS;
+    const point = NavLogic.lerpLatLon(markerTweenFrom.lat, markerTweenFrom.lon, markerTweenTo.lat, markerTweenTo.lon, t);
+    if (userDotMarker) userDotMarker.setLatLng([point.lat, point.lon]);
+    if (userAccuracyCircle) userAccuracyCircle.setLatLng([point.lat, point.lon]);
+    markerTweenRAF = t < 1 ? requestAnimationFrame(stepMarkerTween) : null;
+  }
+
+  // The user-location marker "should feel alive": smoothly interpolated
+  // between fixes (no teleporting), heading-smoothed (no jitter from noisy
+  // compass/GPS-derived bearings), and its confidence ring reacts to
+  // reported GPS accuracy rather than a fixed radius.
   function updateUserMarker(lat, lon, accuracy, headingDeg) {
-    const latlng = [lat, lon];
     if (!userDotMarker) {
-      userDotMarker = L.marker(latlng, { icon: makeUserDotIcon(), zIndexOffset: 1000 }).addTo(map);
-      userAccuracyCircle = L.circle(latlng, { radius: accuracy || 15, color: getVar("--sky"), fillColor: getVar("--sky"), fillOpacity: 0.12, weight: 1 }).addTo(map);
+      userDotMarker = L.marker([lat, lon], { icon: makeUserDotIcon(), zIndexOffset: 1000 }).addTo(map);
+      userAccuracyCircle = L.circle([lat, lon], { radius: accuracy || 15, color: getVar("--sky"), fillColor: getVar("--sky"), fillOpacity: 0.12, weight: 1 }).addTo(map);
+      smoothedHeadingDeg = headingDeg != null ? headingDeg : null;
     } else {
-      userDotMarker.setLatLng(latlng);
-      userAccuracyCircle.setLatLng(latlng);
+      cancelMarkerTween();
+      const current = userDotMarker.getLatLng();
+      markerTweenFrom = { lat: current.lat, lon: current.lng };
+      markerTweenTo = { lat, lon };
+      markerTweenStartMs = performance.now();
+      markerTweenRAF = requestAnimationFrame(stepMarkerTween);
+      smoothedHeadingDeg = NavLogic.smoothHeading(smoothedHeadingDeg, headingDeg, 0.35);
       userAccuracyCircle.setRadius(accuracy || 15);
     }
     const el = userDotMarker.getElement();
+    const effectiveHeading = smoothedHeadingDeg != null ? smoothedHeadingDeg : headingDeg;
     if (el) {
       const inner = el.querySelector(".user-dot-inner");
-      el.classList.toggle("has-heading", headingDeg != null);
-      if (inner && headingDeg != null) inner.style.transform = `rotate(${headingDeg}deg)`;
+      el.classList.toggle("has-heading", effectiveHeading != null);
+      if (inner && effectiveHeading != null) inner.style.transform = `rotate(${effectiveHeading}deg)`;
     }
+    // "When GPS accuracy decreases, show confidence naturally" — a larger,
+    // more visible ring for a genuinely uncertain fix; a subtle, barely-
+    // there one once accuracy is good, rather than a fixed appearance that
+    // implies the same confidence regardless of what the device actually
+    // reported.
+    if (userAccuracyCircle) {
+      const acc = accuracy || 15;
+      const fillOpacity = acc > 30 ? 0.22 : acc > 15 ? 0.16 : 0.08;
+      userAccuracyCircle.setStyle({ fillOpacity, opacity: Math.min(0.9, fillOpacity * 3) });
+    }
+    return effectiveHeading;
   }
 
   function removeUserMarker() {
+    cancelMarkerTween();
+    smoothedHeadingDeg = null;
     if (userDotMarker) { map.removeLayer(userDotMarker); map.removeLayer(userAccuracyCircle); userDotMarker = null; userAccuracyCircle = null; }
+  }
+
+  // Camera intelligence: walking/cycling look-ahead (bias the visual center
+  // a little ahead of the user, in their direction of travel, once a real
+  // heading exists) + velocity-aware pan duration (a fix that jumped a
+  // real distance gets a slightly longer, smoother pan; a near-stationary
+  // fix settles quickly rather than lingering in an unnecessary animation).
+  // Never fights manual exploration — only ever called while followMode is on.
+  let lastCameraLatLng = null;
+  function panCameraTo(lat, lon, headingDeg) {
+    const lookAheadM = travelMode === "bike" ? 35 : 18;
+    const target = headingDeg != null ? NavLogic.destinationPoint(lat, lon, headingDeg, lookAheadM) : { lat, lon };
+    const movedM = lastCameraLatLng ? NavLogic.haversineM(lastCameraLatLng[0], lastCameraLatLng[1], lat, lon) : 0;
+    const duration = movedM < 3 ? 0.35 : movedM > 25 ? 1.0 : 0.6;
+    lastCameraLatLng = [lat, lon];
+    map.setView([target.lat, target.lon], map.getZoom() < 16 ? 17 : map.getZoom(), { animate: true, duration, easeLinearity: 0.25 });
   }
 
   function renderNavStep(step) {
     if (!step) return;
     navIcon.textContent = signIcon(step.sign);
     navInstr.textContent = step.text;
+    navStreet.textContent = step.streetName || "";
+    navStreet.style.display = step.streetName ? "block" : "none";
   }
 
   function setFollowMode(on) {
     followMode = on;
-    recenterBtn.style.display = on ? "none" : "flex";
+    recenterBtn.classList.toggle("active", !on);
   }
 
   // Only a real user drag should break follow-mode — programmatic
   // map.setView() calls (our own recentering) don't fire 'dragstart'.
-  map.on("dragstart", () => { if (currentState === NavLogic.NavState.NAVIGATING || currentState === NavLogic.NavState.OFF_ROUTE) setFollowMode(false); });
+  map.on("dragstart", () => {
+    if (currentState === NavLogic.NavState.NAVIGATING || currentState === NavLogic.NavState.OFF_ROUTE) {
+      setFollowMode(false);
+      // Auto-return to follow mode after a real user pan/explore, rather
+      // than requiring an explicit recenter tap forever — a common,
+      // expected premium-nav-app pattern ("manual exploration mode,
+      // automatic return to follow mode"). Any further manual interaction
+      // (another drag, a pinch) pushes the return out again via the same
+      // dragstart/zoomstart handlers re-arming this timer.
+      resetAutoReturnToFollowTimer();
+    }
+  });
+  map.on("zoomstart", () => { if (!followMode) resetAutoReturnToFollowTimer(); });
+  let autoReturnToFollowTimer = null;
+  const AUTO_RETURN_TO_FOLLOW_MS = 12000;
+  function resetAutoReturnToFollowTimer() {
+    clearTimeout(autoReturnToFollowTimer);
+    autoReturnToFollowTimer = setTimeout(() => {
+      if (!followMode && (currentState === NavLogic.NavState.NAVIGATING || currentState === NavLogic.NavState.OFF_ROUTE)) {
+        setFollowMode(true);
+        if (lastFixLatLng) map.setView(lastFixLatLng, 17, { animate: true });
+      }
+    }, AUTO_RETURN_TO_FOLLOW_MS);
+  }
   recenterBtn.addEventListener("click", () => {
+    clearTimeout(autoReturnToFollowTimer);
     setFollowMode(true);
     if (lastFixLatLng) map.setView(lastFixLatLng, 17, { animate: true });
   });
+
+  // ---------------------------------------------------------------------
+  // Smart controls: "when the user is actively walking, automatically
+  // minimise controls... if the user taps the screen, reveal hidden
+  // controls... after several seconds of inactivity, fade them away
+  // again... never interrupt navigation." Only the bottom controls card
+  // is ever hidden this way — the top manoeuvre card and the map itself
+  // are never affected, so essential guidance is always on screen.
+  // ---------------------------------------------------------------------
+  const SMART_CONTROLS_IDLE_MS = 6000;
+  let smartControlsTimer = null;
+  function hideSmartControls() {
+    if (currentState === NavLogic.NavState.NAVIGATING || currentState === NavLogic.NavState.OFF_ROUTE) {
+      navBottom.classList.add("nav-controls-hidden");
+    }
+  }
+  function revealSmartControls() {
+    navBottom.classList.remove("nav-controls-hidden");
+  }
+  function resetSmartControlsTimer() {
+    revealSmartControls();
+    clearTimeout(smartControlsTimer);
+    smartControlsTimer = setTimeout(hideSmartControls, SMART_CONTROLS_IDLE_MS);
+  }
+  function clearSmartControlsTimer() {
+    clearTimeout(smartControlsTimer);
+    smartControlsTimer = null;
+  }
+  // Tapping anywhere on the map (not just the controls themselves) reveals
+  // them again and restarts the idle countdown — "if the user taps the
+  // screen, reveal hidden controls."
+  map.getContainer().addEventListener("pointerdown", () => {
+    if (currentState === NavLogic.NavState.NAVIGATING || currentState === NavLogic.NavState.OFF_ROUTE) resetSmartControlsTimer();
+  });
+  // Interacting with a control itself obviously counts as activity too —
+  // otherwise reaching for Mute right as the card fades could tap through
+  // to a half-hidden button.
+  navBottom.addEventListener("pointerdown", () => resetSmartControlsTimer());
 
   navMuteBtn.addEventListener("click", () => {
     voice.setMuted(!voice.muted);
@@ -727,6 +938,28 @@
     }
   });
   navMuteBtn.classList.add("muted"); // voice is opt-in / off by default
+
+  // Quick-access haptic toggle in the nav controls card — mirrors and stays
+  // in sync with the existing global haptics-enabled setting (Haptic
+  // Fidgeting page / prefs.js) rather than being a second, independent
+  // on/off flag; toggling either one updates both. `hapticsEnabledToggle`
+  // is declared later in this file (Pillar 3 section) but this handler only
+  // ever runs on a later click, by which point the whole script has
+  // finished loading — same convention already used elsewhere in this file.
+  navHapticBtn.addEventListener("click", () => {
+    const enabled = !prefs.get().haptics.enabled;
+    prefs.set({ haptics: { enabled } });
+    navHapticBtn.classList.toggle("active", enabled);
+    if (typeof hapticsEnabledToggle !== "undefined") hapticsEnabledToggle.checked = enabled;
+  });
+  navHapticBtn.classList.toggle("active", prefs.get().haptics.enabled);
+
+  // Settings is reachable from the nav controls card too, since the header
+  // (and its own settings button) is hidden in full-screen nav mode.
+  // openSettings() is declared near the very top of this file (a hoisted
+  // function declaration), safe to call from here regardless of definition
+  // order.
+  navSettingsBtn.addEventListener("click", () => openSettings());
 
   // Lock-screen/notification controls (Android's persistent notification,
   // iOS's Now Playing/Control Center commands) — see
@@ -778,7 +1011,9 @@
     if (result.restoreDistToNextManeuver != null) navDist.textContent = fmtDist(result.restoreDistToNextManeuver);
     if (result.restoreDistToDestination != null) {
       const modeSpeedMps = NavLogic.TRAVEL_MODES[travelMode].speedMps;
-      navEta.textContent = fmtMin((result.restoreDistToDestination / modeSpeedMps) * 1000) + " remaining";
+      const remainingMs = (result.restoreDistToDestination / modeSpeedMps) * 1000;
+      navEta.textContent = fmtMin(remainingMs) + " remaining";
+      navArrivalClock.textContent = fmtArrivalClock(remainingMs);
     }
     const route = result.restoreRoute;
     if (route && route.maneuvers && route.maneuvers[result.restoreStepIdx]) {
@@ -803,6 +1038,12 @@
     document.getElementById("arrivedSub").textContent =
       `You reached ${resolvedEnd.label || "your destination"}.`;
     navArrived.style.display = "flex";
+    // Arrival flourish: a soft scale+fade entrance (see style.css's
+    // .nav-arrived/.nav-arrived.visible) rather than an instant snap —
+    // .visible is added a frame later so the browser registers the
+    // opacity:0/scale(0.96) starting state first and actually has
+    // something to transition from.
+    requestAnimationFrame(() => navArrived.classList.add("visible"));
     voice.announceArrival();
     navEffects.playArrival();
     if (typeof feedbackEngine !== "undefined") feedbackEngine.onArrival();
@@ -821,17 +1062,17 @@
     navState = null;
     currentState = NavLogic.NavState.IDLE;
     navRerouting = false;
+    appShellEl.classList.remove("nav-fullscreen");
     pageInner0.classList.remove("nav-active");
-    navBanner.style.display = "none";
-    navBottom.style.display = "none";
+    navBottom.classList.remove("nav-controls-hidden");
+    clearSmartControlsTimer();
     navArrived.style.display = "none";
+    navArrived.classList.remove("visible");
     recenterBtn.style.display = "none";
     startNavBtn.style.display = lastResult ? "flex" : "none";
     removeUserMarker();
     releaseWakeLock();
     if (typeof ambient !== "undefined") ambient.setLevel(1);
-    map.getContainer().style.removeProperty("height");
-    requestAnimationFrame(() => map.invalidateSize());
     if (message) modeNote.textContent = message;
   }
 
@@ -861,7 +1102,7 @@
       NavLogic.resetForNewRoute(navState, freshRoute);
       voice.reset();
       if (typeof feedbackEngine !== "undefined") feedbackEngine.reset();
-      drawRoute(result, newStart, resolvedEnd);
+      drawRoute(result, newStart, resolvedEnd, { isReroute: true });
       renderNavStep(freshRoute.steps && freshRoute.steps[0]);
       currentState = NavLogic.NavState.NAVIGATING;
     } catch (e) {
@@ -882,8 +1123,8 @@
     if (!navState) return;
     const info = NavLogic.processFix(navState, { lat, lon, speedMps: speed, headingDeg: heading });
 
-    updateUserMarker(lat, lon, accuracy, info.heading);
-    if (followMode) map.setView([lat, lon], 17, { animate: true });
+    const effectiveHeading = updateUserMarker(lat, lon, accuracy, info.heading);
+    if (followMode) panCameraTo(lat, lon, effectiveHeading);
 
     if (info.arrived) {
       currentState = NavLogic.NavState.ARRIVED;
@@ -907,7 +1148,9 @@
     renderNavStep(info.step);
     navDist.textContent = fmtDist(info.distToNextManeuver);
     const modeSpeedMps = NavLogic.TRAVEL_MODES[travelMode].speedMps;
-    navEta.textContent = fmtMin((info.distToDestination / modeSpeedMps) * 1000) + " remaining";
+    const remainingMs = (info.distToDestination / modeSpeedMps) * 1000;
+    navEta.textContent = fmtMin(remainingMs) + " remaining";
+    navArrivalClock.textContent = fmtArrivalClock(remainingMs);
     voice.announce(info.stepIdx, info.distToNextManeuver, info.step && info.step.text, info.passedStep);
     if (info.distToNextManeuver <= 40 && info.distToNextManeuver > NavLogic.THRESHOLDS.ARRIVE_STEP_M) navEffects.playTurnTick();
 
@@ -933,8 +1176,8 @@
     if (event.type === "fix" && event.fix) {
       const { lat, lon, accuracyM, headingDeg } = event.fix;
       lastFixLatLng = [lat, lon];
-      updateUserMarker(lat, lon, accuracyM, headingDeg);
-      if (followMode) map.setView([lat, lon], 17, { animate: true });
+      const effectiveHeading = updateUserMarker(lat, lon, accuracyM, headingDeg);
+      if (followMode) panCameraTo(lat, lon, effectiveHeading);
       return;
     }
     if (event.type === "maneuver") {
@@ -942,7 +1185,9 @@
       navInstr.textContent = event.instruction || navInstr.textContent;
       navDist.textContent = fmtDist(event.distToNextManeuver || 0);
       const modeSpeedMps = NavLogic.TRAVEL_MODES[travelMode].speedMps;
-      navEta.textContent = fmtMin(((event.distToDestination || 0) / modeSpeedMps) * 1000) + " remaining";
+      const remainingMs = ((event.distToDestination || 0) / modeSpeedMps) * 1000;
+      navEta.textContent = fmtMin(remainingMs) + " remaining";
+      navArrivalClock.textContent = fmtArrivalClock(remainingMs);
       return;
     }
     if (event.type === "offroute") {
@@ -1001,16 +1246,22 @@
     voice.reset();
     if (typeof feedbackEngine !== "undefined") feedbackEngine.reset();
     setFollowMode(true);
+    lastCameraLatLng = null;
+    appShellEl.classList.add("nav-fullscreen");
     pageInner0.classList.add("nav-active");
-    navBanner.style.display = "flex";
-    navBottom.style.display = "flex";
     navArrived.style.display = "none";
+    navArrived.classList.remove("visible");
     startNavBtn.style.display = "none";
     renderNavStep(route.steps && route.steps[0]);
     navDist.textContent = "Locating…";
     navEta.textContent = "";
-    map.getContainer().style.height = "62vh";
-    requestAnimationFrame(() => map.invalidateSize());
+    navArrivalClock.textContent = "—";
+    // The actual full-screen resize is CSS-driven now (.page-inner.nav-active
+    // .map-wrap/#map — see style.css); the ResizeObserver set up alongside
+    // the map (near its creation, above) keeps Leaflet's tile grid in sync
+    // with .map-wrap's real size throughout and after this transition, no
+    // explicit call needed here.
+    resetSmartControlsTimer();
     requestWakeLock();
 
     if (usingSimulatedGps) {
@@ -2082,4 +2333,11 @@
     map.invalidateSize();
     goToPage(0, false);
   });
+
+  // Applies the persisted (or system-default) appearance now that every
+  // dependency setTheme()/refreshMapTheme()/setNightMode() can reach —
+  // map, tileLayer, prefs, audioManager, the ambient engines — has been
+  // declared above. Must stay the last statement in this file; see
+  // initTheme()'s own definition for why calling it any earlier throws.
+  initTheme();
 })();

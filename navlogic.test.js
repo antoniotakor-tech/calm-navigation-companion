@@ -162,3 +162,67 @@ test("suggestAmbientLevel: an unrecognized/neutral context falls back to the def
   assert.equal(r.level, 0.85);
   assert.equal(r.reason, "default");
 });
+
+test("lerpLatLon: t=0 is the start point, t=1 is the end point, t=0.5 is the midpoint", () => {
+  const start = NavLogic.lerpLatLon(52.36, 4.90, 52.38, 4.92, 0);
+  const end = NavLogic.lerpLatLon(52.36, 4.90, 52.38, 4.92, 1);
+  const mid = NavLogic.lerpLatLon(52.36, 4.90, 52.38, 4.92, 0.5);
+  assert.deepEqual(start, { lat: 52.36, lon: 4.90 });
+  assert.deepEqual(end, { lat: 52.38, lon: 4.92 });
+  assert.ok(Math.abs(mid.lat - 52.37) < 1e-9);
+  assert.ok(Math.abs(mid.lon - 4.91) < 1e-9);
+});
+
+test("lerpLatLon: clamps t outside 0..1 rather than extrapolating past either endpoint", () => {
+  const beforeStart = NavLogic.lerpLatLon(52.36, 4.90, 52.38, 4.92, -0.5);
+  const afterEnd = NavLogic.lerpLatLon(52.36, 4.90, 52.38, 4.92, 1.5);
+  assert.deepEqual(beforeStart, { lat: 52.36, lon: 4.90 });
+  assert.deepEqual(afterEnd, { lat: 52.38, lon: 4.92 });
+});
+
+test("smoothHeading: with no prior heading, the first reading passes through unsmoothed", () => {
+  assert.equal(NavLogic.smoothHeading(null, 90, 0.35), 90);
+});
+
+test("smoothHeading: a missing new reading holds the last smoothed value", () => {
+  assert.equal(NavLogic.smoothHeading(90, null, 0.35), 90);
+  assert.equal(NavLogic.smoothHeading(null, null, 0.35), null);
+});
+
+test("smoothHeading: blends toward the new value by `factor`, not an instant jump", () => {
+  const result = NavLogic.smoothHeading(0, 90, 0.5);
+  assert.ok(Math.abs(result - 45) < 1e-9, `expected ~45 (halfway), got ${result}`);
+});
+
+test("smoothHeading: crosses the 0/360 wraparound the short way, not the long way around", () => {
+  // 350 -> 10 is a 20-degree turn through 0/360, not a 340-degree turn the other way.
+  const result = NavLogic.smoothHeading(350, 10, 0.5);
+  assert.ok(result < 20 || result > 340, `expected the short way across 0/360, got ${result}`);
+  // Specifically should land near 0 (350 + 10 short-way / 2 = 0), not near 180.
+  const distFromZero = Math.min(result, 360 - result);
+  assert.ok(distFromZero < 15, `expected close to 0deg, got ${result}`);
+});
+
+test("destinationPoint: heading 0 (due north) moves lat up, lon unchanged", () => {
+  const dest = NavLogic.destinationPoint(52.37, 4.90, 0, 100);
+  assert.ok(dest.lat > 52.37);
+  assert.ok(Math.abs(dest.lon - 4.90) < 1e-6);
+});
+
+test("destinationPoint: heading 90 (due east) moves lon up, lat essentially unchanged", () => {
+  const dest = NavLogic.destinationPoint(52.37, 4.90, 90, 100);
+  assert.ok(dest.lon > 4.90);
+  assert.ok(Math.abs(dest.lat - 52.37) < 1e-4);
+});
+
+test("destinationPoint: the resulting point is genuinely ~distanceM away from the start, per haversineM", () => {
+  const dest = NavLogic.destinationPoint(52.37, 4.90, 45, 250);
+  const actualDistance = NavLogic.haversineM(52.37, 4.90, dest.lat, dest.lon);
+  assert.ok(Math.abs(actualDistance - 250) < 1, `expected ~250m, got ${actualDistance}`);
+});
+
+test("destinationPoint: zero distance returns (approximately) the same point", () => {
+  const dest = NavLogic.destinationPoint(52.37, 4.90, 123, 0);
+  assert.ok(Math.abs(dest.lat - 52.37) < 1e-9);
+  assert.ok(Math.abs(dest.lon - 4.90) < 1e-9);
+});

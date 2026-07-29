@@ -1,4 +1,8 @@
-// v1 -> v2 (2026-07-28, Calm Echoes) -> v3 (2026-07-29, Flow Mode): bumping this is what actually forces
+// v1 -> v2 (2026-07-28, Calm Echoes) -> v3 (2026-07-29, Flow Mode) -> v4-v12
+// (2026-07-29, Navigation Polish — each of v4-v12 fixed a real bug found
+// during local testing, and each required its own bump to actually reach a
+// returning tab, a live demonstration of why this has to happen on every
+// change, not just once per feature): bumping this is what actually forces
 // already-installed/previously-visited clients onto the new app shell. The
 // fetch handler below is cache-first ("cached || network" always prefers a
 // cached hit if one exists), which means a same-named cache silently never
@@ -7,7 +11,7 @@
 // new cache NAME (triggering activate's old-cache cleanup + a fresh
 // `cache.addAll`) actually surfaces new content. Bump this on every future
 // deploy that changes any file in APP_SHELL, not just this one.
-const CACHE_NAME = "calm-companion-v3";
+const CACHE_NAME = "calm-companion-v13";
 const APP_SHELL = [
   "/",
   "/index.html",
