@@ -119,6 +119,20 @@ class NavigationForegroundService : Service() {
     // MARK: - Public API for the Plugin (called via the bound LocalBinder)
 
     fun startNavigation(route: NavRoutePayload, muted: Boolean, allowAmbient: Boolean, apiBaseUrl: String) {
+        // Same class of bug as the web build's startNavigation(), and fixed
+        // the same way: unconditionally tear down any previous session
+        // before starting a new one. Without this, a second
+        // startNavigationSession() call (e.g. a retried plugin call after a
+        // slow permission prompt) would leak the previous LocationManager
+        // listener — requestLocationUpdates() with a new listener object
+        // does not replace a prior registration, it adds another one — so
+        // every real GPS fix would drive NavEngine.handleFix() twice,
+        // producing duplicate maneuver/voice/haptic events from a single
+        // physical movement.
+        stopLocationUpdates()
+        ambientNoise.stop()
+        engine.stop()
+
         this.muted = muted
         this.allowAmbient = allowAmbient
         engine.start(route, muted, apiBaseUrl)

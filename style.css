@@ -375,6 +375,27 @@ body {
   display: flex; flex-direction: column;
 }
 
+/* Root-cause fix for a real bug: a long-press/drag anywhere in full-screen
+   nav mode could trigger the OS's native text-selection magnifier, its
+   Cut/Copy/Paste/Look Up callout bubble, or (on iOS specifically)
+   -webkit-touch-callout's "Save Image"/lookup menu on the map's tile <img>
+   elements — none of which the app can intercept or dismiss once the OS
+   has taken over the gesture. There is nothing inside full-screen nav mode
+   a user is meant to select or edit (the route-search page's own
+   startInput/endInput are still present in the DOM underneath, just
+   resized to zero size by .nav-active — deliberately NOT exempted here,
+   since they have no business being selectable/editable while navigation
+   owns the screen either). Every touch gesture during navigation should be
+   dedicated to map pan/zoom, never text selection. Paired with app.js's
+   startNavigation() explicitly blurring whatever had focus before this
+   class is even added, so neither a lingering focus nor a fresh long-press
+   can trigger it. */
+.app-shell.nav-fullscreen {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
 header.top {
   display: flex; align-items: flex-start; justify-content: space-between; flex-shrink: 0;
   padding: 18px 18px 4px;

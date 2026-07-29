@@ -741,6 +741,20 @@
   // ---------------------------------------------------------------------
   const pageInner0 = document.querySelector("#page-0 .page-inner");
   const appShellEl = document.querySelector(".app-shell");
+
+  // Third layer of defense against the "unexpected text-edit/undo popup
+  // during navigation" bug, alongside style.css's .app-shell.nav-fullscreen
+  // user-select/touch-callout hardening and startNavigation()'s explicit
+  // focus blur: suppress the native context menu outright while navigating,
+  // in case any platform/browser combination still surfaces one despite the
+  // CSS hardening (Android WebView's long-press handling doesn't always
+  // fully respect user-select the way desktop browsers do). Checked at
+  // event time against the live class, not tied to a specific element, so
+  // it stays correct regardless of what's under the touch point.
+  document.addEventListener("contextmenu", (e) => {
+    if (appShellEl.classList.contains("nav-fullscreen")) e.preventDefault();
+  });
+
   const recenterBtn = document.getElementById("recenterBtn");
   const navMuteBtn = document.getElementById("navMuteBtn");
   const navArrived = document.getElementById("navArrived");
@@ -1068,13 +1082,34 @@
     if (typeof ambient !== "undefined") ambient.setLevel(0.85);
   }
 
-  function endNavigation(message) {
+  // The single, unconditional teardown for "whatever might currently be
+  // feeding handleFix() / the native nav engine." Root-cause fix for a real
+  // bug: startNavigation() used to assume it was only ever called once per
+  // session, so a double-tap on Start/Simulate (or Start followed by
+  // Simulate, or any other combination) left the PREVIOUS watchPosition
+  // subscription/simulator timer/native session running and un-tracked
+  // (its ID was simply overwritten), while a second one started alongside
+  // it — both silently feeding the same shared navState forever after.
+  // Every fix from every leaked source then ran the full pipeline a second
+  // time: duplicate camera pans interrupting each other mid-animation,
+  // duplicate marker-tween restarts, duplicate haptic/turn-tick sounds, and
+  // duplicate NavLogic.processFix() calls on shared mutable state — this is
+  // what "audio hops/stutters/repeats" during navigation actually was.
+  // Calling this unconditionally at the top of startNavigation(), not just
+  // in endNavigation(), is what makes "at most one location source is ever
+  // active" true by construction instead of by hoping nothing ever calls
+  // startNavigation() twice.
+  function stopActiveLocationSource() {
     if (navWatchId != null) navigator.geolocation.clearWatch(navWatchId);
     navWatchId = null;
+    if (simulator) simulator.stop();
     if (backgroundNavActive || NavBridge.isNative) NavBridge.backgroundNav.stopSession().catch(() => {});
     backgroundNavActive = false;
+  }
+
+  function endNavigation(message) {
+    stopActiveLocationSource();
     backgroundNavNote.style.display = "none";
-    if (simulator) simulator.stop();
     usingSimulatedGps = false;
     simBadge.style.display = "none";
     navState = null;
@@ -1088,6 +1123,8 @@
     navArrived.classList.remove("visible");
     recenterBtn.style.display = "none";
     startNavBtn.style.display = lastResult ? "flex" : "none";
+    startNavBtn.disabled = false;
+    simBtn.disabled = false;
     removeUserMarker();
     releaseWakeLock();
     if (typeof ambient !== "undefined") ambient.setLevel(1);
@@ -1257,6 +1294,22 @@
       showError("Live GPS navigation isn't available on this browser.");
       return;
     }
+    // Belt-and-suspenders alongside stopActiveLocationSource() below: this
+    // stops a rapid double-tap (or tapping Start then Simulate before the
+    // first has visibly started) from even reaching the rest of this
+    // function while a previous call is still mid-transition. Re-enabled
+    // only in endNavigation() — from this point until navigation actually
+    // ends, a second trigger is a no-op rather than a second concurrent
+    // session.
+    if (startNavBtn.disabled && simBtn.disabled) return;
+    startNavBtn.disabled = true;
+    simBtn.disabled = true;
+    // The actual root-cause fix: unconditionally tear down whatever might
+    // already be feeding handleFix() before starting a new source. Safe to
+    // call even when nothing is active (every step inside is itself
+    // guarded). See stopActiveLocationSource()'s own comment for the bug
+    // this closes — a real, reproduced double-watchPosition leak.
+    stopActiveLocationSource();
     clearError();
     currentState = NavLogic.NavState.REQUESTING_LOCATION;
     const route = selected === "fast" ? lastResult.fastest : lastResult.calm;
@@ -1265,6 +1318,22 @@
     if (typeof feedbackEngine !== "undefined") feedbackEngine.reset();
     setFollowMode(true);
     lastCameraLatLng = null;
+    // Root-cause fix, paired with the CSS hardening on
+    // .app-shell.nav-fullscreen in style.css: if an input (most plausibly
+    // startInput/endInput, if the user was still editing an address when
+    // they tapped Start/Simulate) held focus, explicitly clear it before
+    // navigation takes over the screen. Some browsers blur a text input
+    // automatically when a <button> is tapped, but iOS Safari/WKWebView
+    // specifically does not move focus to buttons on tap — without this, a
+    // previously-focused input could stay focused straight into full-screen
+    // nav mode (invisible, since .nav-active resizes it to zero size, but
+    // still logically focused), which is exactly the condition that can
+    // surface the OS's own text-edit/undo popup on a later long-press or
+    // system gesture. document.activeElement is always an Element per spec
+    // (defaults to <body>), never null.
+    if (document.activeElement && typeof document.activeElement.blur === "function") {
+      document.activeElement.blur();
+    }
     appShellEl.classList.add("nav-fullscreen");
     pageInner0.classList.add("nav-active");
     navArrived.style.display = "none";

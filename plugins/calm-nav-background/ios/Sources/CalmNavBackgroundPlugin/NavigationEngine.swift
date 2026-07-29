@@ -138,6 +138,18 @@ final class NavigationEngine: NSObject {
             return (false, "Location Services are turned off system-wide.")
         }
 
+        // Same class of bug as the web build's startNavigation(), and fixed
+        // the same way: unconditionally tear down any previous session
+        // before starting a new one, rather than assuming this is only ever
+        // called once. Without this, a second startNavigationSession() call
+        // (e.g. the JS side retrying after a slow permission prompt) would
+        // leave the previous CLLocationManager delivery running AND, more
+        // subtly, register duplicate MPRemoteCommandCenter targets in
+        // setupNowPlaying() below — addTarget() adds another handler rather
+        // than replacing the existing one, so a single lock-screen Stop/Mute
+        // tap would fire the JS event twice.
+        if isActive { stop() }
+
         self.route = route
         self.stepIdx = 0
         self.offRouteStreak = 0
