@@ -2,16 +2,18 @@
 // (2026-07-29, Navigation Polish + product audit fixes) -> v15 (2026-07-29,
 // duplicate-navigation-session bugfix — app.js + style.css) -> v16 (2026-07-29,
 // visual redesign: design-token system, Fraunces/Inter typography, always-on
-// Kalimba with 500m Echo-record gate): bumping this is what actually forces
-// already-installed/previously-visited clients onto the new app shell. The
-// fetch handler below is cache-first ("cached || network" always prefers a
-// cached hit if one exists), which means a same-named cache silently never
-// updates what a returning visitor sees, no matter how many times the
-// background revalidation fetch below refreshes its stored copy — only a
-// new cache NAME (triggering activate's old-cache cleanup + a fresh
-// `cache.addAll`) actually surfaces new content. Bump this on every future
-// deploy that changes any file in APP_SHELL, not just this one.
-const CACHE_NAME = "calm-companion-v16";
+// Kalimba with 500m Echo-record gate) -> v17 (2026-07-29, map-first layout +
+// Kalimba moved to page 3 + simplified auditory-regulation page + iOS voice-
+// guidance unlock fix): bumping this is what actually forces already-
+// installed/previously-visited clients onto the new app shell. The fetch
+// handler below is cache-first ("cached || network" always prefers a cached
+// hit if one exists), which means a same-named cache silently never updates
+// what a returning visitor sees, no matter how many times the background
+// revalidation fetch below refreshes its stored copy — only a new cache NAME
+// (triggering activate's old-cache cleanup + a fresh `cache.addAll`)
+// actually surfaces new content. Bump this on every future deploy that
+// changes any file in APP_SHELL, not just this one.
+const CACHE_NAME = "calm-companion-v17";
 const APP_SHELL = [
   "/",
   "/index.html",

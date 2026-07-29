@@ -52,59 +52,20 @@
   <nav class="page-dots" id="pageDots" role="tablist" aria-label="Pages">
     <button class="dot-btn active" data-page="0" role="tab" aria-selected="true" aria-label="Calm routing"></button>
     <button class="dot-btn" data-page="1" role="tab" aria-selected="false" aria-label="Auditory regulation"></button>
-    <button class="dot-btn" data-page="2" role="tab" aria-selected="false" aria-label="Haptic fidgeting"></button>
+    <button class="dot-btn" data-page="2" role="tab" aria-selected="false" aria-label="Kalimba"></button>
   </nav>
 
   <div class="pages-wrap" id="pagesWrap">
 
     <!-- PAGE 1 / PILLAR 1: Calm Routing -->
+    <!-- Map-first layout (product decision, 2026-07-29): the map is the
+         whole page, edge to edge (see #page-0 .page-inner in style.css) —
+         the search inputs and, once a route exists, the results/Start
+         button float on top of it in two glass cards rather than stacking
+         below it in a scrolling form. Nothing here changed functionally,
+         only where each piece visually sits. -->
     <section class="page" id="page-0" aria-label="Calm routing">
       <div class="page-inner">
-        <div class="route-inputs">
-          <div class="route-input-wrap">
-            <div class="route-input-row start">
-              <span class="dot"></span>
-              <input id="startInput" type="text" placeholder="Start" aria-label="Start location" />
-            </div>
-            <div class="ac-status" id="startAcStatus" aria-live="polite"></div>
-            <ul class="ac-list" id="startAcList" style="display:none;"></ul>
-          </div>
-          <div class="route-input-wrap">
-            <div class="route-input-row end">
-              <span class="dot"></span>
-              <input id="endInput" type="text" placeholder="Destination" aria-label="Destination" />
-            </div>
-            <div class="ac-status" id="endAcStatus" aria-live="polite"></div>
-            <ul class="ac-list" id="endAcList" style="display:none;"></ul>
-          </div>
-        </div>
-        <div class="pill-row" id="travelModePills">
-          <button class="pill active" data-travel="walk">Walk</button>
-          <button class="pill" data-travel="bike">Bike</button>
-        </div>
-
-        <button class="find-btn" id="findBtn">
-          <span class="leaf-loader" id="leafLoader" aria-hidden="true">🍃</span>
-          <span id="findBtnLabel">Find calm route</span>
-        </button>
-
-        <div class="special-event-banner" id="specialEventBanner" style="display:none;"></div>
-        <div class="error-banner" id="errorBanner" style="display:none;"></div>
-
-        <label class="safety-toggle-row">
-          <input type="checkbox" id="safetyToggle">
-          <span>Prefer well-lit, busier streets over empty paths/parks</span>
-        </label>
-
-        <label class="safety-toggle-row" id="backgroundNavRow" style="display:none;">
-          <input type="checkbox" id="backgroundNavToggle">
-          <span>Keep navigating when the screen locks (uses background GPS + voice, increases battery use)</span>
-        </label>
-        <div class="mode-note" id="backgroundNavNote" style="display:none;"></div>
-
-        <div class="mode-note" id="modeNote"></div>
-        <div class="safety-note" id="safetyNote" style="display:none;"></div>
-
         <div class="map-wrap" id="mapWrap">
           <div id="map"></div>
           <div class="sim-badge" id="simBadge" style="display:none;">SIMULATED GPS — not real location</div>
@@ -137,17 +98,6 @@
           </div>
 
           <div class="nav-caption" id="navCaption" style="display:none;"></div>
-
-          <!-- The kalimba is always playable — tapping this opens the
-               instrument any time, regardless of how far you've walked.
-               Recording and saving a Calm Echo from inside that overlay is
-               the part still gated behind 500m + ~3min of walking (see
-               explorationtracker.js and resetKalimbaSheetUI() in app.js);
-               the `.ready` class here is just a subtle glow affordance once
-               that's reached, not a click gate. -->
-          <button type="button" class="echo-unlock-cta" id="echoUnlockCta" aria-live="polite">
-            <span id="echoUnlockCtaText">🪕 Play the Kalimba</span>
-          </button>
 
           <!-- Calm Echoes: brief, dismissible toast — "✨ Calm Echo nearby",
                "Someone discovered your Calm Echo.", and save confirmations
@@ -183,32 +133,87 @@
           </div>
         </div>
 
-        <div class="route-compare" id="routeCompare" style="display:none;">
-          <div class="route-card selected" id="calmCard">
-            <div class="rc-label">Calm route</div>
-            <div class="rc-time" id="calmTime">—</div>
-            <div class="rc-sub" id="calmDist">—</div>
-            <div class="breakdown-bar" id="calmBar"></div>
+        <!-- Floating search card — always visible on the planning screen,
+             hidden once navigation starts (see .page-inner.nav-active in
+             style.css). -->
+        <div class="route-search-card" id="routeSearchCard">
+          <div class="route-inputs">
+            <div class="route-input-wrap">
+              <div class="route-input-row start">
+                <span class="dot"></span>
+                <input id="startInput" type="text" placeholder="Start" aria-label="Start location" />
+              </div>
+              <div class="ac-status" id="startAcStatus" aria-live="polite"></div>
+              <ul class="ac-list" id="startAcList" style="display:none;"></ul>
+            </div>
+            <div class="route-input-wrap">
+              <div class="route-input-row end">
+                <span class="dot"></span>
+                <input id="endInput" type="text" placeholder="Destination" aria-label="Destination" />
+              </div>
+              <div class="ac-status" id="endAcStatus" aria-live="polite"></div>
+              <ul class="ac-list" id="endAcList" style="display:none;"></ul>
+            </div>
           </div>
-          <div class="route-card" id="fastCard">
-            <div class="rc-label">Fastest route</div>
-            <div class="rc-time" id="fastTime">—</div>
-            <div class="rc-sub" id="fastDist">—</div>
-            <div class="breakdown-bar" id="fastBar"></div>
+          <div class="pill-row" id="travelModePills">
+            <button class="pill active" data-travel="walk">Walk</button>
+            <button class="pill" data-travel="bike">Bike</button>
           </div>
-        </div>
 
-        <div class="nav-start-row">
-          <button class="start-nav-btn" id="startNavBtn" style="display:none;">
-            <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-            Start
+          <button class="find-btn" id="findBtn">
+            <span class="leaf-loader" id="leafLoader" aria-hidden="true">🍃</span>
+            <span id="findBtnLabel">Find calm route</span>
           </button>
-          <button class="sim-btn" id="simBtn" style="display:none;">DEV: Simulate GPS</button>
+
+          <div class="special-event-banner" id="specialEventBanner" style="display:none;"></div>
+          <div class="error-banner" id="errorBanner" style="display:none;"></div>
+
+          <label class="safety-toggle-row">
+            <input type="checkbox" id="safetyToggle">
+            <span>Prefer well-lit, busier streets over empty paths/parks</span>
+          </label>
+
+          <label class="safety-toggle-row" id="backgroundNavRow" style="display:none;">
+            <input type="checkbox" id="backgroundNavToggle">
+            <span>Keep navigating when the screen locks (uses background GPS + voice, increases battery use)</span>
+          </label>
+          <div class="mode-note" id="backgroundNavNote" style="display:none;"></div>
+
+          <div class="mode-note" id="modeNote"></div>
+          <div class="safety-note" id="safetyNote" style="display:none;"></div>
         </div>
 
-        <div class="steps-panel" id="stepsPanel">
-          <div class="steps-label">Turn by turn</div>
-          <div class="steps-list" id="stepsList"></div>
+        <!-- Floating results card — hidden until a route exists (app.js
+             toggles `.visible`); the Start button lives here, floating on
+             the map, rather than in the old below-the-map row. -->
+        <div class="route-results-card" id="routeResultsCard">
+          <div class="route-compare" id="routeCompare" style="display:none;">
+            <div class="route-card selected" id="calmCard">
+              <div class="rc-label">Calm route</div>
+              <div class="rc-time" id="calmTime">—</div>
+              <div class="rc-sub" id="calmDist">—</div>
+              <div class="breakdown-bar" id="calmBar"></div>
+            </div>
+            <div class="route-card" id="fastCard">
+              <div class="rc-label">Fastest route</div>
+              <div class="rc-time" id="fastTime">—</div>
+              <div class="rc-sub" id="fastDist">—</div>
+              <div class="breakdown-bar" id="fastBar"></div>
+            </div>
+          </div>
+
+          <div class="nav-start-row">
+            <button class="start-nav-btn" id="startNavBtn" style="display:none;">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+              Start
+            </button>
+            <button class="sim-btn" id="simBtn" style="display:none;">DEV: Simulate GPS</button>
+          </div>
+
+          <div class="steps-panel" id="stepsPanel">
+            <div class="steps-label">Turn by turn</div>
+            <div class="steps-list" id="stepsList"></div>
+          </div>
         </div>
       </div>
     </section>
@@ -223,26 +228,13 @@
         <h2 class="pillar-title display">Auditory regulation</h2>
         <p class="tool-sub">An adaptive audio layer, not just background sound. Off by default.</p>
 
-        <div class="settings-block">
-          <div class="settings-block-label">preset</div>
-          <div class="pill-row" id="presetChips">
-            <button class="pill" data-preset="focus">Focus</button>
-            <button class="pill" data-preset="relax">Relax</button>
-            <button class="pill" data-preset="anxiety-relief">Anxiety relief</button>
-            <button class="pill" data-preset="minimal">Minimal</button>
-            <button class="pill" data-preset="urban-explorer">Urban explorer</button>
-            <button class="pill" data-preset="custom">Custom</button>
-          </div>
-        </div>
-
-        <div class="settings-block">
-          <div class="settings-block-label">mode</div>
-          <div class="pill-row" id="modeChips">
-            <button class="pill" data-mode="relax">Relax</button>
-            <button class="pill" data-mode="concentrate">Concentrate</button>
-          </div>
-        </div>
-
+        <!-- Simplified page (product decision, 2026-07-29): just on/off
+             (pillar-icon above), volume, and sound choice. Preset/mode
+             pills, the split voice/effects sliders, captions toggle, canvas,
+             and notes are hidden (not deleted, see style.css's
+             .page-1-advanced rule) — audioregulation.js/prefs.js still read
+             them, and they remain fully reachable from Settings' own
+             "default preset/mode" + volume sliders, which are unaffected. -->
         <div class="settings-block">
           <div class="settings-block-label">soundscape</div>
           <div class="pill-row" id="soundChips">
@@ -261,77 +253,155 @@
           </div>
         </div>
 
-        <canvas class="pillar-canvas" id="soundCanvas"></canvas>
-
         <div class="slider-row wide">
-          <label for="ambientVolSlider">ambient</label>
+          <label for="ambientVolSlider">volume</label>
           <input type="range" id="ambientVolSlider" min="0" max="100" value="55"
-                 aria-label="Ambient soundscape volume" aria-valuemin="0" aria-valuemax="100" aria-valuenow="55">
-        </div>
-        <div class="slider-row wide">
-          <label for="voiceVolSlider">voice</label>
-          <input type="range" id="voiceVolSlider" min="0" max="100" value="75"
-                 aria-label="Spoken navigation voice volume" aria-valuemin="0" aria-valuemax="100" aria-valuenow="75">
-        </div>
-        <div class="slider-row wide">
-          <label for="effectsVolSlider">effects</label>
-          <input type="range" id="effectsVolSlider" min="0" max="100" value="25"
-                 aria-label="Interface and navigation effects volume" aria-valuemin="0" aria-valuemax="100" aria-valuenow="25">
+                 aria-label="Soundscape volume" aria-valuemin="0" aria-valuemax="100" aria-valuenow="55">
         </div>
 
-        <label class="safety-toggle-row" style="margin-top:14px;">
-          <input type="checkbox" id="captionsToggle" checked>
-          <span>Show captions for spoken navigation instructions</span>
-        </label>
+        <div class="page-1-advanced" hidden>
+          <div class="settings-block">
+            <div class="settings-block-label">preset</div>
+            <div class="pill-row" id="presetChips">
+              <button class="pill" data-preset="focus">Focus</button>
+              <button class="pill" data-preset="relax">Relax</button>
+              <button class="pill" data-preset="anxiety-relief">Anxiety relief</button>
+              <button class="pill" data-preset="minimal">Minimal</button>
+              <button class="pill" data-preset="urban-explorer">Urban explorer</button>
+              <button class="pill" data-preset="custom">Custom</button>
+            </div>
+          </div>
 
-        <div class="no-haptic-note">
-          Hearing nothing on iPhone? Check the physical mute switch on the side — iOS Safari silences web audio whenever it's flipped to silent, the same as it would a video.
-        </div>
-        <div class="no-haptic-note">
-          "Café" isn't offered as a soundscape here — every sound in this app is synthesized live (no audio files), and overlapping café chatter doesn't synthesize convincingly. Everything else above is a real, live-generated sound, not a placeholder.
+          <div class="settings-block">
+            <div class="settings-block-label">mode</div>
+            <div class="pill-row" id="modeChips">
+              <button class="pill" data-mode="relax">Relax</button>
+              <button class="pill" data-mode="concentrate">Concentrate</button>
+            </div>
+          </div>
+
+          <canvas class="pillar-canvas" id="soundCanvas"></canvas>
+
+          <div class="slider-row wide">
+            <label for="voiceVolSlider">voice</label>
+            <input type="range" id="voiceVolSlider" min="0" max="100" value="75"
+                   aria-label="Spoken navigation voice volume" aria-valuemin="0" aria-valuemax="100" aria-valuenow="75">
+          </div>
+          <div class="slider-row wide">
+            <label for="effectsVolSlider">effects</label>
+            <input type="range" id="effectsVolSlider" min="0" max="100" value="25"
+                   aria-label="Interface and navigation effects volume" aria-valuemin="0" aria-valuemax="100" aria-valuenow="25">
+          </div>
+
+          <label class="safety-toggle-row" style="margin-top:14px;">
+            <input type="checkbox" id="captionsToggle" checked>
+            <span>Show captions for spoken navigation instructions</span>
+          </label>
+
+          <div class="no-haptic-note">
+            Hearing nothing on iPhone? Check the physical mute switch on the side — iOS Safari silences web audio whenever it's flipped to silent, the same as it would a video.
+          </div>
+          <div class="no-haptic-note">
+            "Café" isn't offered as a soundscape here — every sound in this app is synthesized live (no audio files), and overlapping café chatter doesn't synthesize convincingly. Everything else above is a real, live-generated sound, not a placeholder.
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- PAGE 3 / PILLAR 3: Haptic Fidgeting -->
-    <section class="page" id="page-2" aria-label="Haptic fidgeting">
+    <!-- PAGE 3 / PILLAR 3: Kalimba -->
+    <!-- Replaces Haptic Fidgeting as the visible pillar (product decision,
+         2026-07-29). The kalimba is always playable here, no unlock needed;
+         only saving what you play as a Calm Echo requires the 500m/~3min
+         walk from explorationtracker.js, enforced on the Record button via
+         refreshEchoRecordGate() in app.js. This used to live in a modal
+         (#kalimbaOverlay, opened by a floating map button) — moved inline
+         here instead, so it's simply always part of this page rather than
+         something you open and close. The old haptic-fidgeting markup below
+         is kept fully wired (GestureEngine/FeedbackEngine/prefs sync) but
+         hidden, not deleted — safer than surgically unwiring a
+         deeply cross-referenced subsystem, easy to resurface later if
+         needed. -->
+    <section class="page" id="page-2" aria-label="Kalimba">
       <div class="page-inner page-inner-centered">
-        <div class="pillar-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M9 12a3 3 0 1 1 6 0v3a3 3 0 0 1-6 0z"/><path d="M9 12V7a3 3 0 0 1 6 0v5"/></svg>
-        </div>
-        <h2 class="pillar-title display">Haptic fidgeting</h2>
-        <p class="tool-sub" id="hapticSub">Tap, hold, press, swipe, rub, circle, or drag on the surface below — each gets its own feel.</p>
+        <div class="pillar-icon" aria-hidden="true" style="font-size:26px;">🪕</div>
+        <h2 class="pillar-title display" id="kalimbaHeading">Kalimba</h2>
+        <p class="tool-sub">Play a short melody any time. After a 500 metre walk, you can also record it and leave it here as a Calm Echo for others to find.</p>
 
-        <div class="fidget-zone">
-          <div class="fidget-btn" id="fidgetTap" title="Tap">
+        <div class="kalimba-wrap" id="kalimbaWrap">
+          <canvas class="kalimba-canvas" id="kalimbaCanvas" aria-hidden="true"></canvas>
+          <!-- Accessible fallback: real, keyboard/screen-reader operable buttons,
+               one per tine, laid out in the same left-to-right pitch order as the
+               canvas (kalimbaengine.js's TINE_VISUAL_ORDER) — kept visually
+               unobtrusive but functional for anyone who can't use the canvas's
+               pointer-gesture surface, per the accessibility requirement that
+               this instrument not be canvas-only. -->
+          <div class="kalimba-tine-buttons" id="kalimbaTineButtons" role="group" aria-label="Kalimba tines, arranged low to high with the lowest note in the center">
+            <button type="button" class="kalimba-tine-btn" data-tine="10" aria-label="Note 11 of 11, highest"></button>
+            <button type="button" class="kalimba-tine-btn" data-tine="8" aria-label="Note 9 of 11"></button>
+            <button type="button" class="kalimba-tine-btn" data-tine="6" aria-label="Note 7 of 11"></button>
+            <button type="button" class="kalimba-tine-btn" data-tine="4" aria-label="Note 5 of 11"></button>
+            <button type="button" class="kalimba-tine-btn" data-tine="2" aria-label="Note 3 of 11"></button>
+            <button type="button" class="kalimba-tine-btn" data-tine="0" aria-label="Note 1 of 11, lowest"></button>
+            <button type="button" class="kalimba-tine-btn" data-tine="1" aria-label="Note 2 of 11"></button>
+            <button type="button" class="kalimba-tine-btn" data-tine="3" aria-label="Note 4 of 11"></button>
+            <button type="button" class="kalimba-tine-btn" data-tine="5" aria-label="Note 6 of 11, middle"></button>
+            <button type="button" class="kalimba-tine-btn" data-tine="7" aria-label="Note 8 of 11"></button>
+            <button type="button" class="kalimba-tine-btn" data-tine="9" aria-label="Note 10 of 11"></button>
+          </div>
+        </div>
+
+        <div class="echo-record-status" id="echoRecordStatus" aria-live="polite">Tap Record, then play something on the kalimba.</div>
+
+        <div class="echo-record-controls" id="echoRecordControls">
+          <button type="button" class="echo-record-btn" id="echoRecordBtn">
             <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="12" cy="12" r="8"/></svg>
-          </div>
-          <div class="fidget-btn" id="fidgetHold" title="Press and hold">
-            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="6" y="6" width="12" height="12" rx="3"/></svg>
-          </div>
-          <div class="fidget-btn" id="fidgetPattern" title="Pattern">
-            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M3 12h3l2-7 4 14 2-7h7"/></svg>
-          </div>
+            Record
+          </button>
+          <button type="button" class="echo-control-btn" id="echoStopBtn" style="display:none;">Stop</button>
+          <button type="button" class="echo-control-btn" id="echoRedoBtn" style="display:none;">Redo</button>
+          <button type="button" class="echo-control-btn" id="echoPlayBackBtn" style="display:none;">Play back</button>
         </div>
-        <canvas class="pillar-canvas" id="rippleCanvas"></canvas>
-        <div class="slider-row wide">
-          <label for="hapticSlider">intensity</label>
-          <input type="range" id="hapticSlider" min="10" max="100" value="60">
+
+        <div class="echo-message-field" id="echoMessageField" style="display:none;">
+          <label for="echoMessageInput">Add a short message (optional)</label>
+          <textarea id="echoMessageInput" maxlength="100" placeholder="Take a deep breath."></textarea>
+          <div class="echo-char-count" id="echoMessageCount">0 / 100</div>
         </div>
-        <div class="slider-row wide">
-          <label for="sensitivitySlider">sensitivity</label>
-          <input type="range" id="sensitivitySlider" min="10" max="100" value="50">
-        </div>
-        <label class="safety-toggle-row">
-          <input type="checkbox" id="hapticsEnabledToggle" checked>
-          <span>Haptics on</span>
-        </label>
-        <label class="safety-toggle-row">
-          <input type="checkbox" id="hapticSoundToggle" checked>
-          <span>Fidget tones on</span>
-        </label>
-        <div class="no-haptic-note" id="noHapticNote" style="display:none;">
-          Your browser/device doesn't support vibration (this is normal on iPhone — iOS Safari doesn't expose it). The visual ripple still responds to every tap.
+
+        <button type="button" class="find-btn" id="echoSaveBtn" disabled style="margin-top:14px;">Leave this Echo</button>
+
+        <div class="haptic-fidget-legacy" hidden>
+          <div class="fidget-zone">
+            <div class="fidget-btn" id="fidgetTap" title="Tap">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="12" cy="12" r="8"/></svg>
+            </div>
+            <div class="fidget-btn" id="fidgetHold" title="Press and hold">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="6" y="6" width="12" height="12" rx="3"/></svg>
+            </div>
+            <div class="fidget-btn" id="fidgetPattern" title="Pattern">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M3 12h3l2-7 4 14 2-7h7"/></svg>
+            </div>
+          </div>
+          <canvas class="pillar-canvas" id="rippleCanvas"></canvas>
+          <div class="slider-row wide">
+            <label for="hapticSlider">intensity</label>
+            <input type="range" id="hapticSlider" min="10" max="100" value="60">
+          </div>
+          <div class="slider-row wide">
+            <label for="sensitivitySlider">sensitivity</label>
+            <input type="range" id="sensitivitySlider" min="10" max="100" value="50">
+          </div>
+          <label class="safety-toggle-row">
+            <input type="checkbox" id="hapticsEnabledToggle" checked>
+            <span>Haptics on</span>
+          </label>
+          <label class="safety-toggle-row">
+            <input type="checkbox" id="hapticSoundToggle" checked>
+            <span>Fidget tones on</span>
+          </label>
+          <div class="no-haptic-note" id="noHapticNote" style="display:none;">
+            Your browser/device doesn't support vibration (this is normal on iPhone — iOS Safari doesn't expose it). The visual ripple still responds to every tap.
+          </div>
         </div>
       </div>
     </section>
@@ -430,60 +500,6 @@
     </div>
     <button class="close-sheet" id="resetAudioDefaultsBtn" style="background:var(--surface); border:1px solid var(--line); margin-top:10px;">Reset auditory settings to defaults</button>
     <button class="close-sheet" id="closeSettings">Done</button>
-  </div>
-</div>
-
-<!-- Calm Echoes: Kalimba overlay — record and leave an Echo -->
-<div class="echo-overlay" id="kalimbaOverlay" role="dialog" aria-modal="true" aria-labelledby="kalimbaHeading">
-  <div class="echo-sheet kalimba-sheet">
-    <h2 id="kalimbaHeading">Leave a Calm Echo</h2>
-    <p class="tool-sub">Play a short melody on the kalimba below — up to 20 seconds. Anyone who walks by here later can choose to hear it.</p>
-
-    <div class="kalimba-wrap" id="kalimbaWrap">
-      <canvas class="kalimba-canvas" id="kalimbaCanvas" aria-hidden="true"></canvas>
-      <!-- Accessible fallback: real, keyboard/screen-reader operable buttons,
-           one per tine, laid out in the same left-to-right pitch order as the
-           canvas (kalimbaengine.js's TINE_VISUAL_ORDER) — kept visually
-           unobtrusive but functional for anyone who can't use the canvas's
-           pointer-gesture surface, per the accessibility requirement that
-           this instrument not be canvas-only. -->
-      <div class="kalimba-tine-buttons" id="kalimbaTineButtons" role="group" aria-label="Kalimba tines, arranged low to high with the lowest note in the center">
-        <button type="button" class="kalimba-tine-btn" data-tine="10" aria-label="Note 11 of 11, highest"></button>
-        <button type="button" class="kalimba-tine-btn" data-tine="8" aria-label="Note 9 of 11"></button>
-        <button type="button" class="kalimba-tine-btn" data-tine="6" aria-label="Note 7 of 11"></button>
-        <button type="button" class="kalimba-tine-btn" data-tine="4" aria-label="Note 5 of 11"></button>
-        <button type="button" class="kalimba-tine-btn" data-tine="2" aria-label="Note 3 of 11"></button>
-        <button type="button" class="kalimba-tine-btn" data-tine="0" aria-label="Note 1 of 11, lowest"></button>
-        <button type="button" class="kalimba-tine-btn" data-tine="1" aria-label="Note 2 of 11"></button>
-        <button type="button" class="kalimba-tine-btn" data-tine="3" aria-label="Note 4 of 11"></button>
-        <button type="button" class="kalimba-tine-btn" data-tine="5" aria-label="Note 6 of 11, middle"></button>
-        <button type="button" class="kalimba-tine-btn" data-tine="7" aria-label="Note 8 of 11"></button>
-        <button type="button" class="kalimba-tine-btn" data-tine="9" aria-label="Note 10 of 11"></button>
-      </div>
-    </div>
-
-    <div class="echo-record-status" id="echoRecordStatus" aria-live="polite">Tap Record, then play something on the kalimba.</div>
-
-    <div class="echo-record-controls" id="echoRecordControls">
-      <button type="button" class="echo-record-btn" id="echoRecordBtn">
-        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="12" cy="12" r="8"/></svg>
-        Record
-      </button>
-      <button type="button" class="echo-control-btn" id="echoStopBtn" style="display:none;">Stop</button>
-      <button type="button" class="echo-control-btn" id="echoRedoBtn" style="display:none;">Redo</button>
-      <button type="button" class="echo-control-btn" id="echoPlayBackBtn" style="display:none;">Play back</button>
-    </div>
-
-    <div class="echo-message-field" id="echoMessageField" style="display:none;">
-      <label for="echoMessageInput">Add a short message (optional)</label>
-      <textarea id="echoMessageInput" maxlength="100" placeholder="Take a deep breath."></textarea>
-      <div class="echo-char-count" id="echoMessageCount">0 / 100</div>
-    </div>
-
-    <div class="echo-sheet-actions">
-      <button type="button" class="close-sheet" id="echoCancelBtn">Cancel</button>
-      <button type="button" class="find-btn" id="echoSaveBtn" disabled>Leave this Echo</button>
-    </div>
   </div>
 </div>
 

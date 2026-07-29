@@ -360,6 +360,7 @@
   const findBtn = document.getElementById("findBtn");
   const modeNote = document.getElementById("modeNote");
   const routeCompare = document.getElementById("routeCompare");
+  const routeResultsCard = document.getElementById("routeResultsCard");
   const calmCard = document.getElementById("calmCard");
   const fastCard = document.getElementById("fastCard");
   const safetyToggle = document.getElementById("safetyToggle");
@@ -691,6 +692,7 @@
     renderBar(document.getElementById("calmBar"), result.calm.breakdownPct);
     renderBar(document.getElementById("fastBar"), result.fastest.breakdownPct);
     routeCompare.style.display = "flex";
+    routeResultsCard.classList.add("visible");
     startNavBtn.style.display = "flex";
     selectRoute("calm");
 
@@ -960,6 +962,15 @@
     voice.setMuted(!voice.muted);
     navMuteBtn.classList.toggle("muted", voice.muted);
     navMuteBtn.classList.toggle("active", !voice.muted);
+    // iOS Safari (most aggressively in installed-PWA/standalone mode) only
+    // ever lets speechSynthesis actually produce sound if speak() is called
+    // synchronously inside a real user-gesture handler at least once per
+    // page load. Every other announce() call in this app fires later,
+    // asynchronously, off a geolocation watchPosition callback — which iOS
+    // silently swallows (no error, just no audio) unless this tap already
+    // "primed" the API. Doubles as real audible confirmation that the
+    // toggle actually did something.
+    if (!voice.muted) voice.speakGeneric("Voice guidance on.", true);
     // The native engine (when driving a background session) keeps its own
     // separate muted flag — see NavigationEngine.swift/NavEngine.kt — since
     // it speaks independently of this page's VoiceEngine. Kept in sync here
@@ -1713,7 +1724,9 @@
   })();
 
   // ---------------------------------------------------------------------
-  // PILLAR 3 — Haptic fidgeting
+  // Haptic Fidgeting — no longer page 3 (that's the Kalimba now, see
+  // index.html's .haptic-fidget-legacy), but every wire below is still
+  // live and correct, just against hidden markup rather than deleted code.
   // A full Haptic Fidget Engine: HapticManager (device vibration + battery/
   // enabled awareness), PatternLibrary (named patterns), GestureEngine
   // (tap/doubleTap/press/longPress/swipe/drag/rub/circle recognition on the
@@ -2017,23 +2030,17 @@
     echoToastTimer = setTimeout(() => { echoToastEl.style.display = "none"; }, ms || 3200);
   }
 
-  // ---- Exploration tracking + unlock CTA ----
-  const echoUnlockCta = document.getElementById("echoUnlockCta");
-  const echoUnlockCtaText = document.getElementById("echoUnlockCtaText");
+  // ---- Exploration tracking + unlock gate ----
   let explorationState = ExplorationTracker.initialExplorationState();
 
-  // The kalimba button is always visible and always opens the instrument —
-  // playing it never requires having walked anywhere. `.ready` is purely a
-  // visual affordance (a soft glow, see style.css) signaling "you've also
-  // earned the ability to save what you play as a Calm Echo right now";
-  // the actual gate lives in resetKalimbaSheetUI()/refreshEchoRecordGate()
-  // below, on the Record button specifically, not on opening the sheet.
+  // The kalimba (page 3) is always playable — playing it never requires
+  // having walked anywhere. Only Record (saving what you play as a Calm
+  // Echo) is gated, via refreshEchoRecordGate() below, on every GPS fix so
+  // reaching the unlock mid-session enables Record live without needing to
+  // navigate away and back.
   function updateUnlockCta() {
-    const progress = ExplorationTracker.unlockProgress(explorationState, Date.now());
-    echoUnlockCta.classList.toggle("ready", progress.unlocked);
-    if (kalimbaOverlay.classList.contains("open")) refreshEchoRecordGate();
+    refreshEchoRecordGate();
   }
-  echoUnlockCta.addEventListener("click", () => { openKalimbaOverlay(); });
 
   // ---- Nearby Echo discovery + map markers/clustering ----
   const echoMarkersLayer = L.layerGroup().addTo(map);
@@ -2110,8 +2117,7 @@
     // error handling and are unaffected by this failing.
   });
 
-  // ---- Kalimba overlay: record + leave an Echo ----
-  const kalimbaOverlay = document.getElementById("kalimbaOverlay");
+  // ---- Kalimba (page 3): play always, record + leave an Echo once unlocked ----
   const kalimbaTineButtons = Array.from(document.querySelectorAll("#kalimbaTineButtons .kalimba-tine-btn"));
   const echoRecordStatus = document.getElementById("echoRecordStatus");
   const echoRecordBtn = document.getElementById("echoRecordBtn");
@@ -2122,7 +2128,6 @@
   const echoMessageInput = document.getElementById("echoMessageInput");
   const echoMessageCount = document.getElementById("echoMessageCount");
   const echoSaveBtn = document.getElementById("echoSaveBtn");
-  const echoCancelBtn = document.getElementById("echoCancelBtn");
 
   function flashTineButton(tineIndex) {
     const btn = kalimbaTineButtons.find((b) => Number(b.dataset.tine) === tineIndex);
@@ -2199,28 +2204,24 @@
     refreshEchoRecordGate();
   }
 
-  let kalimbaReturnFocusEl = null;
   let autoStopTimer = null;
   function clearAutoStopTimer() {
     if (autoStopTimer) clearTimeout(autoStopTimer);
     autoStopTimer = null;
   }
-  function openKalimbaOverlay() {
-    if (kalimbaOverlay.classList.contains("open")) return;
-    kalimbaReturnFocusEl = document.activeElement;
+  // The kalimba used to live in a dismissible modal (open on tap, cancel any
+  // in-progress recording on close). It's now just page 3's permanent
+  // content instead, so there's nothing to "open" — this runs once, at
+  // startup, to set the sheet to its initial ready-to-record state.
+  // cancelKalimbaRecording() covers the one thing closing the old modal used
+  // to guarantee: an in-progress recording can't survive you navigating
+  // away — called from setActivePage() below whenever you swipe off page 3.
+  resetKalimbaSheetUI();
+  function cancelKalimbaRecording() {
+    if (echoRecorder.state.phase !== "recording") return;
     clearAutoStopTimer();
     echoRecorder.cancel();
     resetKalimbaSheetUI();
-    kalimbaOverlay.classList.add("open");
-    echoRecordBtn.focus();
-  }
-  function closeKalimbaOverlay() {
-    if (!kalimbaOverlay.classList.contains("open")) return;
-    clearAutoStopTimer();
-    echoRecorder.cancel();
-    kalimbaOverlay.classList.remove("open");
-    if (kalimbaReturnFocusEl && typeof kalimbaReturnFocusEl.focus === "function") kalimbaReturnFocusEl.focus();
-    kalimbaReturnFocusEl = null;
   }
 
   echoRecordBtn.addEventListener("click", () => {
@@ -2263,12 +2264,6 @@
     echoMessageCount.textContent = `${echoMessageInput.value.length} / ${EchoValidation.MAX_MESSAGE_CHARS}`;
   });
 
-  echoCancelBtn.addEventListener("click", closeKalimbaOverlay);
-  kalimbaOverlay.addEventListener("click", (e) => { if (e.target === kalimbaOverlay) closeKalimbaOverlay(); });
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && kalimbaOverlay.classList.contains("open")) closeKalimbaOverlay();
-  });
-
   echoSaveBtn.addEventListener("click", async () => {
     const payload = echoRecorder.buildSavePayload();
     if (!payload) return;
@@ -2303,7 +2298,7 @@
       }
       explorationState = ExplorationTracker.consumeUnlock(explorationState, Date.now());
       updateUnlockCta();
-      closeKalimbaOverlay();
+      resetKalimbaSheetUI();
       showEchoToast("✨ Your Calm Echo was left here.");
     } catch (e) {
       echoRecordStatus.textContent = "Couldn't reach the server — please try again.";
@@ -2397,7 +2392,7 @@
   const pages = Array.from(document.querySelectorAll(".page"));
   const dots = Array.from(document.querySelectorAll(".dot-btn"));
   const pageTagline = document.getElementById("pageTagline");
-  const TAGLINES = ["calm routing", "auditory regulation", "haptic fidgeting"];
+  const TAGLINES = ["calm routing", "auditory regulation", "kalimba"];
   let currentPage = 0;
   let scrollRAF = null;
 
@@ -2408,6 +2403,10 @@
 
   function setActivePage(i) {
     if (i === currentPage) return;
+    // Leaving the Kalimba page mid-recording cancels it — recording is tied
+    // to being on that page, same guarantee closing the old kalimba modal
+    // used to give for free.
+    if (currentPage === 2) cancelKalimbaRecording();
     currentPage = i;
     dots.forEach((d, idx) => {
       d.classList.toggle("active", idx === i);
@@ -2415,6 +2414,7 @@
     });
     pageTagline.textContent = TAGLINES[i] || "";
     if (i === 0) requestAnimationFrame(() => map.invalidateSize());
+    if (i === 2) refreshEchoRecordGate();
   }
 
   dots.forEach((dot) => {

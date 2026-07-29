@@ -290,21 +290,10 @@
   }
 }
 
-/* --- Map surround tint (Flow only) — never touches the Leaflet tiles/labels
-   themselves, only the frame around them, per "the map itself must remain
-   readable." A slow-shifting gradient border, independent of the aurora
-   background behind it. */
-:root[data-theme="flow"] .map-wrap {
-  padding: 3px; border-radius: 25px;
-  background: linear-gradient(135deg, var(--flow-2), var(--flow-5), var(--flow-6), var(--flow-2));
-  background-size: 300% 300%;
-  animation: flow-tint-shift 20s ease-in-out infinite;
-}
-:root[data-theme="flow"] .map-wrap #map { border-radius: 22px; }
-@keyframes flow-tint-shift {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-}
+/* Map surround tint used to live here — a gradient-bordered "frame" around
+   the old 190px map card. Removed: the map is edge-to-edge full-screen now
+   (see #page-0 .page-inner/.map-wrap in the Map section), so there's no
+   frame left to tint without visually clipping the map itself. */
 
 /* --- User marker: gentle breathing glow (Flow only), slower/richer than
    the default --sky pulse already used in Light/Dark. --- */
@@ -604,25 +593,28 @@ button:focus-visible, [tabindex]:focus-visible, input:focus-visible { outline: 2
 .find-btn.loading .leaf-loader { display: inline-block; animation: leaf-sway 0.9s ease-in-out infinite; }
 @keyframes leaf-sway { 0%, 100% { transform: rotate(-18deg); } 50% { transform: rotate(18deg); } }
 
-/* --- Map --- */
-/* Explicit height (matching #map's own base height, not `auto`) so this
-   actually has a real, resolvable start point to transition from — CSS
-   cannot animate to/from `auto`, so without this, entering/leaving
-   full-screen nav mode never fires a `transitionend` at all, silently
-   defeating waitForMapResizeThenInvalidate() in app.js and leaving Leaflet's
-   tile grid permanently sized for the wrong viewport. */
-.map-wrap { position: relative; height: 190px; margin: 10px 0; transition: height var(--motion-slow) ease; }
-/* z-index:0 (not just position:relative) is load-bearing: it makes #map
+/* --- Map ---
+   The map is the whole page now, not a 190px card above a scrolling form —
+   #page-0 .page-inner is the positioned ancestor, .map-wrap fills it
+   edge-to-edge via inset:0, and the route-search/route-results cards float
+   on top of it (see their own rules below). Leaflet doesn't need telling
+   about any of this: the ResizeObserver in app.js (`new ResizeObserver(...)
+   .observe(document.querySelector(".map-wrap"))`) re-syncs the tile grid on
+   every genuine layout-box change regardless of *how* the size changed, so
+   no explicit height/transition is needed here purely for Leaflet's sake. */
+#page-0 .page-inner { position: relative; height: 100%; padding: 0; overflow: hidden; }
+.map-wrap { position: absolute; inset: 0; }
+/* z-index:0 (not just position:absolute) is load-bearing: it makes #map
    establish its own stacking context, containing Leaflet's internal panes
    (tile/marker/popup/control panes go up to z-index 1000 in leaflet.css)
    so they can never leak out and paint over this element's siblings —
-   .recenter-btn, .nav-banner, .echo-unlock-cta, etc. — regardless of how
+   .recenter-btn, .nav-banner, .route-search-card, etc. — regardless of how
    modest those siblings' own z-index values are. Without this, position:
-   relative alone does NOT create containment (a positioned element only
+   absolute alone does NOT create containment (a positioned element only
    forms a stacking context when z-index is non-auto), so every one of
    those overlay elements was silently at risk of being painted behind the
    map tiles. */
-#map { width: 100%; height: 190px; border-radius: 22px; box-shadow: var(--shadow); transition: height var(--motion-slow) ease; position: relative; z-index: 0; }
+#map { width: 100%; height: 100%; position: relative; z-index: 0; }
 .map-pin { width: 26px; height: 26px; transform-origin: bottom center; animation: pin-sway 2.4s ease-in-out infinite; }
 .map-pin svg { width: 100%; height: 100%; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.25)); }
 @keyframes pin-sway { 0%, 100% { transform: rotate(-5deg) translateY(0); } 50% { transform: rotate(5deg) translateY(-2px); } }
@@ -655,29 +647,56 @@ button:focus-visible, [tabindex]:focus-visible, input:focus-visible { outline: 2
 .start-nav-btn:active { transform: scale(0.96) translateY(1px); box-shadow: 0 2px 0 rgba(0,0,0,0.14), var(--shadow); }
 
 /* ==========================================================================
-   Navigation mode — map-first, full-screen, floating glass cards.
-   The map is the application: everything else floats above it in two
-   compact cards (top = information, bottom = controls) rather than the
-   old fixed banners. Both cards use the same --surface/--shadow tokens as
-   every other card in the app, plus a backdrop-filter blur so the map stays
-   visible and legible underneath them ("float above the map rather than
-   covering it") in every theme, not just Flow.
+   Map-first, full-screen, floating glass cards.
+   The map is the application — on the route-planning screen just as much as
+   during live navigation — everything else floats above it rather than
+   stacking below in a scrolling form. Every floating card here (search
+   inputs, route results, the nav info/controls cards) shares one visual
+   language: --glass/--border/--shadow tokens plus a backdrop-filter blur so
+   the map stays visible and legible underneath ("float above the map rather
+   than covering it") in every theme, not just Flow.
    ========================================================================== */
-.nav-top-card, .nav-controls-card {
-  display: none;
+.nav-top-card, .nav-controls-card, .route-search-card, .route-results-card {
   position: absolute; left: 10px; right: 10px; z-index: 20;
   background: var(--glass);
   backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--border); box-shadow: var(--shadow);
-  /* Fading/sliding is how the bottom card auto-hides (see app.js's smart-
-     controls timer) and how both cards ease in when navigation starts —
-     never an abrupt display:none snap. */
+  border-radius: var(--radius-lg);
+  /* Fading/sliding is how the bottom nav card auto-hides (see app.js's
+     smart-controls timer) and how the nav cards ease in when navigation
+     starts — never an abrupt display:none snap. */
   transition: opacity var(--motion-slow) ease, transform var(--motion-slow) var(--squish);
 }
+.nav-top-card, .nav-controls-card { display: none; }
 .nav-top-card {
   top: calc(10px + env(safe-area-inset-top, 0px));
-  border-radius: var(--radius-lg); padding: var(--space-4) var(--space-4) var(--space-3);
+  padding: var(--space-4) var(--space-4) var(--space-3);
 }
+/* The pre-navigation search card (route inputs, walk/bike, Find calm route,
+   banners/toggles/notes) — always visible on the planning screen, floating
+   at the top of the now full-bleed map. Scrolls internally on short
+   screens/landscape rather than ever pushing content off past the bottom
+   edge, since nothing below it is reachable any other way. */
+.route-search-card {
+  top: calc(10px + env(safe-area-inset-top, 0px));
+  padding: var(--space-4);
+  max-height: calc(100% - 20px - env(safe-area-inset-top, 0px));
+  overflow-y: auto; -webkit-overflow-scrolling: touch;
+}
+/* The post-search results card (calm vs fastest comparison, Start/Simulate,
+   turn-by-turn) — floats at the bottom of the map, shown only once a route
+   exists (app.js toggles `.visible`; see also the .nav-active hide-list
+   below, which hides both cards once navigation actually starts). */
+.route-results-card {
+  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  padding: var(--space-4);
+  max-height: 62%;
+  overflow-y: auto; -webkit-overflow-scrolling: touch;
+  display: none;
+}
+.route-results-card.visible { display: block; }
+.route-results-card .route-compare { margin-top: 0; }
+.route-results-card .steps-panel:has(#stepsList:empty) { display: none; }
 /* Both cards are only ever shown while navigation is active — driven purely
    by this ancestor class, not by JS toggling `style.display` (a leftover
    inline `display: flex` on the top card once fought its own block-stacking
@@ -720,10 +739,17 @@ button:focus-visible, [tabindex]:focus-visible, input:focus-visible { outline: 2
 }
 
 /* Exactly 5 controls, evenly spaced, icon-first — "keep it compact,
-   everything else stays hidden." */
+   everything else stays hidden." `display` is deliberately NOT set here —
+   this rule has the same specificity as the shared `display: none` default
+   above and would win by source order if it also declared `display`,
+   permanently defeating `.page-inner.nav-active .nav-controls-card`'s
+   `display: flex` (a real bug this full-screen-map pass surfaced: the
+   always-on-top control row was visible even before Start was ever
+   pressed). Visibility stays solely the nav-active rule's job; this rule
+   only supplies the flex *layout* for once it's actually shown. */
 .nav-controls-card {
   bottom: calc(10px + env(safe-area-inset-bottom, 0px));
-  border-radius: 999px; padding: 6px; display: flex; align-items: center; justify-content: space-between; gap: 4px;
+  border-radius: 999px; padding: 6px; align-items: center; justify-content: space-between; gap: 4px;
 }
 .nav-control-btn {
   flex: 1 1 0; min-width: 44px; min-height: 44px; border-radius: 50%; background: transparent;
@@ -754,47 +780,33 @@ button:focus-visible, [tabindex]:focus-visible, input:focus-visible { outline: 2
 .page-inner.nav-active .safety-toggle-row,
 .page-inner.nav-active .mode-note,
 .page-inner.nav-active .safety-note,
-.page-inner.nav-active .nav-start-row,
-.page-inner.nav-active .route-compare,
-.page-inner.nav-active .steps-panel,
+.page-inner.nav-active .route-search-card,
+.page-inner.nav-active .route-results-card,
 .page-inner.nav-active #travelModePills { display: none !important; }
 
 /* Full-screen navigation: the map IS the app. header/page-dots/footer are
    hidden (not removed — swiping away from page-0 while navigating remains
    technically possible via keyboard, but there is nothing left to swipe TO
-   that isn't hidden the same way) and .page-inner/.map-wrap/#map expand to
-   fill the entire viewport, edge to edge. The map element itself is never
-   destroyed/recreated for this — only its container is resized — which is
-   what keeps "the route remains visible during the transition" true for
-   free, with no special-case animation code needed for the route line
-   itself. `dvh` (not vh) so mobile browser chrome showing/hiding doesn't
-   leave a gap or clip content. */
+   that isn't hidden the same way). The map itself needs no resizing here
+   any more — #page-0 .page-inner is already `.map-wrap`'s positioned
+   ancestor and `.map-wrap`/`#map` already fill it edge to edge via
+   `inset:0` on the route-planning screen too (see the Map section above) —
+   entering nav-fullscreen just removes the header/dots that used to sit
+   above it, and the ResizeObserver in app.js re-tiles Leaflet the instant
+   that reflow happens. `dvh` (not vh) so mobile browser chrome showing/
+   hiding doesn't leave a gap or clip content. */
 .app-shell.nav-fullscreen header.top,
 .app-shell.nav-fullscreen .page-dots,
 .app-shell.nav-fullscreen footer.foot { display: none; }
 .app-shell.nav-fullscreen .pages-wrap,
 .app-shell.nav-fullscreen .page,
 .app-shell.nav-fullscreen .page-inner { height: 100dvh; overflow: hidden; }
-.page-inner.nav-active { padding: 0; }
-/* Reuses the exact transition mechanism that already worked for the old
-   62vh nav height (both .map-wrap and #map already declare
-   `transition: height var(--motion-slow) ease` above) — just raised to a
-   true full-viewport target and with margin/radius removed to reach the
-   real edges. A plain height transition (not flex-basis) is what makes
-   this smoothly interpolate instead of snapping: app.js listens for this
-   transition's `transitionend` before calling map.invalidateSize(), so
-   Leaflet only ever re-tiles once the resize is visually complete, not
-   continuously mid-animation. */
-.page-inner.nav-active .map-wrap { height: 100dvh; margin: 0; }
-/* Absolute value, not 100% — a percentage here would just track
-   .map-wrap's own in-progress transition instead of running its own,
-   independently-resolvable one (see the comment on the base .map-wrap rule
-   above for why that matters for transitionend firing reliably). */
-.page-inner.nav-active #map { height: 100dvh; border-radius: 0; }
 
-/* --- Travel mode + dev simulate row --- */
+/* --- Travel mode + Start/Simulate cluster --- */
 #travelModePills { margin: 2px 0 10px; }
-.nav-start-row { display: flex; gap: 8px; align-items: center; margin: 8px 0 0; }
+/* Floats on the map itself, inside .route-results-card, once a route is
+   found — not a plain in-flow row any more (the old below-the-map layout). */
+.nav-start-row { display: flex; gap: 8px; align-items: center; margin: 10px 0 0; }
 .nav-start-row .start-nav-btn { flex: 1; margin: 0; }
 .sim-btn {
   flex-shrink: 0; background: var(--surface-2); color: var(--muted); border: 1px dashed var(--muted);
@@ -971,32 +983,6 @@ footer.foot {
    Calm Echoes
    ========================================================================== */
 
-/* --- Unlock CTA (floating over the map, mirrors .recenter-btn's corner) --- */
-/* Always a real, pressable button now — the kalimba is playable any time,
-   never gated by how far you've walked (see app.js's updateUnlockCta()).
-   `.ready` layers on the full gradient-accent glow as a bonus signal —
-   "you've also earned the ability to save this as a Calm Echo right now" —
-   without ever changing whether the button itself is clickable. */
-.echo-unlock-cta {
-  position: absolute; bottom: 78px; left: 10px; z-index: 20; max-width: calc(100% - 20px);
-  background: var(--surface); border: 1px solid var(--line); color: var(--ink);
-  border-radius: var(--radius-full); padding: 10px 18px; font-size: var(--text-sm); font-weight: 600;
-  box-shadow: var(--shadow-md); cursor: pointer; text-align: left; font-family: inherit;
-  transition: transform var(--motion-fast) var(--squish), box-shadow var(--motion-fast) var(--ease-out), background var(--motion-fast) ease, color var(--motion-fast) ease;
-}
-.echo-unlock-cta span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.echo-unlock-cta:hover { box-shadow: var(--shadow-lg); transform: translateY(-1px); }
-.echo-unlock-cta:active { transform: scale(0.96); }
-.echo-unlock-cta.ready {
-  background: var(--gradient-accent); color: var(--accent-ink); border-color: transparent;
-  animation: echo-glow 1.8s ease-in-out infinite;
-}
-.echo-unlock-cta.ready:active { transform: scale(0.95); }
-@keyframes echo-glow {
-  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent), var(--shadow); }
-  50% { box-shadow: 0 0 0 9px color-mix(in srgb, var(--accent) 0%, transparent), var(--shadow); }
-}
-
 /* --- Shared ephemeral toast (nearby prompt / discovery notification / save confirmation) --- */
 .echo-toast {
   position: absolute; top: 10px; left: 10px; right: 10px; z-index: 22;
@@ -1026,6 +1012,11 @@ footer.foot {
   background: linear-gradient(160deg, var(--kalimba-wood-1), var(--kalimba-wood-2));
   box-shadow: var(--shadow), inset 0 2px 6px rgba(0,0,0,0.25);
   margin: 14px 0 4px;
+  /* Now lives inline on page 3 (.page-inner-centered is a centered flex
+     column), not inside the old fixed-width modal sheet — needs an explicit
+     width to actually stretch, since a flex item with align-items:center
+     otherwise shrinks to its content's intrinsic width. */
+  width: 100%; box-sizing: border-box;
 }
 .kalimba-canvas {
   /* Reserved for a future audio-reactive flourish (task: wiring); purely a
@@ -1083,7 +1074,7 @@ footer.foot {
 .echo-record-btn:active, .echo-control-btn:active { transform: scale(0.94); }
 .echo-control-btn:disabled { opacity: 0.5; cursor: default; }
 
-.echo-message-field { margin-top: 14px; }
+.echo-message-field { margin-top: 14px; width: 100%; box-sizing: border-box; }
 .echo-message-field label { display: block; font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 6px; }
 .echo-message-field textarea {
   width: 100%; min-height: 64px; resize: none; border-radius: 14px; border: 1px solid var(--line);
@@ -1091,10 +1082,6 @@ footer.foot {
   padding: 10px 12px; box-sizing: border-box;
 }
 .echo-char-count { text-align: right; font-size: 10.5px; color: var(--muted); margin-top: 4px; font-weight: 600; }
-
-.echo-sheet-actions { display: flex; gap: 10px; margin-top: 18px; }
-.echo-sheet-actions .close-sheet { margin-top: 0; flex: 1; }
-.echo-sheet-actions .find-btn { margin-top: 0; flex: 1.4; }
 
 /* --- Discovery detail sheet --- */
 .echo-detail-sheet { text-align: center; }
