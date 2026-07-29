@@ -7,9 +7,14 @@
 // would be misleading rather than calming. Every soundscape below IS a real,
 // audible signal, not a placeholder.
 //
-// Soundscapes: off, white, pink, brown, tone (hum), rain, wind, ocean,
-// piano (soft generative notes), birds (sparse chirps), forest (wind + birds
-// + a low noise floor), nature (wind + birds, lighter).
+// Soundscapes: off, white, brown, ocean, nature (wind + birds).
+// Trimmed from eleven to four (product decision, 2026-07-29) — pink/tone/
+// rain/wind/birds/piano/forest are no longer offered as standalone choices.
+// wind/birds/pink-noise-buffer synthesis code stays below regardless: nature
+// is built from _windLayer + _birdsLayer, and _windLayer itself is built on
+// the "pink" noise buffer, so none of that is actually dead code even though
+// it's no longer independently selectable. _toneLayer/_rainLayer/_pianoLayer
+// WERE deleted outright — nothing left in this file calls them.
 // ---------------------------------------------------------------------------
 (function () {
   "use strict";
@@ -103,42 +108,6 @@
     return { gain, stop: () => src.stop() };
   };
 
-  AmbientEngine.prototype._toneLayer = function (level) {
-    const ctx = this._ctx();
-    const gain = makeLayerGain(this, level);
-    const osc = ctx.createOscillator();
-    osc.type = "sine";
-    osc.frequency.value = this.mode === "relax" ? 110 : 144;
-    osc.connect(gain);
-    osc.start();
-    return { gain, stop: () => osc.stop() };
-  };
-
-  // Filtered white noise + a slow gain LFO for variable "intensity" — reads
-  // as rainfall rather than static.
-  AmbientEngine.prototype._rainLayer = function (level) {
-    const ctx = this._ctx();
-    const gain = makeLayerGain(this, level);
-    const src = ctx.createBufferSource();
-    src.buffer = this._noiseBuffer("white");
-    src.loop = true;
-    const filter = ctx.createBiquadFilter();
-    filter.type = "lowpass";
-    filter.frequency.value = 3200;
-    filter.Q.value = 0.5;
-    const lfo = ctx.createOscillator();
-    lfo.frequency.value = 0.08;
-    const lfoGain = ctx.createGain();
-    lfoGain.gain.value = 0.18;
-    lfo.connect(lfoGain);
-    lfoGain.connect(filter.frequency);
-    src.connect(filter);
-    filter.connect(gain);
-    src.start(0);
-    lfo.start();
-    return { gain, stop: () => { src.stop(); lfo.stop(); } };
-  };
-
   // Bandpassed noise with a slow filter-frequency sweep — reads as gusting
   // wind rather than a fixed hiss.
   AmbientEngine.prototype._windLayer = function (level) {
@@ -189,37 +158,9 @@
     return { gain, stop: () => { src.stop(); swell.stop(); } };
   };
 
-  // Generative layers (piano, birds) schedule their own notes recursively —
-  // "stop" just needs to cancel the pending timer, the already-triggered
+  // Generative layer (birds) schedules its own notes recursively — "stop"
+  // just needs to cancel the pending timer, the already-triggered
   // oscillators finish their own short envelopes naturally.
-  AmbientEngine.prototype._pianoLayer = function (level) {
-    const ctx = this._ctx();
-    const gain = makeLayerGain(this, level);
-    const scale = [261.63, 293.66, 329.63, 392.0, 440.0, 523.25]; // C major-ish, calm
-    let timerId = null;
-    let stopped = false;
-    const playNote = () => {
-      if (stopped) return;
-      const freq = scale[Math.floor(Math.random() * scale.length)];
-      const osc = ctx.createOscillator();
-      const env = ctx.createGain();
-      osc.type = "triangle";
-      osc.frequency.value = freq;
-      env.gain.value = 0;
-      osc.connect(env);
-      env.connect(gain);
-      const now = ctx.currentTime;
-      env.gain.setValueAtTime(0, now);
-      env.gain.linearRampToValueAtTime(0.5, now + 0.03);
-      env.gain.exponentialRampToValueAtTime(0.001, now + 2.2);
-      osc.start(now);
-      osc.stop(now + 2.3);
-      timerId = setTimeout(playNote, 2200 + Math.random() * 2600);
-    };
-    timerId = setTimeout(playNote, 400);
-    return { gain, stop: () => { stopped = true; clearTimeout(timerId); } };
-  };
-
   AmbientEngine.prototype._birdsLayer = function (level) {
     const ctx = this._ctx();
     const gain = makeLayerGain(this, level);
@@ -252,17 +193,12 @@
     return { gain, stop: () => { stopped = true; clearTimeout(timerId); } };
   };
 
+  // wind/birds are no longer independently selectable (see file header) but
+  // stay as the two calls nature's own builder makes directly below.
   const BUILDERS = {
     white: (e, lvl) => [e._loopNoiseLayer("white", lvl)],
-    pink: (e, lvl) => [e._loopNoiseLayer("pink", lvl)],
     brown: (e, lvl) => [e._loopNoiseLayer("brown", lvl)],
-    tone: (e, lvl) => [e._toneLayer(lvl)],
-    rain: (e, lvl) => [e._rainLayer(lvl)],
-    wind: (e, lvl) => [e._windLayer(lvl)],
     ocean: (e, lvl) => [e._oceanLayer(lvl)],
-    piano: (e, lvl) => [e._pianoLayer(lvl)],
-    birds: (e, lvl) => [e._birdsLayer(lvl)],
-    forest: (e, lvl) => [e._windLayer(lvl * 0.5), e._birdsLayer(lvl), e._loopNoiseLayer("brown", lvl * 0.25)],
     nature: (e, lvl) => [e._windLayer(lvl * 0.6), e._birdsLayer(lvl * 0.9)],
   };
 

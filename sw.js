@@ -6,8 +6,10 @@
 // Kalimba moved to page 3 + simplified auditory-regulation page + iOS voice-
 // guidance unlock fix) -> v18 (2026-07-29, Kalimba recolored to app tokens,
 // picking a soundscape now auto-enables auditory regulation, restored the
-// iPhone mute-switch note to the simplified audio page): bumping this is
-// what actually forces already-installed/previously-visited clients onto
+// iPhone mute-switch note to the simplified audio page) -> v19 (2026-07-29,
+// subtraction pass step 1: soundscapes trimmed to white/brown/ocean/nature,
+// presets moved behind a real collapsed Advanced disclosure): bumping this
+// is what actually forces already-installed/previously-visited clients onto
 // the new app shell. The fetch handler below is cache-first ("cached ||
 // network" always prefers a cached hit if one exists), which means a
 // same-named cache silently never updates what a returning visitor sees,
@@ -16,7 +18,7 @@
 // old-cache cleanup + a fresh `cache.addAll`) actually surfaces new
 // content. Bump this on every future deploy that changes any file in
 // APP_SHELL, not just this one.
-const CACHE_NAME = "calm-companion-v18";
+const CACHE_NAME = "calm-companion-v19";
 const APP_SHELL = [
   "/",
   "/index.html",

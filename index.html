@@ -229,26 +229,21 @@
         <p class="tool-sub">An adaptive audio layer, not just background sound. Off by default.</p>
 
         <!-- Simplified page (product decision, 2026-07-29): just on/off
-             (pillar-icon above), volume, and sound choice. Preset/mode
-             pills, the split voice/effects sliders, captions toggle, canvas,
-             and notes are hidden (not deleted, see style.css's
-             .page-1-advanced rule) — audioregulation.js/prefs.js still read
-             them, and they remain fully reachable from Settings' own
-             "default preset/mode" + volume sliders, which are unaffected. -->
+             (pillar-icon above), volume, and sound choice. Soundscapes cut
+             from eleven to four (2026-07-29) — see ambientengine.js's file
+             header for which synthesis code stayed vs. was deleted. Preset/
+             mode pills, the split voice/effects sliders, captions toggle,
+             canvas, and the café note live in the <details> below instead of
+             being deleted — audioregulation.js/prefs.js still read them, and
+             they're also reachable from Settings' own "default preset/mode"
+             + volume sliders, which are unaffected. -->
         <div class="settings-block">
           <div class="settings-block-label">soundscape</div>
           <div class="pill-row" id="soundChips">
             <button class="pill" data-sound="off">Off</button>
             <button class="pill" data-sound="white">White noise</button>
-            <button class="pill" data-sound="pink">Pink noise</button>
             <button class="pill" data-sound="brown">Brown noise</button>
-            <button class="pill" data-sound="tone">Low hum</button>
-            <button class="pill" data-sound="rain">Rain</button>
-            <button class="pill" data-sound="wind">Wind</button>
             <button class="pill" data-sound="ocean">Ocean</button>
-            <button class="pill" data-sound="piano">Soft piano</button>
-            <button class="pill" data-sound="birds">Birds</button>
-            <button class="pill" data-sound="forest">Forest</button>
             <button class="pill" data-sound="nature">Nature</button>
           </div>
         </div>
@@ -268,7 +263,12 @@
           Hearing nothing on iPhone? Check the physical mute switch on the side — iOS Safari silences web audio whenever it's flipped to silent, the same as it would a video.
         </div>
 
-        <div class="page-1-advanced" hidden>
+        <!-- A real, native disclosure (not just hidden) — "relax" stays the
+             one visible default preset; everything else here is reachable,
+             just collapsed, per the "move behind a collapsed Advanced
+             section" requirement. -->
+        <details class="page-1-advanced">
+          <summary>Advanced</summary>
           <div class="settings-block">
             <div class="settings-block-label">preset</div>
             <div class="pill-row" id="presetChips">
@@ -310,7 +310,7 @@
           <div class="no-haptic-note">
             "Café" isn't offered as a soundscape here — every sound in this app is synthesized live (no audio files), and overlapping café chatter doesn't synthesize convincingly. Everything else above is a real, live-generated sound, not a placeholder.
           </div>
-        </div>
+        </details>
       </div>
     </section>
 
@@ -454,15 +454,8 @@
       <div class="pill-row" id="settingsSoundChips">
         <button class="pill" data-sound="off">Off</button>
         <button class="pill" data-sound="white">White noise</button>
-        <button class="pill" data-sound="pink">Pink noise</button>
         <button class="pill" data-sound="brown">Brown noise</button>
-        <button class="pill" data-sound="tone">Low hum</button>
-        <button class="pill" data-sound="rain">Rain</button>
-        <button class="pill" data-sound="wind">Wind</button>
         <button class="pill" data-sound="ocean">Ocean</button>
-        <button class="pill" data-sound="piano">Soft piano</button>
-        <button class="pill" data-sound="birds">Birds</button>
-        <button class="pill" data-sound="forest">Forest</button>
         <button class="pill" data-sound="nature">Nature</button>
       </div>
     </div>

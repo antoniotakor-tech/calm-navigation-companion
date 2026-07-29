@@ -21,9 +21,9 @@ test("sanitizeAudio: a corrupted/hand-edited value degrades field-by-field to de
 });
 
 test("sanitizeAudio: valid values pass through untouched", () => {
-  const result = Prefs.sanitizeAudio({ masterVolume: 0.3, soundscape: "rain", mode: "concentrate", enabled: false });
+  const result = Prefs.sanitizeAudio({ masterVolume: 0.3, soundscape: "nature", mode: "concentrate", enabled: false });
   assert.equal(result.masterVolume, 0.3);
-  assert.equal(result.soundscape, "rain");
+  assert.equal(result.soundscape, "nature");
   assert.equal(result.mode, "concentrate");
   assert.equal(result.enabled, false);
 });
@@ -78,11 +78,11 @@ test("applyAudioPreset('custom'): restores whatever was last captured, defaultin
 test("captureCustomAudio: snapshots the current manual settings under 'custom' for later restoration", () => {
   installFakeLocalStorage();
   const prefs = new Prefs();
-  prefs.set({ audio: { ambientVolume: 0.77, soundscape: "wind" } });
+  prefs.set({ audio: { ambientVolume: 0.77, soundscape: "ocean" } });
   prefs.captureCustomAudio();
   assert.equal(prefs.get().audio.preset, "custom");
   assert.equal(prefs.get().audio.custom.ambientVolume, 0.77);
-  assert.equal(prefs.get().audio.custom.soundscape, "wind");
+  assert.equal(prefs.get().audio.custom.soundscape, "ocean");
 });
 
 test("resetAudioDefaults: restores the full default audio block, ignoring whatever was set before", () => {
