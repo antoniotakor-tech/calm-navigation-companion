@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>Calm Navigation Companion</title>
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#1E2A1F">
+<meta name="theme-color" content="#12141F">
 <link rel="icon" href="favicon-32.png" sizes="32x32">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -14,7 +14,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -138,13 +138,15 @@
 
           <div class="nav-caption" id="navCaption" style="display:none;"></div>
 
-          <!-- Calm Echoes: exploration progress / unlock CTA. Text-only and
-               non-interactive while walking toward the unlock (matches the
-               spec's own progress wording, e.g. "Walk another 140 metres...");
-               becomes a real pressable button with the `.ready` class once
-               500m + ~3min are reached, per explorationtracker.js. -->
-          <button type="button" class="echo-unlock-cta" id="echoUnlockCta" style="display:none;" aria-live="polite">
-            <span id="echoUnlockCtaText">✨ Leave a Calm Echo</span>
+          <!-- The kalimba is always playable — tapping this opens the
+               instrument any time, regardless of how far you've walked.
+               Recording and saving a Calm Echo from inside that overlay is
+               the part still gated behind 500m + ~3min of walking (see
+               explorationtracker.js and resetKalimbaSheetUI() in app.js);
+               the `.ready` class here is just a subtle glow affordance once
+               that's reached, not a click gate. -->
+          <button type="button" class="echo-unlock-cta" id="echoUnlockCta" aria-live="polite">
+            <span id="echoUnlockCtaText">🪕 Play the Kalimba</span>
           </button>
 
           <!-- Calm Echoes: brief, dismissible toast — "✨ Calm Echo nearby",

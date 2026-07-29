@@ -2022,16 +2022,18 @@
   const echoUnlockCtaText = document.getElementById("echoUnlockCtaText");
   let explorationState = ExplorationTracker.initialExplorationState();
 
+  // The kalimba button is always visible and always opens the instrument —
+  // playing it never requires having walked anywhere. `.ready` is purely a
+  // visual affordance (a soft glow, see style.css) signaling "you've also
+  // earned the ability to save what you play as a Calm Echo right now";
+  // the actual gate lives in resetKalimbaSheetUI()/refreshEchoRecordGate()
+  // below, on the Record button specifically, not on opening the sheet.
   function updateUnlockCta() {
     const progress = ExplorationTracker.unlockProgress(explorationState, Date.now());
-    echoUnlockCta.style.display = "block";
-    echoUnlockCtaText.textContent = ExplorationTracker.progressMessage(explorationState, Date.now());
     echoUnlockCta.classList.toggle("ready", progress.unlocked);
+    if (kalimbaOverlay.classList.contains("open")) refreshEchoRecordGate();
   }
-  echoUnlockCta.addEventListener("click", () => {
-    if (!echoUnlockCta.classList.contains("ready")) return;
-    openKalimbaOverlay();
-  });
+  echoUnlockCta.addEventListener("click", () => { openKalimbaOverlay(); });
 
   // ---- Nearby Echo discovery + map markers/clustering ----
   const echoMarkersLayer = L.layerGroup().addTo(map);
@@ -2163,8 +2165,28 @@
     });
   });
 
+  // The one place that decides whether Record is actually pressable right
+  // now. Playing the kalimba itself (kalimbaTineButtons below) is never
+  // gated by this — only starting a recording (the first step toward
+  // saving a Calm Echo) requires the 500m/~3min walk from
+  // explorationtracker.js. Called on open and again on every GPS fix while
+  // the sheet is open, so reaching the unlock mid-session enables Record
+  // live rather than requiring a close/reopen.
+  function refreshEchoRecordGate() {
+    if (echoRecorder.state.phase === "recording") return; // don't yank the button out from under an in-progress recording
+    const progress = ExplorationTracker.unlockProgress(explorationState, Date.now());
+    if (progress.unlocked) {
+      echoRecordBtn.disabled = false;
+      echoRecordBtn.classList.remove("locked");
+      echoRecordStatus.textContent = "Tap Record, then play something on the kalimba.";
+    } else {
+      echoRecordBtn.disabled = true;
+      echoRecordBtn.classList.add("locked");
+      echoRecordStatus.textContent = ExplorationTracker.progressMessage(explorationState, Date.now()) + " Feel free to play in the meantime — it's yours to enjoy any time.";
+    }
+  }
+
   function resetKalimbaSheetUI() {
-    echoRecordStatus.textContent = "Tap Record, then play something on the kalimba.";
     echoRecordBtn.style.display = "flex";
     echoRecordBtn.classList.remove("recording");
     echoStopBtn.style.display = "none";
@@ -2174,6 +2196,7 @@
     echoMessageInput.value = "";
     echoMessageCount.textContent = `0 / ${EchoValidation.MAX_MESSAGE_CHARS}`;
     echoSaveBtn.disabled = true;
+    refreshEchoRecordGate();
   }
 
   let kalimbaReturnFocusEl = null;

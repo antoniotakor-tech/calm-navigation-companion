@@ -1,18 +1,29 @@
+/* ==========================================================================
+   Design system — redesigned 2026-07-29 to match a reference landing page's
+   visual language (soft pastel mesh-gradient backdrops, a light/colorful
+   serif display moment paired with a bold dark headline, fully-rounded
+   gradient CTAs, an editorial sans body face) while keeping every existing
+   component's actual markup/behavior untouched. Same "one token set, three
+   themes" architecture this project has always used — Light/Dark/Flow and
+   both High-Contrast variants below all still just supply their own values
+   for the same variable names; nothing here is a parallel system.
+   ========================================================================== */
 :root {
-  --bg: #F6F1DE;
+  /* ---- Color ---- */
+  --bg: #FAF9F6;
   --surface: #FFFFFF;
-  --surface-2: #ECE4C6;
-  --ink: #2B3A2A;
-  --ink-soft: #55684F;
-  --muted: #8B9A80;
-  --line: #E3DAB4;
-  --accent: #FF7A59;
-  --accent-ink: #FFFFFF;
-  --calm: #5B8A5A;
-  --calm-soft: #DEEBD3;
-  --busy: #FFC84D;
-  --sky: #7FCCEA;
-  --shadow: 0 2px 4px rgba(43,58,42,0.08), 0 14px 30px rgba(43,58,42,0.10);
+  --surface-2: #F2F0EA;
+  --ink: #1C2033;
+  --ink-soft: #565C72;
+  --muted: #9297A8;
+  --line: #E9E7F1;
+  --accent: #FF8A65;
+  --accent-ink: #2A1206;
+  --calm: #3FAE7D;
+  --calm-soft: #DFF3E9;
+  --busy: #F0B429;
+  --sky: #8B93F0;
+  --shadow: 0 1px 2px rgba(28,32,51,0.04), 0 8px 24px rgba(28,32,51,0.08);
   /* ---- Formal design-system aliases ----
      Semantic names for a small existing palette, not a second parallel one:
      Primary=accent, Secondary=sky, Success=calm, Warning=busy — each of
@@ -29,9 +40,64 @@
   --danger-ink: #7A2E1A;
   --glass: color-mix(in srgb, var(--surface) 88%, transparent);
   --border: var(--line);
+  /* The signature accent gradient — calm green through soft violet to warm
+     coral, matching the reference's hero-text and primary-CTA treatment.
+     One definition, reused everywhere a "premium/delightful" accent moment
+     is wanted (primary buttons, headline emphasis, progress fills, glows)
+     rather than re-authored per component. */
+  --gradient-accent: linear-gradient(120deg, var(--calm) 0%, var(--sky) 55%, var(--accent) 100%);
+  --gradient-glow: radial-gradient(circle, color-mix(in srgb, var(--sky) 35%, transparent) 0%, transparent 70%);
+
+  /* ---- Spacing — 8pt grid, with a 4px half-step for fine control ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  /* ---- Radius ---- */
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-full: 999px;
+
+  /* ---- Shadow scale (light, layered — never a single hard drop-shadow) ---- */
+  --shadow-sm: 0 1px 2px rgba(28,32,51,0.05);
+  --shadow-md: var(--shadow);
+  --shadow-lg: 0 4px 12px rgba(28,32,51,0.06), 0 24px 48px rgba(28,32,51,0.12);
+  --shadow-glow: 0 0 0 1px color-mix(in srgb, var(--sky) 25%, transparent), 0 8px 32px color-mix(in srgb, var(--sky) 35%, transparent);
+
+  /* ---- Typography ----
+     Fraunces (a warm, slightly quirky optical-size variable serif) for
+     display/emphasis moments — headline numbers, the arrival screen,
+     page-tagline flourishes — paired with Inter for everything functional
+     (body copy, buttons, inputs, nav). This is the same "light+colorful
+     serif accent line, then bold neutral sans for the actual statement"
+     hierarchy the reference site uses in its own hero. */
+  --font-display: "Fraunces", Georgia, "Iowan Old Style", serif;
+  --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --text-xs: 12px;
+  --text-sm: 13.5px;
+  --text-base: 15px;
+  --text-md: 17px;
+  --text-lg: 20px;
+  --text-xl: 26px;
+  --text-display: 34px;
+
+  /* ---- Motion — natural, spring-like, never abrupt ----
+     --squish (an overshoot spring curve) already existed and is kept as-is
+     for "pop"/press-release moments; --ease-out is added for fades/slides
+     that should feel fluid without the bounce (an ease-out-expo shape). */
+  --motion-instant: 0.12s;
   --motion-fast: 0.2s;
   --motion-slow: 0.45s;
   --squish: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+
   /* Calm Echoes' Kalimba — deliberately its own warm wood/metal palette
      rather than reusing --surface/--calm, so the instrument reads as a
      distinct physical object rather than another app panel. */
@@ -41,33 +107,39 @@
   --kalimba-tine-2: #B99C68;
 }
 :root[data-theme="dark"], :root.hc-dark {
-  --bg: #1E2A1F;
-  --surface: #263323;
-  --surface-2: #2F3F2A;
-  --ink: #F3EEDC;
-  --ink-soft: #C9D4BE;
-  --muted: #8FA083;
-  --line: #3A4A34;
+  --bg: #12141F;
+  --surface: #1A1D2B;
+  --surface-2: #232637;
+  --ink: #F1F0F5;
+  --ink-soft: #B4B8CC;
+  --muted: #767C93;
+  --line: #2A2E42;
   --accent: #FF9270;
-  --accent-ink: #1E2A1F;
-  --calm: #8FCB8A;
-  --calm-soft: #33472F;
-  --busy: #FFD873;
-  --sky: #8FD9F2;
+  --accent-ink: #1C0F08;
+  --calm: #4ECB9A;
+  --calm-soft: #1C3A30;
+  --busy: #F0C24E;
+  --sky: #9CA3F5;
   --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 18px 36px rgba(0,0,0,0.4);
+  /* No --gradient-accent override needed here: the base :root's definition
+     (line ~48) is written in terms of var(--calm)/var(--sky)/var(--accent),
+     which CSS resolves against whatever's cascaded at actual point of use —
+     it already picks up this block's own --calm/--sky/--accent automatically.
+     Redeclaring it per-theme would just be the same duplicated styling this
+     redesign is trying to eliminate. */
   --secondary: var(--sky); --success: var(--calm); --warning: var(--busy);
   --danger: #FF6B4A; --danger-bg: #3A241D; --danger-ink: #FFC7B0;
   --glass: color-mix(in srgb, var(--surface) 82%, transparent); --border: var(--line);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]):not([data-theme="flow"]) {
-    --bg: #1E2A1F; --surface: #263323; --surface-2: #2F3F2A; --ink: #F3EEDC;
-    --ink-soft: #C9D4BE; --muted: #8FA083; --line: #3A4A34; --accent: #FF9270;
-    --accent-ink: #1E2A1F; --calm: #8FCB8A; --calm-soft: #33472F; --busy: #FFD873; --sky: #8FD9F2;
+    --bg: #12141F; --surface: #1A1D2B; --surface-2: #232637; --ink: #F1F0F5;
+    --ink-soft: #B4B8CC; --muted: #767C93; --line: #2A2E42; --accent: #FF9270;
+    --accent-ink: #1C0F08; --calm: #4ECB9A; --calm-soft: #1C3A30; --busy: #F0C24E; --sky: #9CA3F5;
     --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 18px 36px rgba(0,0,0,0.4);
-    --secondary: #8FD9F2; --success: #8FCB8A; --warning: #FFD873;
+    --secondary: #9CA3F5; --success: #4ECB9A; --warning: #F0C24E;
     --danger: #FF6B4A; --danger-bg: #3A241D; --danger-ink: #FFC7B0;
-    --glass: color-mix(in srgb, #263323 82%, transparent); --border: #3A4A34;
+    --glass: color-mix(in srgb, #1A1D2B 82%, transparent); --border: #2A2E42;
   }
 }
 
@@ -122,6 +194,7 @@
   --ink-soft: #FFFFFF; --muted: #DDDDDD; --line: #FFFFFF; --accent: #FFD873;
   --accent-ink: #000000; --calm: #5FE0BE; --calm-soft: #000000; --busy: #FFC96B;
   --shadow: none;
+  --gradient-accent: var(--accent);
   --secondary: #5FE0BE; --success: #5FE0BE; --warning: #FFC96B;
   --danger: #FF8A70; --danger-bg: #000000; --danger-ink: #FFFFFF;
   --glass: #000000; --border: #FFFFFF;
@@ -310,6 +383,10 @@
   --ink-soft: #000000; --muted: #333333; --line: #000000; --accent: #B3400A;
   --accent-ink: #FFFFFF; --calm: #0B5E48; --calm-soft: #FFFFFF; --busy: #8A5A00;
   --shadow: none;
+  /* A flat color, not an actual gradient — high contrast intentionally
+     replaces every nuanced/glass/gradient treatment with the simplest safe
+     rendering, same reasoning as --glass below. */
+  --gradient-accent: var(--accent);
   --secondary: #0B5E48; --success: #0B5E48; --warning: #8A5A00;
   --danger: #B3400A; --danger-bg: #FFFFFF; --danger-ink: #000000;
   --glass: #FFFFFF; --border: #000000;
@@ -318,6 +395,7 @@
   --bg: #000000; --surface: #000000; --surface-2: #000000; --ink: #FFFFFF;
   --ink-soft: #FFFFFF; --muted: #DDDDDD; --line: #FFFFFF; --accent: #FF8A50;
   --accent-ink: #000000; --calm: #5FE0BE; --calm-soft: #000000; --busy: #FFC96B;
+  --gradient-accent: var(--accent);
   --secondary: #5FE0BE; --success: #5FE0BE; --warning: #FFC96B;
   --danger: #FF8A70; --danger-bg: #000000; --danger-ink: #FFFFFF;
   --glass: #000000; --border: #FFFFFF;
@@ -357,8 +435,11 @@ html, body { margin: 0; padding: 0; height: 100%; overscroll-behavior: none; }
 body {
   background: var(--bg);
   color: var(--ink);
-  font-family: "Quicksand", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  font-weight: 500;
+  font-family: var(--font-body);
+  font-weight: 400;
+  font-size: var(--text-base);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
   height: 100dvh;
   overflow: hidden;
   transition: background var(--motion-slow) ease, color var(--motion-slow) ease;
@@ -368,7 +449,7 @@ body {
 :root[data-motion="reduced"] * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
 :root[data-motion="reduced"] .pages-wrap { scroll-behavior: auto !important; }
 
-.display { font-family: "Baloo 2", "Quicksand", sans-serif; font-weight: 700; }
+.display { font-family: var(--font-display); font-weight: 500; font-optical-sizing: auto; }
 
 .app-shell {
   max-width: 480px; margin: 0 auto; height: 100%;
@@ -403,8 +484,21 @@ header.top {
   padding-left: calc(18px + env(safe-area-inset-left, 0px));
   padding-right: calc(18px + env(safe-area-inset-right, 0px));
 }
-header.top h1 { font-size: 23px; margin: 0; }
-header.top .tagline { font-size: 12px; color: var(--muted); margin-top: 2px; font-weight: 600; }
+/* The one "hero" typographic moment in the whole app — light-weight serif,
+   gradient-filled, echoing the reference site's own "Arrive calm." hero
+   line treatment. Falls back to a plain solid --ink fill wherever
+   background-clip: text isn't supported (extremely rare today) since
+   -webkit-text-fill-color: transparent alone would otherwise render
+   invisible text — the color: var(--ink) declared first is the fallback,
+   overridden by the gradient fill immediately after wherever it IS supported. */
+header.top h1 {
+  font-family: var(--font-display); font-weight: 500; font-size: var(--text-xl); margin: 0;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  background: var(--gradient-accent);
+  background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+header.top .tagline { font-size: var(--text-xs); color: var(--muted); margin-top: 2px; font-weight: 500; letter-spacing: 0.02em; text-transform: uppercase; }
 .top-actions { display: flex; gap: 8px; }
 .icon-btn {
   background: var(--surface); border: 1px solid var(--line); color: var(--calm);
@@ -497,14 +591,15 @@ button:focus-visible, [tabindex]:focus-visible, input:focus-visible { outline: 2
 .ac-option-primary { font-size: 13.5px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ac-option-secondary { font-size: 11px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .find-btn {
-  width: 100%; background: var(--accent); color: var(--accent-ink); border: none; border-radius: 999px;
-  padding: 13px; font-size: 14.5px; font-weight: 700; cursor: pointer; margin-top: 4px;
+  width: 100%; background: var(--gradient-accent); color: var(--accent-ink); border: none; border-radius: var(--radius-full);
+  padding: 15px; font-size: var(--text-base); font-weight: 600; cursor: pointer; margin-top: 4px;
   display: flex; align-items: center; justify-content: center; gap: 8px;
-  box-shadow: 0 4px 0 rgba(0,0,0,0.12), var(--shadow);
-  transition: transform var(--motion-fast) var(--squish), box-shadow var(--motion-fast) ease;
+  box-shadow: var(--shadow-lg);
+  transition: transform var(--motion-fast) var(--squish), box-shadow var(--motion-fast) var(--ease-out);
 }
-.find-btn:active { transform: scale(0.96) translateY(1px); box-shadow: 0 2px 0 rgba(0,0,0,0.12), var(--shadow); }
-.find-btn:disabled { opacity: 0.75; cursor: default; }
+.find-btn:hover { transform: translateY(-2px); box-shadow: var(--shadow-glow); }
+.find-btn:active { transform: scale(0.97) translateY(0); box-shadow: var(--shadow-md); }
+.find-btn:disabled { opacity: 0.75; cursor: default; transform: none; }
 .leaf-loader { display: none; font-size: 16px; }
 .find-btn.loading .leaf-loader { display: inline-block; animation: leaf-sway 0.9s ease-in-out infinite; }
 @keyframes leaf-sway { 0%, 100% { transform: rotate(-18deg); } 50% { transform: rotate(18deg); } }
@@ -581,7 +676,7 @@ button:focus-visible, [tabindex]:focus-visible, input:focus-visible { outline: 2
 }
 .nav-top-card {
   top: calc(10px + env(safe-area-inset-top, 0px));
-  border-radius: 20px; padding: 12px 14px 10px;
+  border-radius: var(--radius-lg); padding: var(--space-4) var(--space-4) var(--space-3);
 }
 /* Both cards are only ever shown while navigation is active — driven purely
    by this ancestor class, not by JS toggling `style.display` (a leftover
@@ -593,12 +688,18 @@ button:focus-visible, [tabindex]:focus-visible, input:focus-visible { outline: 2
 .page-inner.nav-active .nav-top-card { display: block; }
 .page-inner.nav-active .nav-controls-card { display: flex; }
 .nav-maneuver-row { display: flex; align-items: center; gap: 12px; }
+/* A soft gradient badge, not a flat single-color circle — the same
+   "small gradient icon chip next to the instruction text" moment the
+   reference site's own nav-instruction mockup uses. Rounded-square rather
+   than a full circle reads as more of a deliberate icon "chip" than a
+   generic avatar dot. */
 .nav-banner-icon {
-  width: 40px; height: 40px; flex-shrink: 0; border-radius: 50%; background: var(--calm-soft);
-  color: var(--calm); display: flex; align-items: center; justify-content: center; font-size: 20px;
+  width: 40px; height: 40px; flex-shrink: 0; border-radius: var(--radius-sm); background: var(--gradient-accent);
+  color: var(--accent-ink); display: flex; align-items: center; justify-content: center; font-size: 20px;
+  box-shadow: var(--shadow-sm);
 }
 .nav-banner-text { min-width: 0; flex: 1; }
-.nav-banner-dist { font-size: 19px; font-weight: 700; font-family: "Baloo 2", sans-serif; color: var(--calm); }
+.nav-banner-dist { font-size: 19px; font-weight: 600; font-family: var(--font-display); color: var(--calm); }
 /* Outdoor-visibility pass: the one line a person actually needs while
    mid-stride reads clearly at a glance — bumped up from 12.5px/600 and
    given a touch more line-height, sized/weighted independently of the
@@ -737,7 +838,7 @@ button:focus-visible, [tabindex]:focus-visible, input:focus-visible { outline: 2
 }
 .nav-arrived.visible { opacity: 1; transform: scale(1); }
 .arrived-icon { font-size: 40px; margin-bottom: 4px; }
-.arrived-title { font-family: "Baloo 2", sans-serif; font-size: 22px; font-weight: 700; color: var(--calm); }
+.arrived-title { font-family: var(--font-display); font-size: 28px; font-weight: 600; color: var(--calm); }
 .arrived-sub { font-size: 13px; color: var(--muted); font-weight: 600; margin-bottom: 10px; }
 .arrived-done-btn {
   background: var(--calm); color: #fff; border: none; border-radius: 999px; padding: 11px 28px;
@@ -747,12 +848,17 @@ button:focus-visible, [tabindex]:focus-visible, input:focus-visible { outline: 2
 
 /* --- Route comparison --- */
 .route-compare { display: flex; gap: 10px; margin-bottom: 16px; }
-.route-card { flex: 1; background: var(--surface); border: 2px solid var(--line); border-radius: 20px; padding: 13px; cursor: pointer; box-shadow: var(--shadow); transition: transform var(--motion-fast) var(--squish), border-color var(--motion-fast) ease, background var(--motion-fast) ease; }
-.route-card:active { transform: scale(0.97); }
+.route-card {
+  flex: 1; background: var(--surface); border: 2px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-4);
+  cursor: pointer; box-shadow: var(--shadow-md);
+  transition: transform var(--motion-fast) var(--squish), box-shadow var(--motion-fast) var(--ease-out), border-color var(--motion-fast) ease, background var(--motion-fast) ease;
+}
+.route-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+.route-card:active { transform: scale(0.97) translateY(0); }
 .route-card.selected { border-color: var(--calm); background: var(--calm-soft); }
 .route-card .rc-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 4px; font-weight: 700; }
 .route-card.selected .rc-label { color: var(--calm); font-weight: 700; }
-.route-card .rc-time { font-size: 21px; font-weight: 700; font-family: "Baloo 2", sans-serif; }
+.route-card .rc-time { font-size: 22px; font-weight: 600; font-family: var(--font-display); }
 .route-card .rc-sub { font-size: 11px; color: var(--muted); margin-top: 2px; font-weight: 600; }
 .breakdown-bar { display: flex; height: 7px; border-radius: 6px; overflow: hidden; margin-top: 8px; }
 .breakdown-bar span { display: block; height: 100%; }
@@ -795,7 +901,7 @@ button:focus-visible, [tabindex]:focus-visible, input:focus-visible { outline: 2
 .section-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); margin: 18px 0 8px; }
 
 /* --- Tool cards (shared) --- */
-.tool-card { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 15px 15px 13px; box-shadow: var(--shadow); margin-bottom: 12px; }
+.tool-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-4) var(--space-3); box-shadow: var(--shadow-md); margin-bottom: var(--space-3); }
 .tool-title { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; margin-bottom: 10px; }
 .tool-title svg { width: 16px; height: 16px; stroke: var(--calm); }
 .tool-sub { font-size: 11.5px; color: var(--muted); margin: -6px 0 10px; font-weight: 600; }
@@ -838,7 +944,7 @@ canvas.fidget-canvas { width: 100%; height: 84px; border-radius: 16px; backgroun
   padding: 20px 20px 26px; box-shadow: var(--shadow);
   max-height: 82vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
 }
-.settings-sheet h2 { font-size: 18px; margin: 0 0 14px; font-family: "Baloo 2", sans-serif; }
+.settings-sheet h2 { font-size: 19px; margin: 0 0 14px; font-family: var(--font-display); font-weight: 600; }
 .setting-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .setting-row:last-of-type { border-bottom: none; }
 .setting-row .label { font-size: 13.5px; font-weight: 700; }
@@ -866,16 +972,23 @@ footer.foot {
    ========================================================================== */
 
 /* --- Unlock CTA (floating over the map, mirrors .recenter-btn's corner) --- */
+/* Always a real, pressable button now — the kalimba is playable any time,
+   never gated by how far you've walked (see app.js's updateUnlockCta()).
+   `.ready` layers on the full gradient-accent glow as a bonus signal —
+   "you've also earned the ability to save this as a Calm Echo right now" —
+   without ever changing whether the button itself is clickable. */
 .echo-unlock-cta {
   position: absolute; bottom: 78px; left: 10px; z-index: 20; max-width: calc(100% - 20px);
-  background: var(--surface); border: 1px solid var(--line); color: var(--ink-soft);
-  border-radius: 999px; padding: 9px 16px; font-size: 11.5px; font-weight: 700;
-  box-shadow: var(--shadow); cursor: default; text-align: left; font-family: inherit;
-  transition: transform var(--motion-fast) var(--squish), background var(--motion-fast) ease, color var(--motion-fast) ease;
+  background: var(--surface); border: 1px solid var(--line); color: var(--ink);
+  border-radius: var(--radius-full); padding: 10px 18px; font-size: var(--text-sm); font-weight: 600;
+  box-shadow: var(--shadow-md); cursor: pointer; text-align: left; font-family: inherit;
+  transition: transform var(--motion-fast) var(--squish), box-shadow var(--motion-fast) var(--ease-out), background var(--motion-fast) ease, color var(--motion-fast) ease;
 }
 .echo-unlock-cta span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.echo-unlock-cta:hover { box-shadow: var(--shadow-lg); transform: translateY(-1px); }
+.echo-unlock-cta:active { transform: scale(0.96); }
 .echo-unlock-cta.ready {
-  background: var(--accent); color: var(--accent-ink); border-color: transparent; cursor: pointer;
+  background: var(--gradient-accent); color: var(--accent-ink); border-color: transparent;
   animation: echo-glow 1.8s ease-in-out infinite;
 }
 .echo-unlock-cta.ready:active { transform: scale(0.95); }
@@ -901,7 +1014,7 @@ footer.foot {
   padding: 20px 20px 26px; box-shadow: var(--shadow);
   max-height: 88vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
 }
-.echo-sheet h2 { font-size: 18px; margin: 0 0 6px; font-family: "Baloo 2", sans-serif; }
+.echo-sheet h2 { font-size: 19px; margin: 0 0 6px; font-family: var(--font-display); font-weight: 600; }
 
 /* --- The Kalimba itself: a warm wooden body with real metal-toned tines.
    The tine buttons ARE the instrument (not decoration over a canvas) —
@@ -961,6 +1074,10 @@ footer.foot {
 .echo-record-btn { background: var(--accent); color: var(--accent-ink); }
 .echo-record-btn svg { width: 13px; height: 13px; fill: currentColor; stroke: none; }
 .echo-record-btn.recording svg { fill: var(--accent); animation: echo-rec-pulse 1s ease-in-out infinite; }
+.echo-record-btn.locked, .echo-record-btn:disabled {
+  background: var(--surface-2); color: var(--muted); cursor: not-allowed; opacity: 0.6; box-shadow: none;
+}
+.echo-record-btn.locked svg, .echo-record-btn:disabled svg { opacity: 0.7; }
 @keyframes echo-rec-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 .echo-control-btn { background: var(--surface-2); color: var(--ink); }
 .echo-record-btn:active, .echo-control-btn:active { transform: scale(0.94); }
@@ -1005,7 +1122,7 @@ footer.foot {
 /* A cluster (several nearby Echoes collapsed into one marker at low zoom)
    shows a count instead of the single kalimba icon — same glow treatment. */
 .echo-marker-pin.echo-cluster .echo-marker-icon {
-  font-size: 12px; font-weight: 800; font-family: "Baloo 2", sans-serif; color: var(--accent-ink);
+  font-size: 12px; font-weight: 700; font-family: var(--font-body); color: var(--accent-ink);
   background: var(--accent); border-radius: 50%; width: 22px; height: 22px;
   display: flex; align-items: center; justify-content: center;
 }
