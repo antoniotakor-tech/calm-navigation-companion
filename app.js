@@ -58,6 +58,17 @@
   }
   function openSettings() {
     if (settingsOverlay.classList.contains("open")) return; // never open a second copy
+    // The address autocomplete dropdown (.ac-list) intentionally has a
+    // higher z-index than this overlay so it can sit above ordinary page
+    // content — but that means if it's still open when Settings opens
+    // (e.g. a user was mid-search, tapped Settings without picking a
+    // suggestion), it renders visually on top of the sheet instead of
+    // behind it, overlapping the sheet's own text. Closing both explicitly
+    // here is more correct than tweaking z-index numbers against each
+    // other, since the dropdown genuinely shouldn't be showing at all while
+    // a modal sheet has focus.
+    if (typeof startAutocomplete !== "undefined") startAutocomplete.close();
+    if (typeof endAutocomplete !== "undefined") endAutocomplete.close();
     settingsReturnFocusEl = document.activeElement;
     settingsOverlay.classList.add("open");
     const focusables = getFocusableInSettings();
@@ -628,7 +639,14 @@
     if (s) resolvedStart = s;
     if (e) resolvedEnd = e;
     if (startFailed && endFailed) {
-      showError("Couldn't find either place — check the spelling, or try a nearby landmark.");
+      // Unlike the two single-field branches below, this used to stop at
+      // "couldn't find either place" with no mention of what happens next —
+      // but the route search still runs against the previous start/end
+      // (see resolvedStart/resolvedEnd below), so the map and time
+      // estimates that appear right after this error keep showing a route,
+      // just not the one the user just typed. Matching the other two
+      // branches' wording so that's no longer surprising.
+      showError("Couldn't find either place — check the spelling, or try a nearby landmark. Kept the previous start and destination instead.");
     } else if (startFailed) {
       showError(`Couldn't find "${startInput.value}" — kept the previous start location instead.`);
     } else if (endFailed) {
