@@ -1,0 +1,3 @@
+# Copy to .dev.vars (gitignored) for local `wrangler pages dev .` runs.
+# This is consumed only by functions/api/*.js — never by client-side code.
+GRAPHHOPPER_API_KEY=YOUR_GRAPHHOPPER_KEY_HERE

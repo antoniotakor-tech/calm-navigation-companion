@@ -1,0 +1,29 @@
+{
+  "name": "calm-navigation-companion",
+  "private": true,
+  "version": "0.5.0",
+  "description": "Neurodivergent-friendly sensory design prototype: calm routing, auditory regulation, haptic fidgeting. Plain HTML/CSS/JS, no build step.",
+  "scripts": {
+    "test": "node --test navlogic.test.js routing.test.js voicequeue.test.js gestureengine.test.js searchranking.test.js geocodingservice.test.js autocompletecontroller.test.js shared/routeTransfer.test.js shared/rerouteBackoff.test.js shared/lifecycleReconciler.test.js prefs.test.js audioregulation.test.js functions/api/geocode.test.mjs kalimbaengine.test.js kalimbacontroller.test.js echorecorder.test.js explorationtracker.test.js echovalidation.test.js functions/api/echoes/index.test.mjs functions/api/echoes/nearby.test.mjs functions/api/echoes/id.test.mjs functions/api/echoes/idplay.test.mjs functions/api/echoes/notifications.test.mjs echomarkerclustering.test.js flowtheme.test.js",
+    "serve": "python3 -m http.server 8743",
+    "dev": "wrangler pages dev . --port 8743",
+    "deploy": "wrangler pages deploy .",
+    "build:web": "bash scripts/build-web.sh",
+    "build:plugin": "cd plugins/calm-nav-background && npm run build",
+    "cap:sync": "npm run build:web && npm run build:plugin && npx cap sync",
+    "ios:open": "npm run cap:sync && npx cap open ios",
+    "android:open": "npm run cap:sync && npx cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.4.2",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/core": "^8.4.2",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/ios": "^8.4.2",
+    "@capacitor/preferences": "^8.0.1",
+    "calm-nav-background": "file:plugins/calm-nav-background"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.4.2"
+  }
+}

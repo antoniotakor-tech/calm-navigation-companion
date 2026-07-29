@@ -1,0 +1,612 @@
+:root {
+  --bg: #F6F1DE;
+  --surface: #FFFFFF;
+  --surface-2: #ECE4C6;
+  --ink: #2B3A2A;
+  --ink-soft: #55684F;
+  --muted: #8B9A80;
+  --line: #E3DAB4;
+  --accent: #FF7A59;
+  --accent-ink: #FFFFFF;
+  --calm: #5B8A5A;
+  --calm-soft: #DEEBD3;
+  --busy: #FFC84D;
+  --sky: #7FCCEA;
+  --shadow: 0 2px 4px rgba(43,58,42,0.08), 0 14px 30px rgba(43,58,42,0.10);
+  --motion-fast: 0.2s;
+  --motion-slow: 0.45s;
+  --squish: cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* Calm Echoes' Kalimba — deliberately its own warm wood/metal palette
+     rather than reusing --surface/--calm, so the instrument reads as a
+     distinct physical object rather than another app panel. */
+  --kalimba-wood-1: #8A5A34;
+  --kalimba-wood-2: #6B4223;
+  --kalimba-tine-1: #E8D9B0;
+  --kalimba-tine-2: #B99C68;
+}
+:root[data-theme="dark"], :root.hc-dark {
+  --bg: #1E2A1F;
+  --surface: #263323;
+  --surface-2: #2F3F2A;
+  --ink: #F3EEDC;
+  --ink-soft: #C9D4BE;
+  --muted: #8FA083;
+  --line: #3A4A34;
+  --accent: #FF9270;
+  --accent-ink: #1E2A1F;
+  --calm: #8FCB8A;
+  --calm-soft: #33472F;
+  --busy: #FFD873;
+  --sky: #8FD9F2;
+  --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 18px 36px rgba(0,0,0,0.4);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1E2A1F; --surface: #263323; --surface-2: #2F3F2A; --ink: #F3EEDC;
+    --ink-soft: #C9D4BE; --muted: #8FA083; --line: #3A4A34; --accent: #FF9270;
+    --accent-ink: #1E2A1F; --calm: #8FCB8A; --calm-soft: #33472F; --busy: #FFD873; --sky: #8FD9F2;
+    --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 18px 36px rgba(0,0,0,0.4);
+  }
+}
+
+/* High contrast mode overrides both themes */
+:root[data-contrast="high"] {
+  --bg: #FFFFFF; --surface: #FFFFFF; --surface-2: #FFFFFF; --ink: #000000;
+  --ink-soft: #000000; --muted: #333333; --line: #000000; --accent: #B3400A;
+  --accent-ink: #FFFFFF; --calm: #0B5E48; --calm-soft: #FFFFFF; --busy: #8A5A00;
+  --shadow: none;
+}
+:root[data-theme="dark"][data-contrast="high"] {
+  --bg: #000000; --surface: #000000; --surface-2: #000000; --ink: #FFFFFF;
+  --ink-soft: #FFFFFF; --muted: #DDDDDD; --line: #FFFFFF; --accent: #FF8A50;
+  --accent-ink: #000000; --calm: #5FE0BE; --calm-soft: #000000; --busy: #FFC96B;
+}
+:root[data-contrast="high"] .tool-card,
+:root[data-contrast="high"] .pill,
+:root[data-contrast="high"] .route-card,
+:root[data-contrast="high"] .echo-sheet,
+:root[data-contrast="high"] .kalimba-tine-btn,
+:root[data-contrast="high"] .echo-marker-pin { border-width: 2px !important; }
+:root[data-contrast="high"] {
+  --kalimba-wood-1: var(--surface); --kalimba-wood-2: var(--surface);
+  --kalimba-tine-1: var(--ink); --kalimba-tine-2: var(--ink);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; overscroll-behavior: none; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Quicksand", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-weight: 500;
+  height: 100dvh;
+  overflow: hidden;
+  transition: background var(--motion-slow) ease, color var(--motion-slow) ease;
+}
+:root[data-motion="reduced"] * ,
+@media (prefers-reduced-motion: reduce) { * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; } }
+:root[data-motion="reduced"] * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+:root[data-motion="reduced"] .pages-wrap { scroll-behavior: auto !important; }
+
+.display { font-family: "Baloo 2", "Quicksand", sans-serif; font-weight: 700; }
+
+.app-shell {
+  max-width: 480px; margin: 0 auto; height: 100%;
+  display: flex; flex-direction: column;
+}
+
+header.top { display: flex; align-items: flex-start; justify-content: space-between; padding: 18px 18px 4px; flex-shrink: 0; }
+header.top h1 { font-size: 23px; margin: 0; }
+header.top .tagline { font-size: 12px; color: var(--muted); margin-top: 2px; font-weight: 600; }
+.top-actions { display: flex; gap: 8px; }
+.icon-btn {
+  background: var(--surface); border: 1px solid var(--line); color: var(--calm);
+  border-radius: 50%; width: 38px; height: 38px; display: flex; align-items: center;
+  justify-content: center; cursor: pointer; box-shadow: var(--shadow);
+  transition: transform var(--motion-fast) var(--squish), background var(--motion-fast) ease;
+}
+.icon-btn:active { transform: scale(0.88); background: var(--calm-soft); }
+.icon-btn svg { width: 18px; height: 18px; stroke: currentColor; }
+button:focus-visible, [tabindex]:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* --- Page dots nav --- */
+.page-dots { display: flex; justify-content: center; gap: 8px; padding: 10px 0 4px; flex-shrink: 0; }
+.dot-btn {
+  width: 9px; height: 9px; border-radius: 50%; background: var(--line); border: none; padding: 0;
+  cursor: pointer; transition: width var(--motion-fast) var(--squish), background var(--motion-fast) ease;
+}
+.dot-btn.active { width: 26px; border-radius: 6px; background: var(--calm); animation: dot-breathe 2.6s ease-in-out infinite; }
+@keyframes dot-breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.72; } }
+
+/* --- Swipeable pages --- */
+.pages-wrap {
+  flex: 1; min-height: 0; display: flex; overflow-x: auto; overflow-y: hidden;
+  scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scroll-behavior: smooth;
+}
+.pages-wrap::-webkit-scrollbar { display: none; }
+.page {
+  flex: 0 0 100%; max-width: 100%; height: 100%; overflow-y: auto; overflow-x: hidden;
+  scroll-snap-align: start; scroll-snap-stop: always;
+}
+.page-inner { padding: 4px 18px 24px; }
+.page-inner-centered { display: flex; flex-direction: column; align-items: center; text-align: center; padding-top: 18px; min-width: 0; }
+.pillar-icon {
+  width: 56px; height: 56px; border-radius: 50%; background: var(--calm-soft);
+  display: flex; align-items: center; justify-content: center; margin-bottom: 12px;
+  animation: gentle-breathe 3.2s ease-in-out infinite;
+}
+.pillar-icon svg { width: 27px; height: 27px; stroke: var(--calm); }
+/* Auditory regulation's pillar-icon doubles as the master toggle button —
+   scoped to its own id so the haptics page's identical-looking pillar-icon
+   (purely decorative there) is never affected. */
+#auditoryMasterBtn { cursor: pointer; }
+#auditoryMasterBtn[aria-pressed="false"] { opacity: 0.4; animation-play-state: paused; }
+@keyframes gentle-breathe { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-4px) scale(1.05); } }
+.pillar-title { font-size: 23px; margin: 0 0 4px; }
+.page-inner-centered .tool-sub { text-align: center; margin: 0 0 20px; max-width: 300px; }
+.settings-block { width: 100%; min-width: 0; margin-bottom: 14px; }
+.settings-block-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); margin-bottom: 6px; text-align: left; }
+.page-inner-centered .pill-row { justify-content: center; }
+.pillar-canvas { width: 100%; height: 120px; border-radius: 20px; background: var(--surface-2); display: block; margin: 10px 0 6px; box-shadow: var(--shadow); }
+.slider-row.wide { width: 100%; margin-top: 12px; }
+
+/* --- Route search --- */
+.route-inputs { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.route-input-wrap { position: relative; }
+.route-input-row { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 10px 14px; box-shadow: var(--shadow); transition: border-color var(--motion-fast) ease, box-shadow var(--motion-fast) ease; }
+.route-input-row .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.route-input-row.start .dot { background: var(--calm); }
+.route-input-row.end .dot { background: var(--accent); }
+.route-input-row input { border: none; background: none; color: var(--ink); font-size: 13.5px; font-weight: 600; flex: 1; outline: none; font-family: inherit; }
+/* input:focus-visible below is neutralized by outline:none above (equal
+   specificity, later source order) — the row itself carries the visible
+   keyboard-focus indicator instead, as a shape change (ring), not colour alone. */
+.route-input-row:focus-within { border-color: var(--calm); box-shadow: 0 0 0 3px var(--calm-soft); }
+
+/* --- Address autocomplete --- */
+.ac-status { min-height: 14px; padding: 2px 14px 0; font-size: 11px; color: var(--ink-soft); }
+.ac-status[data-error="true"] { color: var(--accent); }
+.ac-retry-btn {
+  margin-left: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  border-radius: 8px; padding: 6px 12px; min-height: 32px; font-size: 11px; font-weight: 600;
+  font-family: inherit; cursor: pointer;
+}
+.ac-retry-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ac-list {
+  position: absolute; left: 0; right: 0; top: 100%; z-index: 60; margin: 4px 0 0; padding: 6px;
+  list-style: none; background: var(--surface); border: 1px solid var(--line); border-radius: 16px;
+  box-shadow: var(--shadow); max-height: 300px; overflow-y: auto; -webkit-overflow-scrolling: touch;
+}
+.ac-option {
+  display: flex; align-items: center; gap: 10px; padding: 10px 8px; min-height: 44px;
+  border-radius: 10px; cursor: pointer;
+}
+.ac-option:hover { background: var(--surface-2); }
+.ac-option-active { background: var(--surface-2); outline: 2px solid var(--calm); outline-offset: -2px; }
+.ac-option-action { border-bottom: 1px solid var(--line); margin-bottom: 4px; padding-bottom: 12px; }
+.ac-option-action .ac-option-primary { color: var(--calm); }
+.ac-option-icon { flex-shrink: 0; font-size: 16px; line-height: 1; }
+.ac-option-text { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
+.ac-option-primary { font-size: 13.5px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ac-option-secondary { font-size: 11px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.find-btn {
+  width: 100%; background: var(--accent); color: var(--accent-ink); border: none; border-radius: 999px;
+  padding: 13px; font-size: 14.5px; font-weight: 700; cursor: pointer; margin-top: 4px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  box-shadow: 0 4px 0 rgba(0,0,0,0.12), var(--shadow);
+  transition: transform var(--motion-fast) var(--squish), box-shadow var(--motion-fast) ease;
+}
+.find-btn:active { transform: scale(0.96) translateY(1px); box-shadow: 0 2px 0 rgba(0,0,0,0.12), var(--shadow); }
+.find-btn:disabled { opacity: 0.75; cursor: default; }
+.leaf-loader { display: none; font-size: 16px; }
+.find-btn.loading .leaf-loader { display: inline-block; animation: leaf-sway 0.9s ease-in-out infinite; }
+@keyframes leaf-sway { 0%, 100% { transform: rotate(-18deg); } 50% { transform: rotate(18deg); } }
+
+/* --- Map --- */
+.map-wrap { position: relative; margin: 10px 0; transition: height var(--motion-slow) ease; }
+/* z-index:0 (not just position:relative) is load-bearing: it makes #map
+   establish its own stacking context, containing Leaflet's internal panes
+   (tile/marker/popup/control panes go up to z-index 1000 in leaflet.css)
+   so they can never leak out and paint over this element's siblings —
+   .recenter-btn, .nav-banner, .echo-unlock-cta, etc. — regardless of how
+   modest those siblings' own z-index values are. Without this, position:
+   relative alone does NOT create containment (a positioned element only
+   forms a stacking context when z-index is non-auto), so every one of
+   those overlay elements was silently at risk of being painted behind the
+   map tiles. */
+#map { width: 100%; height: 190px; border-radius: 22px; box-shadow: var(--shadow); transition: height var(--motion-slow) ease; position: relative; z-index: 0; }
+.map-pin { width: 26px; height: 26px; transform-origin: bottom center; animation: pin-sway 2.4s ease-in-out infinite; }
+.map-pin svg { width: 100%; height: 100%; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.25)); }
+@keyframes pin-sway { 0%, 100% { transform: rotate(-5deg) translateY(0); } 50% { transform: rotate(5deg) translateY(-2px); } }
+
+.user-dot-inner {
+  position: relative; width: 16px; height: 16px; border-radius: 50%; background: var(--sky); border: 3px solid #fff;
+  box-shadow: 0 0 0 4px rgba(127,204,234,0.35); animation: user-dot-pulse 2s ease-in-out infinite;
+}
+@keyframes user-dot-pulse {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(127,204,234,0.35); }
+  50% { box-shadow: 0 0 0 9px rgba(127,204,234,0.12); }
+}
+/* Heading chevron: only shown once a real or movement-derived heading exists
+   (app.js toggles this class) — rotated via inline transform per fix. */
+.user-dot.has-heading .user-dot-inner::after {
+  content: ""; position: absolute; top: -11px; left: 50%; width: 0; height: 0;
+  border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 8px solid var(--sky);
+  transform: translateX(-50%);
+}
+
+/* --- Live navigation overlay --- */
+.start-nav-btn {
+  width: 100%; background: var(--calm); color: #fff; border: none; border-radius: 999px;
+  padding: 13px; font-size: 14.5px; font-weight: 700; cursor: pointer; margin: 8px 0 0;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  box-shadow: 0 4px 0 rgba(0,0,0,0.14), var(--shadow);
+  transition: transform var(--motion-fast) var(--squish), box-shadow var(--motion-fast) ease;
+}
+.start-nav-btn svg { width: 17px; height: 17px; stroke: currentColor; }
+.start-nav-btn:active { transform: scale(0.96) translateY(1px); box-shadow: 0 2px 0 rgba(0,0,0,0.14), var(--shadow); }
+
+.nav-banner {
+  position: absolute; top: 10px; left: 10px; right: 10px; z-index: 20;
+  background: var(--surface); border-radius: 20px; box-shadow: var(--shadow);
+  padding: 12px 14px; display: flex; align-items: center; gap: 12px;
+}
+.nav-banner-icon {
+  width: 40px; height: 40px; flex-shrink: 0; border-radius: 50%; background: var(--calm-soft);
+  color: var(--calm); display: flex; align-items: center; justify-content: center; font-size: 20px;
+}
+.nav-banner-text { min-width: 0; flex: 1; }
+.nav-banner-dist { font-size: 18px; font-weight: 700; font-family: "Baloo 2", sans-serif; color: var(--calm); }
+.nav-banner-instr { font-size: 12.5px; color: var(--ink-soft); font-weight: 600; line-height: 1.3; }
+
+.nav-caption {
+  position: absolute; bottom: 68px; left: 10px; right: 10px; z-index: 21;
+  background: rgba(0,0,0,0.72); color: #fff; font-size: 12.5px; font-weight: 600;
+  padding: 8px 14px; border-radius: 12px; text-align: center; line-height: 1.35;
+}
+
+.nav-bottom {
+  position: absolute; bottom: 10px; left: 10px; right: 10px; z-index: 20;
+  background: var(--surface); border-radius: 999px; box-shadow: var(--shadow);
+  padding: 8px 8px 8px 16px; display: flex; align-items: center; justify-content: space-between;
+}
+.nav-eta { font-size: 12.5px; font-weight: 700; color: var(--ink-soft); }
+.nav-end-btn {
+  background: var(--accent); color: var(--accent-ink); border: none; border-radius: 999px;
+  padding: 9px 18px; font-size: 13px; font-weight: 700; cursor: pointer;
+  transition: transform var(--motion-fast) var(--squish);
+}
+.nav-end-btn:active { transform: scale(0.92); }
+
+.page-inner.nav-active .route-inputs,
+.page-inner.nav-active .find-btn,
+.page-inner.nav-active .special-event-banner,
+.page-inner.nav-active .error-banner,
+.page-inner.nav-active .safety-toggle-row,
+.page-inner.nav-active .mode-note,
+.page-inner.nav-active .safety-note,
+.page-inner.nav-active .nav-start-row,
+.page-inner.nav-active .route-compare,
+.page-inner.nav-active .steps-panel,
+.page-inner.nav-active #travelModePills { display: none !important; }
+.page-inner.nav-active .map-wrap,
+.page-inner.nav-active #map { height: 62vh; }
+
+/* --- Travel mode + dev simulate row --- */
+#travelModePills { margin: 2px 0 10px; }
+.nav-start-row { display: flex; gap: 8px; align-items: center; margin: 8px 0 0; }
+.nav-start-row .start-nav-btn { flex: 1; margin: 0; }
+.sim-btn {
+  flex-shrink: 0; background: var(--surface-2); color: var(--muted); border: 1px dashed var(--muted);
+  border-radius: 999px; padding: 10px 14px; font-size: 11px; font-weight: 700; cursor: pointer;
+}
+.sim-badge {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 25;
+  background: var(--accent); color: var(--accent-ink); font-size: 10.5px; font-weight: 800;
+  letter-spacing: 0.04em; padding: 5px 12px; border-radius: 999px; box-shadow: var(--shadow);
+}
+
+/* --- Error banner (permission denied, GPS unavailable, routing failure, etc.) --- */
+.error-banner {
+  background: #FBE3DC; border: 1.5px solid var(--accent); color: #7A2E1A; border-radius: 16px;
+  padding: 11px 14px; font-size: 12.5px; font-weight: 600; line-height: 1.4; margin: 8px 0 4px;
+}
+:root[data-theme="dark"] .error-banner { background: #3A241D; color: #FFC7B0; }
+
+/* --- Recenter button --- */
+.recenter-btn {
+  position: absolute; bottom: 78px; right: 10px; z-index: 20; width: 42px; height: 42px;
+  border-radius: 50%; background: var(--surface); border: 1px solid var(--line); color: var(--calm);
+  display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: var(--shadow);
+  transition: transform var(--motion-fast) var(--squish);
+}
+.recenter-btn:active { transform: scale(0.88); }
+.recenter-btn svg { width: 20px; height: 20px; stroke: currentColor; }
+
+/* --- Voice mute toggle inside the nav banner --- */
+.nav-mute-btn {
+  flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%; background: var(--surface-2);
+  border: none; color: var(--ink-soft); display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: transform var(--motion-fast) var(--squish), color var(--motion-fast) ease;
+}
+.nav-mute-btn.active { color: var(--calm); background: var(--calm-soft); }
+.nav-mute-btn:active { transform: scale(0.88); }
+.nav-mute-btn svg { width: 17px; height: 17px; stroke: currentColor; }
+.nav-mute-btn.muted #navMuteWave { display: none; }
+
+/* --- Dedicated arrival screen --- */
+.nav-arrived {
+  position: absolute; inset: 0; z-index: 1000; background: var(--surface);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  border-radius: 22px; text-align: center; padding: 20px;
+}
+.arrived-icon { font-size: 40px; margin-bottom: 4px; }
+.arrived-title { font-family: "Baloo 2", sans-serif; font-size: 22px; font-weight: 700; color: var(--calm); }
+.arrived-sub { font-size: 13px; color: var(--muted); font-weight: 600; margin-bottom: 10px; }
+.arrived-done-btn {
+  background: var(--calm); color: #fff; border: none; border-radius: 999px; padding: 11px 28px;
+  font-size: 14px; font-weight: 700; cursor: pointer; transition: transform var(--motion-fast) var(--squish);
+}
+.arrived-done-btn:active { transform: scale(0.94); }
+
+/* --- Route comparison --- */
+.route-compare { display: flex; gap: 10px; margin-bottom: 16px; }
+.route-card { flex: 1; background: var(--surface); border: 2px solid var(--line); border-radius: 20px; padding: 13px; cursor: pointer; box-shadow: var(--shadow); transition: transform var(--motion-fast) var(--squish), border-color var(--motion-fast) ease, background var(--motion-fast) ease; }
+.route-card:active { transform: scale(0.97); }
+.route-card.selected { border-color: var(--calm); background: var(--calm-soft); }
+.route-card .rc-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 4px; font-weight: 700; }
+.route-card.selected .rc-label { color: var(--calm); font-weight: 700; }
+.route-card .rc-time { font-size: 21px; font-weight: 700; font-family: "Baloo 2", sans-serif; }
+.route-card .rc-sub { font-size: 11px; color: var(--muted); margin-top: 2px; font-weight: 600; }
+.breakdown-bar { display: flex; height: 7px; border-radius: 6px; overflow: hidden; margin-top: 8px; }
+.breakdown-bar span { display: block; height: 100%; }
+.mode-note { font-size: 11.5px; color: var(--muted); text-align: center; margin: 10px 0 4px; line-height: 1.4; font-weight: 600; }
+
+.safety-toggle-row {
+  display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-soft);
+  margin-top: 10px; cursor: pointer; font-weight: 600;
+}
+.safety-toggle-row input { accent-color: var(--accent); width: 16px; height: 16px; flex-shrink: 0; }
+.safety-note {
+  background: var(--calm-soft); border: 1.5px solid var(--calm); border-radius: 16px;
+  padding: 10px 14px; font-size: 11.5px; color: var(--ink); line-height: 1.4; margin: 8px 0; font-weight: 600;
+}
+.special-event-banner {
+  background: var(--busy); color: #3D2E06; border-radius: 16px;
+  padding: 11px 14px; font-size: 12px; font-weight: 700; line-height: 1.4; margin: 8px 0 4px;
+}
+
+.steps-panel { margin-top: 14px; }
+.steps-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); margin-bottom: 8px; font-weight: 700; }
+.steps-list {
+  display: flex; flex-direction: column; gap: 2px; max-height: 260px; overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 8px; box-shadow: var(--shadow);
+}
+.step-row {
+  display: flex; align-items: center; gap: 10px; padding: 9px 8px; border-radius: 14px;
+  font-size: 12.5px; font-weight: 600;
+}
+.step-row:not(:last-child) { border-bottom: 1px solid var(--line); }
+.step-icon {
+  width: 26px; height: 26px; flex-shrink: 0; border-radius: 50%; background: var(--calm-soft);
+  color: var(--calm); display: flex; align-items: center; justify-content: center; font-size: 13px;
+}
+.step-text { flex: 1; color: var(--ink); line-height: 1.3; }
+.step-dist { flex-shrink: 0; color: var(--muted); font-size: 11px; }
+.step-empty { padding: 12px; text-align: center; color: var(--muted); font-size: 12px; }
+
+/* --- Section labels --- */
+.section-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); margin: 18px 0 8px; }
+
+/* --- Tool cards (shared) --- */
+.tool-card { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 15px 15px 13px; box-shadow: var(--shadow); margin-bottom: 12px; }
+.tool-title { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; margin-bottom: 10px; }
+.tool-title svg { width: 16px; height: 16px; stroke: var(--calm); }
+.tool-sub { font-size: 11.5px; color: var(--muted); margin: -6px 0 10px; font-weight: 600; }
+
+.pill-row { display: flex; gap: 7px; flex-wrap: wrap; width: 100%; min-width: 0; }
+.pill {
+  background: var(--surface-2); border: 1px solid transparent; color: var(--ink-soft); font-size: 12px;
+  font-weight: 600; padding: 7px 14px; border-radius: 999px; cursor: pointer;
+  transition: transform var(--motion-fast) var(--squish), background var(--motion-fast) ease;
+}
+.pill:active { transform: scale(0.92); }
+.pill.active { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.pill.calm-active { background: var(--calm); color: #fff; font-weight: 700; }
+
+.slider-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.slider-row label { font-size: 11px; color: var(--muted); width: 52px; flex-shrink: 0; font-weight: 600; }
+input[type="range"] { flex: 1; accent-color: var(--accent); }
+
+/* --- Haptic fidget zone --- */
+.fidget-zone {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 4px;
+}
+.fidget-btn {
+  aspect-ratio: 1; border-radius: 22px; background: var(--surface-2); border: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: center; cursor: pointer; user-select: none;
+  box-shadow: var(--shadow);
+  transition: transform var(--motion-fast) var(--squish), background var(--motion-fast) ease;
+}
+.fidget-btn:active { transform: scale(0.9); background: var(--calm-soft); }
+.fidget-btn svg { width: 27px; height: 27px; stroke: var(--ink-soft); }
+.no-haptic-note { font-size: 11px; color: var(--muted); margin-top: 8px; text-align: center; font-weight: 600; }
+
+canvas.fidget-canvas { width: 100%; height: 84px; border-radius: 16px; background: var(--surface-2); display: block; margin-top: 8px; }
+
+/* --- Settings sheet --- */
+.settings-overlay { position: fixed; inset: 0; background: rgba(43,58,42,0.4); display: none; align-items: flex-end; z-index: 30; }
+.settings-overlay.open { display: flex; }
+.settings-sheet {
+  background: var(--surface); width: 100%; max-width: 480px; margin: 0 auto; border-radius: 28px 28px 0 0;
+  padding: 20px 20px 26px; box-shadow: var(--shadow);
+  max-height: 82vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
+}
+.settings-sheet h2 { font-size: 18px; margin: 0 0 14px; font-family: "Baloo 2", sans-serif; }
+.setting-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.setting-row:last-of-type { border-bottom: none; }
+.setting-row .label { font-size: 13.5px; font-weight: 700; }
+.setting-row .desc { font-size: 11px; color: var(--muted); font-weight: 600; }
+.switch { position: relative; width: 42px; height: 26px; flex-shrink: 0; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.switch .track { position: absolute; inset: 0; background: var(--line); border-radius: 999px; transition: background var(--motion-fast); cursor: pointer; }
+.switch input:checked + .track { background: var(--calm); }
+.switch .knob { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; background: #fff; border-radius: 50%; transition: transform var(--motion-fast) var(--squish); box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+.switch input:checked + .track .knob { transform: translateX(16px); }
+.close-sheet {
+  width: 100%; margin-top: 16px; background: var(--surface-2); border: none; border-radius: 999px;
+  padding: 12px; font-size: 13.5px; font-weight: 700; color: var(--ink); cursor: pointer;
+  transition: transform var(--motion-fast) var(--squish);
+}
+.close-sheet:active { transform: scale(0.96); }
+
+footer.foot { flex-shrink: 0; padding: 6px 18px 10px; text-align: center; font-size: 10px; color: var(--muted); line-height: 1.4; }
+
+/* ==========================================================================
+   Calm Echoes
+   ========================================================================== */
+
+/* --- Unlock CTA (floating over the map, mirrors .recenter-btn's corner) --- */
+.echo-unlock-cta {
+  position: absolute; bottom: 78px; left: 10px; z-index: 20; max-width: calc(100% - 20px);
+  background: var(--surface); border: 1px solid var(--line); color: var(--ink-soft);
+  border-radius: 999px; padding: 9px 16px; font-size: 11.5px; font-weight: 700;
+  box-shadow: var(--shadow); cursor: default; text-align: left; font-family: inherit;
+  transition: transform var(--motion-fast) var(--squish), background var(--motion-fast) ease, color var(--motion-fast) ease;
+}
+.echo-unlock-cta span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.echo-unlock-cta.ready {
+  background: var(--accent); color: var(--accent-ink); border-color: transparent; cursor: pointer;
+  animation: echo-glow 1.8s ease-in-out infinite;
+}
+.echo-unlock-cta.ready:active { transform: scale(0.95); }
+@keyframes echo-glow {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent), var(--shadow); }
+  50% { box-shadow: 0 0 0 9px color-mix(in srgb, var(--accent) 0%, transparent), var(--shadow); }
+}
+
+/* --- Shared ephemeral toast (nearby prompt / discovery notification / save confirmation) --- */
+.echo-toast {
+  position: absolute; top: 10px; left: 10px; right: 10px; z-index: 22;
+  background: var(--surface); color: var(--ink); border-radius: 16px;
+  padding: 10px 14px; font-size: 12.5px; font-weight: 700; text-align: center;
+  box-shadow: var(--shadow); animation: echo-toast-in 0.3s var(--squish);
+}
+@keyframes echo-toast-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+
+/* --- Kalimba / discovery sheets (same slide-up modal mechanics as .settings-overlay) --- */
+.echo-overlay { position: fixed; inset: 0; background: rgba(43,58,42,0.4); display: none; align-items: flex-end; z-index: 31; }
+.echo-overlay.open { display: flex; }
+.echo-sheet {
+  background: var(--surface); width: 100%; max-width: 480px; margin: 0 auto; border-radius: 28px 28px 0 0;
+  padding: 20px 20px 26px; box-shadow: var(--shadow);
+  max-height: 88vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
+}
+.echo-sheet h2 { font-size: 18px; margin: 0 0 6px; font-family: "Baloo 2", sans-serif; }
+
+/* --- The Kalimba itself: a warm wooden body with real metal-toned tines.
+   The tine buttons ARE the instrument (not decoration over a canvas) —
+   styling them directly means the visual instrument and the accessible,
+   keyboard/screen-reader-operable control surface are the same elements,
+   with no separate canvas-vs-fallback visual to keep in sync. --- */
+.kalimba-wrap {
+  position: relative; border-radius: 24px; padding: 18px 14px 0;
+  background: linear-gradient(160deg, var(--kalimba-wood-1), var(--kalimba-wood-2));
+  box-shadow: var(--shadow), inset 0 2px 6px rgba(0,0,0,0.25);
+  margin: 14px 0 4px;
+}
+.kalimba-canvas {
+  /* Reserved for a future audio-reactive flourish (task: wiring); purely a
+     soft grain texture today via CSS alone, so the instrument looks
+     intentional even before any canvas drawing happens. */
+  display: block; width: 100%; height: 40px; opacity: 0.5;
+  background: repeating-linear-gradient(100deg, rgba(0,0,0,0.08) 0px, rgba(0,0,0,0.08) 2px, transparent 2px, transparent 7px);
+}
+.kalimba-tine-buttons {
+  /* Edge-to-edge, no justify-content/max-width centering slack: kalimbacontroller.js's
+     tineIndexForPosition() maps a pointer's fraction across this container's
+     FULL width to a tine index, so the 11 buttons must actually fill 0%-100%
+     of it exactly, or a tap near either edge would hit-test against empty
+     space instead of the tine visually nearest it. */
+  display: flex; align-items: flex-end; gap: 3px;
+  height: 178px; padding: 0 4px 14px; margin-top: -30px;
+}
+.kalimba-tine-btn {
+  flex: 1 1 0; min-width: 0; border: none; border-radius: 5px 5px 3px 3px;
+  background: linear-gradient(180deg, var(--kalimba-tine-1), var(--kalimba-tine-2));
+  box-shadow: 0 2px 3px rgba(0,0,0,0.3), inset 0 1px 1px rgba(255,255,255,0.4);
+  cursor: pointer; padding: 0; touch-action: none;
+  transition: transform var(--motion-fast) var(--squish), filter var(--motion-fast) ease;
+}
+.kalimba-tine-btn:active, .kalimba-tine-btn.plucked {
+  transform: translateY(3px) scaleY(0.97); filter: brightness(1.15);
+}
+/* Tine length tapers symmetrically from the physical center outward,
+   matching a real kalimba's construction (longer tines = lower pitch,
+   center = lowest). Keyed to visual position (nth-child), not pitch rank —
+   see kalimbaengine.js's TINE_VISUAL_ORDER for why the two aren't the same. */
+.kalimba-tine-btn:nth-child(6) { height: 172px; }
+.kalimba-tine-btn:nth-child(5), .kalimba-tine-btn:nth-child(7) { height: 152px; }
+.kalimba-tine-btn:nth-child(4), .kalimba-tine-btn:nth-child(8) { height: 132px; }
+.kalimba-tine-btn:nth-child(3), .kalimba-tine-btn:nth-child(9) { height: 114px; }
+.kalimba-tine-btn:nth-child(2), .kalimba-tine-btn:nth-child(10) { height: 98px; }
+.kalimba-tine-btn:nth-child(1), .kalimba-tine-btn:nth-child(11) { height: 84px; }
+
+.echo-record-status { min-height: 16px; margin: 10px 0 0; font-size: 12px; color: var(--ink-soft); font-weight: 600; text-align: center; }
+.echo-record-controls { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 10px; }
+.echo-record-btn, .echo-control-btn {
+  display: flex; align-items: center; gap: 6px; border: none; border-radius: 999px;
+  padding: 10px 18px; font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: inherit;
+  transition: transform var(--motion-fast) var(--squish);
+}
+.echo-record-btn { background: var(--accent); color: var(--accent-ink); }
+.echo-record-btn svg { width: 13px; height: 13px; fill: currentColor; stroke: none; }
+.echo-record-btn.recording svg { fill: var(--accent); animation: echo-rec-pulse 1s ease-in-out infinite; }
+@keyframes echo-rec-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+.echo-control-btn { background: var(--surface-2); color: var(--ink); }
+.echo-record-btn:active, .echo-control-btn:active { transform: scale(0.94); }
+.echo-control-btn:disabled { opacity: 0.5; cursor: default; }
+
+.echo-message-field { margin-top: 14px; }
+.echo-message-field label { display: block; font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 6px; }
+.echo-message-field textarea {
+  width: 100%; min-height: 64px; resize: none; border-radius: 14px; border: 1px solid var(--line);
+  background: var(--surface-2); color: var(--ink); font-family: inherit; font-size: 13px; font-weight: 600;
+  padding: 10px 12px; box-sizing: border-box;
+}
+.echo-char-count { text-align: right; font-size: 10.5px; color: var(--muted); margin-top: 4px; font-weight: 600; }
+
+.echo-sheet-actions { display: flex; gap: 10px; margin-top: 18px; }
+.echo-sheet-actions .close-sheet { margin-top: 0; flex: 1; }
+.echo-sheet-actions .find-btn { margin-top: 0; flex: 1.4; }
+
+/* --- Discovery detail sheet --- */
+.echo-detail-sheet { text-align: center; }
+.echo-detail-icon { font-size: 34px; margin-bottom: 6px; }
+.echo-detail-message { font-size: 13.5px; color: var(--ink); font-weight: 600; line-height: 1.4; margin: 6px 0 10px; }
+.echo-detail-meta { font-size: 11.5px; color: var(--muted); font-weight: 600; margin-bottom: 16px; }
+.echo-detail-play-btn { width: 100%; margin: 0 0 8px; }
+.echo-detail-play-btn svg { width: 15px; height: 15px; }
+
+/* --- Map markers: glowing, never cluttered, animated softly --- */
+.echo-marker-pin {
+  width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+  filter: drop-shadow(0 2px 3px rgba(0,0,0,0.3));
+}
+.echo-marker-pin .echo-marker-glow {
+  position: absolute; inset: -6px; border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  animation: echo-marker-pulse 2.6s ease-in-out infinite;
+}
+.echo-marker-pin .echo-marker-icon { position: relative; font-size: 16px; line-height: 1; }
+@keyframes echo-marker-pulse {
+  0%, 100% { transform: scale(0.85); opacity: 0.7; }
+  50% { transform: scale(1.15); opacity: 0.25; }
+}
+/* A cluster (several nearby Echoes collapsed into one marker at low zoom)
+   shows a count instead of the single kalimba icon — same glow treatment. */
+.echo-marker-pin.echo-cluster .echo-marker-icon {
+  font-size: 12px; font-weight: 800; font-family: "Baloo 2", sans-serif; color: var(--accent-ink);
+  background: var(--accent); border-radius: 50%; width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+}

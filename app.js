@@ -1,0 +1,1955 @@
+(function () {
+  "use strict";
+
+  // ---------------------------------------------------------------------
+  // Theme / accessibility
+  // ---------------------------------------------------------------------
+  const root = document.documentElement;
+
+  // "Moon button": toggles the app's existing light/dark theme AND, via
+  // setNightMode() (defined later, in the auditory-regulation section),
+  // calm/night audio behavior — reduced effects intensity, slower fades,
+  // no unnecessarily loud alerts. This does not replace the theme system;
+  // night mode is *derived from* dark theme, not a second independent
+  // toggle, per the fix task's "integrate with it" requirement. setNightMode/
+  // prefs/ambient/audioManager are declared further down in this same file
+  // but this handler only ever runs on a later click, by which point the
+  // whole script has already finished loading — safe to reference here.
+  document.getElementById("themeToggle").addEventListener("click", () => {
+    const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const cur = root.getAttribute("data-theme");
+    const effectiveDark = cur ? cur === "dark" : prefersDark;
+    const goingDark = !effectiveDark;
+    root.setAttribute("data-theme", goingDark ? "dark" : "light");
+    darkModeToggle.checked = goingDark;
+    refreshMapTheme();
+    setNightMode(goingDark);
+  });
+
+  const settingsBtn = document.getElementById("settingsBtn");
+  const settingsOverlay = document.getElementById("settingsOverlay");
+  const settingsSheetEl = settingsOverlay.querySelector(".settings-sheet");
+  let settingsReturnFocusEl = null;
+
+  function getFocusableInSettings() {
+    return Array.from(settingsSheetEl.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'))
+      .filter((el) => !el.disabled && el.offsetParent !== null);
+  }
+  function openSettings() {
+    if (settingsOverlay.classList.contains("open")) return; // never open a second copy
+    settingsReturnFocusEl = document.activeElement;
+    settingsOverlay.classList.add("open");
+    const focusables = getFocusableInSettings();
+    if (focusables.length) focusables[0].focus();
+  }
+  function closeSettingsSheet() {
+    if (!settingsOverlay.classList.contains("open")) return;
+    settingsOverlay.classList.remove("open");
+    if (settingsReturnFocusEl && typeof settingsReturnFocusEl.focus === "function") settingsReturnFocusEl.focus();
+    settingsReturnFocusEl = null;
+  }
+  settingsBtn.addEventListener("click", openSettings);
+  document.getElementById("closeSettings").addEventListener("click", closeSettingsSheet);
+  settingsOverlay.addEventListener("click", (e) => { if (e.target === settingsOverlay) closeSettingsSheet(); });
+  // Escape-to-close and a Tab focus trap, both scoped to "only while open".
+  document.addEventListener("keydown", (e) => {
+    if (!settingsOverlay.classList.contains("open")) return;
+    if (e.key === "Escape") { closeSettingsSheet(); return; }
+    if (e.key === "Tab") {
+      const focusables = getFocusableInSettings();
+      if (!focusables.length) return;
+      const first = focusables[0], last = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  });
+
+  const reducedMotionToggle = document.getElementById("reducedMotionToggle");
+  const highContrastToggle = document.getElementById("highContrastToggle");
+  const darkModeToggle = document.getElementById("darkModeToggle");
+
+  reducedMotionToggle.addEventListener("change", () => {
+    root.setAttribute("data-motion", reducedMotionToggle.checked ? "reduced" : "full");
+    prefs.set({ audio: { reducedMotion: reducedMotionToggle.checked } });
+  });
+  highContrastToggle.addEventListener("change", () => {
+    root.setAttribute("data-contrast", highContrastToggle.checked ? "high" : "normal");
+  });
+  darkModeToggle.addEventListener("change", () => {
+    root.setAttribute("data-theme", darkModeToggle.checked ? "dark" : "light");
+    refreshMapTheme();
+    setNightMode(darkModeToggle.checked);
+  });
+
+  // ---------------------------------------------------------------------
+  // Map (Leaflet + CARTO tiles, built on OpenStreetMap data)
+  // ---------------------------------------------------------------------
+  // Real feedback: a frozen, non-interactive map read as broken rather than
+  // intentional, and the default OSM "Mapnik" tile style looks dated/busy.
+  // Switched to CARTO's free, no-key-required Positron/Dark Matter tiles —
+  // a clean, muted basemap that suits a calm-design app much better and lets
+  // the route-line colors actually stand out — and gave the map back its
+  // normal pinch/drag/zoom. The page-dots nav (and keyboard arrows) are the
+  // fallback for switching pages from directly on top of the map.
+  const isDark = () => {
+    const t = root.getAttribute("data-theme");
+    return t ? t === "dark" : (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  };
+  const map = L.map("map", { zoomControl: false, attributionControl: false }).setView(
+    [CONFIG.DEFAULT_START.lat, CONFIG.DEFAULT_START.lon], 14
+  );
+  let tileLayer = L.tileLayer(
+    isDark()
+      ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+      : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+    { maxZoom: 19, subdomains: "abcd" }
+  ).addTo(map);
+  L.control.attribution({ prefix: false }).addAttribution("&copy; OpenStreetMap contributors &copy; CARTO").addTo(map);
+
+  function refreshMapTheme() {
+    map.removeLayer(tileLayer);
+    tileLayer = L.tileLayer(
+      isDark()
+        ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+        : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+      { maxZoom: 19, subdomains: "abcd" }
+    ).addTo(map);
+    tileLayer.bringToBack();
+  }
+
+  let calmLine = null, fastLine = null, startMarker = null, endMarker = null;
+
+  function clearRouteLayers() {
+    [calmLine, fastLine, startMarker, endMarker].forEach((l) => { if (l) map.removeLayer(l); });
+    calmLine = fastLine = startMarker = endMarker = null;
+  }
+
+  function drawRoute(result, start, end) {
+    clearRouteLayers();
+    const calmLatLngs = result.calm.coordinates.map(([lon, lat]) => [lat, lon]);
+    const fastLatLngs = result.fastest.coordinates.map(([lon, lat]) => [lat, lon]);
+
+    fastLine = L.polyline(fastLatLngs, { color: getVar("--busy"), weight: 3, opacity: 0.55, dashArray: "5,7" }).addTo(map);
+    calmLine = L.polyline(calmLatLngs, { color: getVar("--calm"), weight: 5, opacity: 0.95 }).addTo(map);
+
+    startMarker = L.marker([start.lat, start.lon], { icon: makePinIcon(getVar("--calm")) }).addTo(map);
+    endMarker = L.marker([end.lat, end.lon], { icon: makePinIcon(getVar("--accent")) }).addTo(map);
+
+    // The map container's on-screen size can have changed since Leaflet last
+    // measured it (e.g. the safety banner or special-event banner toggling
+    // visibility above the map). invalidateSize() re-syncs Leaflet's cached
+    // size before fitBounds computes the fit — otherwise tiles get positioned
+    // for a stale (usually smaller) box and leave the real container's edges
+    // blank. animate:false avoids leftover stale-zoom tiles from an
+    // interrupted pan/zoom animation when markers are added immediately after.
+    map.invalidateSize(false);
+    map.fitBounds(calmLine.getBounds(), { padding: [24, 24], animate: false });
+  }
+
+  function getVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || "#888";
+  }
+
+  // ---------------------------------------------------------------------
+  // Shared audio + preferences infrastructure — one AudioManager for the
+  // whole app (nav voice, ambient soundscapes, effects, and the haptic
+  // page's fidget tones all mix through its three buses), one Prefs store
+  // persisting both audio and haptic settings.
+  // ---------------------------------------------------------------------
+  const prefs = new Prefs();
+  const audioManager = new AudioManager();
+
+  // Reduced motion starts on if EITHER the OS currently prefers it OR the
+  // user previously turned it on in this app (persisted — see prefs.js).
+  // This is what makes the setting actually survive a refresh: previously it
+  // only ever reflected the OS preference and was never saved at all.
+  const prefersReducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (prefersReducedMotion || prefs.get().audio.reducedMotion) {
+    reducedMotionToggle.checked = true;
+    root.setAttribute("data-motion", "reduced");
+    if (!prefs.get().audio.reducedMotion) prefs.set({ audio: { reducedMotion: true } });
+  }
+
+  // ---------------------------------------------------------------------
+  // Navigation bridge — picks web or native implementations for every
+  // location/audio/speech/haptics/lifecycle/notification concern used below.
+  // See shared/navigationBridge.js and shared/interfaces.js for why this is
+  // the one seam the rest of app.js talks through instead of calling
+  // navigator.geolocation/AudioManager/HapticManager directly for anything
+  // nav-related — it's what makes "never two simultaneous engines
+  // processing the same GPS updates" enforceable.
+  // ---------------------------------------------------------------------
+  const apiBaseUrl = NavBridge.isNative ? CONFIG.NATIVE_API_BASE_URL : "";
+  NavBridge.init({
+    location: NavBridge.isNative ? new NativeLocationProvider() : new WebLocationProvider(),
+    backgroundNav: NavBridge.isNative ? new NativeBackgroundNavigationService() : new WebBackgroundNavigationService(),
+    audioSession: NavBridge.isNative ? new NativeAudioSessionController() : new WebAudioSessionController(audioManager),
+    speech: NavBridge.isNative ? new NativeSpeechGuidanceProvider() : null, // web's is created below, after VoiceEngine exists
+    haptics: NavBridge.isNative ? new NativeHapticProvider() : null, // web's is created below, after HapticManager exists
+    lifecycle: NavBridge.isNative ? new NativeLifecycleController() : new WebLifecycleController(),
+    notification: NavBridge.isNative ? new NativeNotificationController() : new WebNotificationController(),
+  });
+
+  function makeUserDotIcon() {
+    return L.divIcon({ className: "user-dot", html: `<div class="user-dot-inner"></div>`, iconSize: [16, 16], iconAnchor: [8, 8] });
+  }
+
+  // Pikmin-Bloom-style pillowy teardrop pin (rounded, gently swaying), built as
+  // a Leaflet divIcon so it can use the app's own CSS animation instead of a
+  // static default marker image.
+  function makePinIcon(color) {
+    return L.divIcon({
+      className: "map-pin",
+      html: `<svg viewBox="0 0 26 26"><path d="M13 2c-5.5 0-9 4-9 8.5C4 17 13 24 13 24s9-7 9-13.5C22 6 18.5 2 13 2z" fill="${color}"/><circle cx="13" cy="10.5" r="4" fill="rgba(255,255,255,0.85)"/></svg>`,
+      iconSize: [26, 26],
+      iconAnchor: [13, 24],
+    });
+  }
+
+  // ---------------------------------------------------------------------
+  // PILLAR 1 — Calm routing
+  // ---------------------------------------------------------------------
+  const startInput = document.getElementById("startInput");
+  const endInput = document.getElementById("endInput");
+  const findBtn = document.getElementById("findBtn");
+  const modeNote = document.getElementById("modeNote");
+  const routeCompare = document.getElementById("routeCompare");
+  const calmCard = document.getElementById("calmCard");
+  const fastCard = document.getElementById("fastCard");
+  const safetyToggle = document.getElementById("safetyToggle");
+  const safetyNote = document.getElementById("safetyNote");
+  const startNavBtn = document.getElementById("startNavBtn");
+  const navBanner = document.getElementById("navBanner");
+  const navBottom = document.getElementById("navBottom");
+  const navIcon = document.getElementById("navIcon");
+  const navDist = document.getElementById("navDist");
+  const navInstr = document.getElementById("navInstr");
+  const navEta = document.getElementById("navEta");
+  const navEndBtn = document.getElementById("navEndBtn");
+  const errorBanner = document.getElementById("errorBanner");
+  const travelModePills = document.querySelectorAll("#travelModePills .pill");
+
+  startInput.value = CONFIG.DEFAULT_START.label;
+  endInput.value = CONFIG.DEFAULT_END.label;
+  let resolvedStart = CONFIG.DEFAULT_START;
+  let resolvedEnd = CONFIG.DEFAULT_END;
+  let travelMode = "walk";
+
+  // ---------------------------------------------------------------------
+  // Address autocomplete (start + destination fields)
+  // ---------------------------------------------------------------------
+  // A single quiet, low-accuracy location fetch, attempted once on first
+  // interaction with either address field (not on page load, so the
+  // permission prompt only appears once the user has actually started
+  // searching). If denied/unavailable, autocomplete still works globally —
+  // it just has no nearby-ranking bias.
+  let userPoint = null;
+  let cityContext = null;
+  let locateAttempted = false;
+  async function ensureUserLocation() {
+    if (locateAttempted) return;
+    locateAttempted = true;
+    if (NavBridge.isNative) {
+      const status = await Capacitor.Plugins.CalmNavBackground.getPermissionStatus();
+      if (status.foreground !== "granted") {
+        const req = await Capacitor.Plugins.CalmNavBackground.requestForegroundLocationPermission();
+        if (!req.granted) return; // denied — autocomplete still works globally, just without nearby bias
+      }
+    }
+    try {
+      const fix = await NavBridge.location.getCurrentPosition();
+      userPoint = { lat: fix.lat, lon: fix.lon };
+      const ctx = await resolveCityContext({ point: userPoint });
+      if (ctx) cityContext = ctx;
+    } catch (e) {
+      // denied or unavailable: leave userPoint/cityContext null
+    }
+  }
+  function getUserContext() {
+    return {
+      point: userPoint,
+      city: cityContext && cityContext.city,
+      state: cityContext && cityContext.state,
+      countryCode: cityContext && cityContext.countryCode,
+    };
+  }
+
+  // "Use my current location" — a fresh, higher-accuracy fix (separate from
+  // the passive biasing fetch above), with reverse geocoding for a readable
+  // label that never blocks on failure.
+  async function useCurrentLocationForStart() {
+    if (NavBridge.isNative) {
+      const status = await Capacitor.Plugins.CalmNavBackground.getPermissionStatus();
+      if (status.foreground !== "granted") {
+        const req = await Capacitor.Plugins.CalmNavBackground.requestForegroundLocationPermission();
+        if (!req.granted) return null;
+      }
+    }
+    let fix;
+    try {
+      fix = await NavBridge.location.getCurrentPosition();
+    } catch (e) {
+      return null;
+    }
+    const point = { lat: fix.lat, lon: fix.lon };
+    userPoint = point;
+    let label = "Current location";
+    try {
+      const ctx = await resolveCityContext({ point, force: !cityContext, endpointBase: apiBaseUrl });
+      if (ctx) cityContext = ctx;
+      const { hits } = await reverseGeocode({ point, endpointBase: apiBaseUrl });
+      const normalized = hits.map(normalizeHit).filter(Boolean);
+      if (normalized[0]) {
+        label = normalized[0].secondary
+          ? `${normalized[0].primary}, ${normalized[0].secondary}`
+          : normalized[0].primary;
+      }
+    } catch (e) {
+      // Reverse geocoding is best-effort only — the coordinates themselves
+      // are already resolved and usable regardless.
+    }
+    return { lat: point.lat, lon: point.lon, label };
+  }
+
+  let startSelectedResult = null;
+  let endSelectedResult = null;
+
+  const startAutocomplete = new AutocompleteController({
+    input: startInput,
+    listEl: document.getElementById("startAcList"),
+    statusEl: document.getElementById("startAcStatus"),
+    isStartField: true,
+    geocodingService: { forwardGeocode },
+    endpointBase: apiBaseUrl,
+    ranking: { rankHits },
+    getUserContext,
+    onSelect: (result) => {
+      startSelectedResult = result;
+      resolvedStart = { label: result.label, lat: result.lat, lon: result.lon };
+    },
+    onUseCurrentLocation: useCurrentLocationForStart,
+  });
+  const endAutocomplete = new AutocompleteController({
+    input: endInput,
+    listEl: document.getElementById("endAcList"),
+    statusEl: document.getElementById("endAcStatus"),
+    isStartField: false,
+    geocodingService: { forwardGeocode },
+    endpointBase: apiBaseUrl,
+    ranking: { rankHits },
+    getUserContext,
+    onSelect: (result) => {
+      endSelectedResult = result;
+      resolvedEnd = { label: result.label, lat: result.lat, lon: result.lon };
+    },
+  });
+  startInput.addEventListener("focus", ensureUserLocation);
+  endInput.addEventListener("focus", ensureUserLocation);
+
+  function showError(message) {
+    errorBanner.textContent = message;
+    errorBanner.style.display = "block";
+  }
+  function clearError() {
+    errorBanner.style.display = "none";
+  }
+
+  travelModePills.forEach((pill) => {
+    pill.addEventListener("click", () => {
+      travelModePills.forEach((p) => p.classList.remove("active"));
+      pill.classList.add("active");
+      travelMode = pill.dataset.travel;
+      if (lastResult) runSearch();
+    });
+  });
+
+  const CLASS_COLORS = {
+    path: "#4F7A6E", track: "#6B9C8C", pedestrian: "#7FADA0", living_street: "#96C2B3",
+    footway: "#5C8F80", cycleway: "#8FB8AC", residential: "#B7CDBE", unclassified: "#CBB98A",
+    service: "#D8C9A0", tertiary: "#D6A254", secondary: "#C1592E", primary: "#A8391B",
+    trunk: "#7E2A13", motorway: "#5C1D0C", other: "#AAAAAA",
+  };
+
+  function renderBar(el, breakdownPct) {
+    el.innerHTML = "";
+    Object.keys(breakdownPct).forEach((k) => {
+      const seg = document.createElement("span");
+      seg.style.width = breakdownPct[k] + "%";
+      seg.style.background = CLASS_COLORS[k] || CLASS_COLORS.other;
+      seg.title = `${k}: ${breakdownPct[k]}%`;
+      el.appendChild(seg);
+    });
+  }
+
+  function fmtMin(ms) { return Math.round(ms / 60000) + " min"; }
+  function fmtDist(m) { return m >= 1000 ? (m / 1000).toFixed(1) + " km" : Math.round(m) + " m"; }
+
+  let lastResult = null;
+  let selected = "calm";
+
+  // GraphHopper "sign" codes → simple turn icons. Standard convention:
+  // 0 continue, ±1 slight turn, ±2 turn, ±3 sharp turn, 4 arrive, 6 roundabout.
+  function signIcon(sign) {
+    if (sign === 4 || sign === 5) return "🏁";
+    if (sign === 6) return "↻";
+    if (sign <= -2) return "↰";
+    if (sign === -1) return "↖";
+    if (sign === 0) return "↑";
+    if (sign === 1) return "↗";
+    if (sign >= 2) return "↱";
+    return "↑";
+  }
+
+  const stepsList = document.getElementById("stepsList");
+  function renderSteps(which) {
+    if (!lastResult) return;
+    const route = which === "fast" ? lastResult.fastest : lastResult.calm;
+    const steps = route.steps || [];
+    stepsList.innerHTML = "";
+    if (!steps.length) {
+      stepsList.innerHTML = '<div class="step-empty">No turn-by-turn available for this route.</div>';
+      return;
+    }
+    steps.forEach((s) => {
+      const row = document.createElement("div");
+      row.className = "step-row";
+      const icon = document.createElement("span");
+      icon.className = "step-icon";
+      icon.textContent = signIcon(s.sign);
+      const text = document.createElement("span");
+      text.className = "step-text";
+      text.textContent = s.text;
+      const dist = document.createElement("span");
+      dist.className = "step-dist";
+      dist.textContent = s.distanceM > 0 ? fmtDist(s.distanceM) : "";
+      row.appendChild(icon);
+      row.appendChild(text);
+      row.appendChild(dist);
+      stepsList.appendChild(row);
+    });
+  }
+
+  function selectRoute(which) {
+    selected = which;
+    calmCard.classList.toggle("selected", which === "calm");
+    fastCard.classList.toggle("selected", which === "fast");
+    renderSteps(which);
+  }
+  calmCard.addEventListener("click", () => selectRoute("calm"));
+  fastCard.addEventListener("click", () => selectRoute("fast"));
+
+  const findBtnLabel = document.getElementById("findBtnLabel");
+  let isSearching = false;
+
+  async function runSearch() {
+    // Guards all three trigger paths (Find button, travel-mode pills, safety
+    // toggle) against firing a second overlapping request while one is still
+    // in flight — two concurrent fetchCalmRoute calls could otherwise race
+    // and let the earlier (stale) response's drawRoute() overwrite the later one.
+    if (isSearching) return;
+    isSearching = true;
+    findBtn.disabled = true;
+    findBtn.classList.add("loading");
+    findBtnLabel.textContent = "Finding your calm route…";
+    modeNote.textContent = "";
+    clearError();
+
+    // Geocoding/routing both go through same-origin Functions proxies
+    // (functions/api/*.js) — no API key lives in this bundle. If the
+    // deployment has no key configured server-side, these calls resolve
+    // with a non-ok response and everything below degrades to demo mode.
+    //
+    // If the user picked a suggestion from autocomplete and hasn't edited
+    // the field since, its exact lat/lon is already known — skip re-geocoding
+    // it, both to save a request and to avoid the (small) chance a second
+    // lookup resolves to a different point than the one actually selected.
+    const startAlreadyResolved = startSelectedResult && startSelectedResult.label === startInput.value;
+    const endAlreadyResolved = endSelectedResult && endSelectedResult.label === endInput.value;
+    const [s, e] = await Promise.all([
+      startAlreadyResolved
+        ? Promise.resolve({ label: startSelectedResult.label, lat: startSelectedResult.lat, lon: startSelectedResult.lon })
+        : geocode(startInput.value, apiBaseUrl),
+      endAlreadyResolved
+        ? Promise.resolve({ label: endSelectedResult.label, lat: endSelectedResult.lat, lon: endSelectedResult.lon })
+        : geocode(endInput.value, apiBaseUrl),
+    ]);
+    // Checked independently: previously this only warned when BOTH failed,
+    // so a single mistyped address silently kept navigating from/to the
+    // last resolved (often default) location with no indication to the user.
+    const startFailed = !s && startInput.value !== resolvedStart.label;
+    const endFailed = !e && endInput.value !== resolvedEnd.label;
+    if (s) resolvedStart = s;
+    if (e) resolvedEnd = e;
+    if (startFailed && endFailed) {
+      showError("Couldn't find either place — check the spelling, or try a nearby landmark.");
+    } else if (startFailed) {
+      showError(`Couldn't find "${startInput.value}" — kept the previous start location instead.`);
+    } else if (endFailed) {
+      showError(`Couldn't find "${endInput.value}" — kept the previous destination instead.`);
+    }
+
+    let result;
+    try {
+      result = await fetchCalmRoute({
+        start: resolvedStart,
+        end: resolvedEnd,
+        peakWindows: CONFIG.PEAK_WINDOWS,
+        safetyMode: safetyToggle.checked,
+        specialEvents: CONFIG.SPECIAL_EVENTS,
+        ghProfile: NavLogic.TRAVEL_MODES[travelMode].ghProfile,
+        endpointBase: apiBaseUrl,
+      });
+    } catch (e) {
+      isSearching = false;
+      findBtn.disabled = false;
+      findBtn.classList.remove("loading");
+      findBtnLabel.textContent = "Find calm route";
+      showError("Something went wrong finding a route. Please try again.");
+      return;
+    }
+    lastResult = result;
+
+    const specialEventBanner = document.getElementById("specialEventBanner");
+    if (result.specialEvent) {
+      specialEventBanner.textContent = `Today is ${result.specialEvent.name}. ${result.specialEvent.note}`;
+      specialEventBanner.style.display = "block";
+    } else {
+      specialEventBanner.style.display = "none";
+    }
+
+    drawRoute(result, resolvedStart, resolvedEnd);
+
+    calmCard.querySelector(".rc-time").textContent = fmtMin(result.calm.timeMs);
+    document.getElementById("calmDist").textContent = fmtDist(result.calm.distanceM);
+    document.getElementById("fastTime").textContent = fmtMin(result.fastest.timeMs);
+    document.getElementById("fastDist").textContent = fmtDist(result.fastest.distanceM);
+    renderBar(document.getElementById("calmBar"), result.calm.breakdownPct);
+    renderBar(document.getElementById("fastBar"), result.fastest.breakdownPct);
+    routeCompare.style.display = "flex";
+    startNavBtn.style.display = "flex";
+    selectRoute("calm");
+
+    let note = result.note ? result.note + " " : "";
+    if (result.mode === "live") {
+      note += result.extraMinutes > 0
+        ? `Calm route takes about ${result.extraMinutes} min longer than fastest.`
+        : `Calm route is about as fast as the fastest one — easy choice.`;
+    }
+    if (result.peak) note += " (Peak-hours heuristic applied — busier road types were weighted down further.)";
+    modeNote.textContent = note.trim();
+
+    // Real feedback flagged that a purely sensory-calm route (quiet paths, parks)
+    // can mean fewer people around — a safety tradeoff, not just a sensory one.
+    // Surface it explicitly, especially at night, rather than silently picking
+    // "calm" for someone without telling them what that traded off.
+    if (result.night && result.calm.isolatedPct >= 25 && !result.safetyMode) {
+      safetyNote.textContent = `Heads up: this calm route is ${result.calm.isolatedPct}% quiet paths/parks — calmer, but also less populated, and it's currently night hours. If personal safety is a concern, try "prefer well-lit, busier streets" above.`;
+      safetyNote.style.display = "block";
+    } else {
+      safetyNote.style.display = "none";
+    }
+
+    isSearching = false;
+    findBtn.disabled = false;
+    findBtn.classList.remove("loading");
+    findBtnLabel.textContent = "Find calm route";
+  }
+
+  findBtn.addEventListener("click", runSearch);
+  safetyToggle.addEventListener("change", () => { if (lastResult) runSearch(); });
+
+  // ---------------------------------------------------------------------
+  // Live GPS turn-by-turn navigation ("Start", like Maps).
+  //
+  // Architecture: this block is UI/IO glue only. All the actual navigation
+  // decisions (off-route detection, step advancement, arrival, state
+  // transitions) live in navlogic.js's NavLogic.processFix() — a pure
+  // function with no DOM/network access, unit-tested in navlogic.test.js.
+  // That separation is what makes "does the nav logic work" testable
+  // without a browser or a real GPS.
+  //
+  // State machine (NavLogic.NavState): idle -> requesting_location ->
+  // calculating_route -> route_ready -> navigating <-> off_route ->
+  // recalculating -> navigating | arrived | error. "idle"/"route_ready"
+  // are implicit here (before Start / after a search), the rest are
+  // explicit below.
+  // ---------------------------------------------------------------------
+  const pageInner0 = document.querySelector("#page-0 .page-inner");
+  const recenterBtn = document.getElementById("recenterBtn");
+  const navMuteBtn = document.getElementById("navMuteBtn");
+  const navArrived = document.getElementById("navArrived");
+  const simBtn = document.getElementById("simBtn");
+  const simBadge = document.getElementById("simBadge");
+
+  const voice = new VoiceEngine(audioManager);
+  if (!NavBridge.isNative) NavBridge.speech = new WebSpeechGuidanceProvider(voice);
+  const navEffects = new EffectsEngine(audioManager);
+  const navCaption = document.getElementById("navCaption");
+  voice.setCaptionsEnabled(prefs.get().audio.captionsEnabled);
+  voice.onCaption = (text) => {
+    if (text) { navCaption.textContent = text; navCaption.style.display = "block"; }
+    else { navCaption.style.display = "none"; }
+  };
+  document.getElementById("captionsToggle").addEventListener("change", (e) => {
+    voice.setCaptionsEnabled(e.target.checked);
+    prefs.set({ audio: { captionsEnabled: e.target.checked } });
+  });
+
+  const DEV_SIMULATION = !!CONFIG.DEV_SIMULATION || /[?&]simulate=1\b/.test(location.search);
+  if (DEV_SIMULATION) simBtn.style.display = "inline-flex";
+
+  let navState = null;          // NavLogic state object (route, stepIdx, offRouteStreak, ...)
+  let currentState = NavLogic.NavState.IDLE;
+  let navWatchId = null;
+  let backgroundNavActive = false;
+  const backgroundNavRow = document.getElementById("backgroundNavRow");
+  const backgroundNavToggle = document.getElementById("backgroundNavToggle");
+  const backgroundNavNote = document.getElementById("backgroundNavNote");
+  if (NavBridge.isNative) backgroundNavRow.style.display = "flex";
+  let navRerouting = false;
+  let followMode = true;        // auto-recenter the map on every fix, until the user pans
+  let lastFixLatLng = null;
+  let wakeLock = null;
+  let simulator = null;
+  let usingSimulatedGps = false;
+  let userDotMarker = null;
+  let userAccuracyCircle = null;
+
+  function updateUserMarker(lat, lon, accuracy, headingDeg) {
+    const latlng = [lat, lon];
+    if (!userDotMarker) {
+      userDotMarker = L.marker(latlng, { icon: makeUserDotIcon(), zIndexOffset: 1000 }).addTo(map);
+      userAccuracyCircle = L.circle(latlng, { radius: accuracy || 15, color: getVar("--sky"), fillColor: getVar("--sky"), fillOpacity: 0.12, weight: 1 }).addTo(map);
+    } else {
+      userDotMarker.setLatLng(latlng);
+      userAccuracyCircle.setLatLng(latlng);
+      userAccuracyCircle.setRadius(accuracy || 15);
+    }
+    const el = userDotMarker.getElement();
+    if (el) {
+      const inner = el.querySelector(".user-dot-inner");
+      el.classList.toggle("has-heading", headingDeg != null);
+      if (inner && headingDeg != null) inner.style.transform = `rotate(${headingDeg}deg)`;
+    }
+  }
+
+  function removeUserMarker() {
+    if (userDotMarker) { map.removeLayer(userDotMarker); map.removeLayer(userAccuracyCircle); userDotMarker = null; userAccuracyCircle = null; }
+  }
+
+  function renderNavStep(step) {
+    if (!step) return;
+    navIcon.textContent = signIcon(step.sign);
+    navInstr.textContent = step.text;
+  }
+
+  function setFollowMode(on) {
+    followMode = on;
+    recenterBtn.style.display = on ? "none" : "flex";
+  }
+
+  // Only a real user drag should break follow-mode — programmatic
+  // map.setView() calls (our own recentering) don't fire 'dragstart'.
+  map.on("dragstart", () => { if (currentState === NavLogic.NavState.NAVIGATING || currentState === NavLogic.NavState.OFF_ROUTE) setFollowMode(false); });
+  recenterBtn.addEventListener("click", () => {
+    setFollowMode(true);
+    if (lastFixLatLng) map.setView(lastFixLatLng, 17, { animate: true });
+  });
+
+  navMuteBtn.addEventListener("click", () => {
+    voice.setMuted(!voice.muted);
+    navMuteBtn.classList.toggle("muted", voice.muted);
+    navMuteBtn.classList.toggle("active", !voice.muted);
+    // The native engine (when driving a background session) keeps its own
+    // separate muted flag — see NavigationEngine.swift/NavEngine.kt — since
+    // it speaks independently of this page's VoiceEngine. Kept in sync here
+    // rather than merged into one flag, since the two genuinely run on
+    // different threads/processes once backgrounded.
+    if (NavBridge.isNative && backgroundNavActive) {
+      Capacitor.Plugins.CalmNavBackground.setMuted({ muted: voice.muted }).catch(() => {});
+    }
+  });
+  navMuteBtn.classList.add("muted"); // voice is opt-in / off by default
+
+  // Lock-screen/notification controls (Android's persistent notification,
+  // iOS's Now Playing/Control Center commands) — see
+  // native/nativeNotificationController.js. No-op on web (WebNotification
+  // Controller never fires onAction).
+  NavBridge.notification.onAction((event) => {
+    if (event.action === "stop") { endNavigation(); }
+    else if (event.action === "mute") {
+      voice.setMuted(true);
+      navMuteBtn.classList.add("muted");
+      navMuteBtn.classList.remove("active");
+      if (NavBridge.isNative) Capacitor.Plugins.CalmNavBackground.setMuted({ muted: true }).catch(() => {});
+    } else if (event.action === "unmute") {
+      voice.setMuted(false);
+      navMuteBtn.classList.remove("muted");
+      navMuteBtn.classList.add("active");
+      if (NavBridge.isNative) Capacitor.Plugins.CalmNavBackground.setMuted({ muted: false }).catch(() => {});
+    }
+  });
+
+  // Reconcile the foreground UI with whatever the native engine did while
+  // this page was backgrounded/suspended — see shared/lifecycleReconciler.js.
+  // Only ever acts when a native background session was actually running;
+  // otherwise a no-op; never starts a second location watcher.
+  NavBridge.lifecycle.onForeground(async () => {
+    if (!NavBridge.isNative || !backgroundNavActive) return;
+    let nativeSnapshot = null;
+    try {
+      const snap = await NavBridge.backgroundNav.getSnapshot();
+      nativeSnapshot = snap && snap.active ? snap : null;
+    } catch (e) { /* leave null — reconciler treats that as "nothing to restore" */ }
+
+    const result = reconcileForegroundState({
+      nativeSnapshot,
+      webSnapshot: { hasLocalWatcher: navWatchId != null, stepIdx: navState ? navState.stepIdx : 0, state: currentState },
+    });
+    if (result.stopWebWatcher && navWatchId != null) {
+      navigator.geolocation.clearWatch(navWatchId);
+      navWatchId = null;
+    }
+    if (result.source !== "native") return;
+
+    if (result.restoreState === "arrived") {
+      currentState = NavLogic.NavState.ARRIVED;
+      showArrivedScreen();
+      return;
+    }
+    currentState = result.restoreState === "off_route" ? NavLogic.NavState.OFF_ROUTE : NavLogic.NavState.NAVIGATING;
+    if (result.restoreDistToNextManeuver != null) navDist.textContent = fmtDist(result.restoreDistToNextManeuver);
+    if (result.restoreDistToDestination != null) {
+      const modeSpeedMps = NavLogic.TRAVEL_MODES[travelMode].speedMps;
+      navEta.textContent = fmtMin((result.restoreDistToDestination / modeSpeedMps) * 1000) + " remaining";
+    }
+    const route = result.restoreRoute;
+    if (route && route.maneuvers && route.maneuvers[result.restoreStepIdx]) {
+      const m = route.maneuvers[result.restoreStepIdx];
+      navInstr.textContent = m.text;
+      navIcon.textContent = signIcon(m.sign);
+    }
+  });
+
+  async function requestWakeLock() {
+    try {
+      if ("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen");
+    } catch (e) {
+      wakeLock = null; // unsupported or refused — navigation still works, screen may just sleep
+    }
+  }
+  function releaseWakeLock() {
+    if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
+  }
+
+  function showArrivedScreen() {
+    document.getElementById("arrivedSub").textContent =
+      `You reached ${resolvedEnd.label || "your destination"}.`;
+    navArrived.style.display = "flex";
+    voice.announceArrival();
+    navEffects.playArrival();
+    if (typeof feedbackEngine !== "undefined") feedbackEngine.onArrival();
+    if (typeof ambient !== "undefined") ambient.setLevel(0.85);
+  }
+
+  function endNavigation(message) {
+    if (navWatchId != null) navigator.geolocation.clearWatch(navWatchId);
+    navWatchId = null;
+    if (backgroundNavActive || NavBridge.isNative) NavBridge.backgroundNav.stopSession().catch(() => {});
+    backgroundNavActive = false;
+    backgroundNavNote.style.display = "none";
+    if (simulator) simulator.stop();
+    usingSimulatedGps = false;
+    simBadge.style.display = "none";
+    navState = null;
+    currentState = NavLogic.NavState.IDLE;
+    navRerouting = false;
+    pageInner0.classList.remove("nav-active");
+    navBanner.style.display = "none";
+    navBottom.style.display = "none";
+    navArrived.style.display = "none";
+    recenterBtn.style.display = "none";
+    startNavBtn.style.display = lastResult ? "flex" : "none";
+    removeUserMarker();
+    releaseWakeLock();
+    if (typeof ambient !== "undefined") ambient.setLevel(1);
+    map.getContainer().style.removeProperty("height");
+    requestAnimationFrame(() => map.invalidateSize());
+    if (message) modeNote.textContent = message;
+  }
+
+  async function reroute(lat, lon) {
+    if (navRerouting) return;
+    navRerouting = true;
+    currentState = NavLogic.NavState.RECALCULATING;
+    navInstr.textContent = "Recalculating route…";
+    navIcon.textContent = "↻";
+    voice.announceRecalculating();
+    navEffects.playRecalculating();
+    if (typeof feedbackEngine !== "undefined") feedbackEngine.onRecalculating();
+    try {
+      const newStart = { label: "Current location", lat, lon };
+      const result = await fetchCalmRoute({
+        start: newStart,
+        end: resolvedEnd,
+        peakWindows: CONFIG.PEAK_WINDOWS,
+        safetyMode: safetyToggle.checked,
+        specialEvents: CONFIG.SPECIAL_EVENTS,
+        ghProfile: NavLogic.TRAVEL_MODES[travelMode].ghProfile,
+        endpointBase: apiBaseUrl,
+      });
+      lastResult = result;
+      resolvedStart = newStart;
+      const freshRoute = selected === "fast" ? result.fastest : result.calm;
+      NavLogic.resetForNewRoute(navState, freshRoute);
+      voice.reset();
+      if (typeof feedbackEngine !== "undefined") feedbackEngine.reset();
+      drawRoute(result, newStart, resolvedEnd);
+      renderNavStep(freshRoute.steps && freshRoute.steps[0]);
+      currentState = NavLogic.NavState.NAVIGATING;
+    } catch (e) {
+      // Recalculation failed outright (rare — fetchCalmRoute itself already
+      // falls back to a demo route on network/API errors). Keep navigating
+      // on the last known-good route rather than stranding the user.
+      currentState = NavLogic.NavState.NAVIGATING;
+      showError("Couldn't recalculate your route — continuing on the original one.");
+    } finally {
+      navRerouting = false;
+    }
+  }
+
+  function handleFix(pos) {
+    const { latitude: lat, longitude: lon, accuracy, speed, heading } = pos.coords;
+    lastFixLatLng = [lat, lon];
+
+    if (!navState) return;
+    const info = NavLogic.processFix(navState, { lat, lon, speedMps: speed, headingDeg: heading });
+
+    updateUserMarker(lat, lon, accuracy, info.heading);
+    if (followMode) map.setView([lat, lon], 17, { animate: true });
+
+    if (info.arrived) {
+      currentState = NavLogic.NavState.ARRIVED;
+      showArrivedScreen();
+      if (navWatchId != null) navigator.geolocation.clearWatch(navWatchId);
+      if (simulator) simulator.stop();
+      return;
+    }
+
+    if (info.shouldReroute && !navRerouting) {
+      if (currentState !== NavLogic.NavState.OFF_ROUTE) {
+        navEffects.playOffRouteAlert();
+        if (typeof feedbackEngine !== "undefined") feedbackEngine.onOffRoute();
+      }
+      reroute(lat, lon);
+      return;
+    }
+    if (navRerouting) return;
+
+    currentState = info.state;
+    renderNavStep(info.step);
+    navDist.textContent = fmtDist(info.distToNextManeuver);
+    const modeSpeedMps = NavLogic.TRAVEL_MODES[travelMode].speedMps;
+    navEta.textContent = fmtMin((info.distToDestination / modeSpeedMps) * 1000) + " remaining";
+    voice.announce(info.stepIdx, info.distToNextManeuver, info.step && info.step.text, info.passedStep);
+    if (info.distToNextManeuver <= 40 && info.distToNextManeuver > NavLogic.THRESHOLDS.ARRIVE_STEP_M) navEffects.playTurnTick();
+
+    // Context-aware ambient mix: what's actually available is the road class
+    // under the user's current position (from the route's own data — see
+    // roadClassAt in navlogic.js), their real walking/riding speed from GPS,
+    // and nav state. No traffic API and no weather API are wired into this
+    // app, so those two named context sources are simply not inputs here.
+    if (typeof ambient !== "undefined" && ambient.soundscape !== "off") {
+      const suggestion = NavLogic.suggestAmbientLevel({ navState: currentState, roadClass: info.currentRoadClass, speedMps: info.speedMps });
+      ambient.setLevel(suggestion.level);
+    }
+    if (typeof feedbackEngine !== "undefined" && feedbackEngine.onNavStep) feedbackEngine.onNavStep(info);
+  }
+
+  // Foreground UI updates only, for when CalmNavBackground is the engine
+  // actually driving navigation (native platform). Never re-runs
+  // NavLogic.processFix (the native side already did the equivalent math
+  // natively) and never calls voice.announce (the native side already spoke
+  // it, natively — see IOS_/ANDROID_BACKGROUND_NAVIGATION.md). This is what
+  // keeps exactly one engine in charge of a given fix stream.
+  function handleNativeNavEvent(event) {
+    if (event.type === "fix" && event.fix) {
+      const { lat, lon, accuracyM, headingDeg } = event.fix;
+      lastFixLatLng = [lat, lon];
+      updateUserMarker(lat, lon, accuracyM, headingDeg);
+      if (followMode) map.setView([lat, lon], 17, { animate: true });
+      return;
+    }
+    if (event.type === "maneuver") {
+      currentState = NavLogic.NavState.NAVIGATING;
+      navInstr.textContent = event.instruction || navInstr.textContent;
+      navDist.textContent = fmtDist(event.distToNextManeuver || 0);
+      const modeSpeedMps = NavLogic.TRAVEL_MODES[travelMode].speedMps;
+      navEta.textContent = fmtMin(((event.distToDestination || 0) / modeSpeedMps) * 1000) + " remaining";
+      return;
+    }
+    if (event.type === "offroute") {
+      currentState = NavLogic.NavState.OFF_ROUTE;
+      navEffects.playOffRouteAlert();
+      if (typeof feedbackEngine !== "undefined") feedbackEngine.onOffRoute();
+      return;
+    }
+    if (event.type === "reroute-needed") {
+      currentState = NavLogic.NavState.RECALCULATING;
+      navInstr.textContent = "Recalculating route…";
+      navIcon.textContent = "↻";
+      navEffects.playRecalculating();
+      if (typeof feedbackEngine !== "undefined") feedbackEngine.onRecalculating();
+      return;
+    }
+    if (event.type === "rerouted") {
+      currentState = NavLogic.NavState.NAVIGATING;
+      return;
+    }
+    if (event.type === "arrived") {
+      currentState = NavLogic.NavState.ARRIVED;
+      showArrivedScreen();
+      return;
+    }
+    if (event.type === "error") {
+      showError(event.message || "Background navigation hit a problem.");
+      return;
+    }
+    if (event.type === "state" && event.state === "audio-interrupted") {
+      // Phone call / Siri / other app took audio focus — nothing to do here;
+      // the native side resumes its own audio session once it's clear.
+      return;
+    }
+  }
+
+  function geoErrorMessage(err) {
+    // GeolocationPositionError codes: 1 permission denied, 2 position
+    // unavailable, 3 timeout. Only permission denial is treated as fatal
+    // (navigator.geolocation.watchPosition keeps retrying on its own for 2/3).
+    if (err && err.code === 1) return { fatal: true, message: "Location access was denied. Turn on location permission for this site to use live navigation." };
+    if (err && err.code === 2) return { fatal: false, message: "Can't get a GPS fix right now — keep the app open, this usually recovers outdoors." };
+    return { fatal: false, message: "GPS signal is temporarily unavailable." };
+  }
+
+  function startNavigation() {
+    if (!lastResult) return;
+    if (!NavBridge.isNative && !navigator.geolocation) {
+      showError("Live GPS navigation isn't available on this browser.");
+      return;
+    }
+    clearError();
+    currentState = NavLogic.NavState.REQUESTING_LOCATION;
+    const route = selected === "fast" ? lastResult.fastest : lastResult.calm;
+    navState = NavLogic.createNavState(route);
+    voice.reset();
+    if (typeof feedbackEngine !== "undefined") feedbackEngine.reset();
+    setFollowMode(true);
+    pageInner0.classList.add("nav-active");
+    navBanner.style.display = "flex";
+    navBottom.style.display = "flex";
+    navArrived.style.display = "none";
+    startNavBtn.style.display = "none";
+    renderNavStep(route.steps && route.steps[0]);
+    navDist.textContent = "Locating…";
+    navEta.textContent = "";
+    map.getContainer().style.height = "62vh";
+    requestAnimationFrame(() => map.invalidateSize());
+    requestWakeLock();
+
+    if (usingSimulatedGps) {
+      simulator = simulator || new NavSimulator(() => navState && navState.route, handleFix);
+      simBadge.style.display = "block";
+      simulator.start(NavLogic.TRAVEL_MODES[travelMode].speedMps * 6, 500); // 6x real pace, for fast demoing
+      currentState = NavLogic.NavState.NAVIGATING;
+      return;
+    }
+
+    if (NavBridge.isNative) {
+      startNativeNavigation(route);
+      return;
+    }
+
+    navWatchId = navigator.geolocation.watchPosition(
+      handleFix,
+      (err) => {
+        const { fatal, message } = geoErrorMessage(err);
+        if (fatal) {
+          currentState = NavLogic.NavState.ERROR;
+          endNavigation();
+        }
+        showError(message);
+      },
+      { enableHighAccuracy: true, maximumAge: 2000, timeout: 15000 }
+    );
+  }
+
+  // Hands the route to the native CalmNavBackground plugin, which becomes
+  // the sole engine driving this session (foreground UI updates flow back
+  // via handleNativeNavEvent — see that function's own header comment for
+  // why it never touches NavLogic.processFix or voice.announce directly).
+  // Never falls back to navigator.geolocation on native: Capacitor's WebView
+  // does not implement the Geolocation Web API reliably, which is exactly
+  // why this plugin exists.
+  async function startNativeNavigation(route) {
+    const wantsBackground = backgroundNavToggle.checked;
+    backgroundNavNote.style.display = "none";
+    const plugin = Capacitor.Plugins.CalmNavBackground;
+
+    const fgStatus = await plugin.getPermissionStatus();
+    if (fgStatus.foreground !== "granted") {
+      const req = await plugin.requestForegroundLocationPermission();
+      if (!req.granted) {
+        showError("Location access was denied. Turn on location permission in Settings to use live navigation.");
+        endNavigation();
+        return;
+      }
+    }
+    // Staged by design: background ("Always"/"allow all the time") is only
+    // ever requested here, after the user has already started foreground
+    // navigation and explicitly checked "keep navigating when locked" —
+    // never on first launch.
+    if (wantsBackground && fgStatus.background !== "granted") {
+      const bgReq = await plugin.requestBackgroundLocationPermission();
+      if (!bgReq.granted) {
+        backgroundNavNote.textContent = bgReq.reason || "Background permission wasn't granted — navigation will pause while locked/backgrounded.";
+        backgroundNavNote.style.display = "block";
+      }
+    }
+
+    const payload = buildNavRoutePayload({
+      route, destination: resolvedEnd, travelMode, safetyMode: safetyToggle.checked, thresholds: NavLogic.THRESHOLDS,
+    });
+    const validation = validateNavRoutePayload(payload);
+    if (!validation.valid) {
+      showError("Couldn't start navigation: " + validation.errors.join("; "));
+      endNavigation();
+      return;
+    }
+
+    NavBridge.backgroundNav.onEvent(handleNativeNavEvent);
+    let result;
+    try {
+      result = await NavBridge.backgroundNav.startSession(payload, {
+        wantsBackground,
+        muted: voice.muted,
+        allowAmbient: typeof ambient !== "undefined" && ambient.soundscape !== "off",
+        apiBaseUrl,
+      });
+    } catch (e) {
+      showError("Couldn't start background navigation — falling back isn't available on this platform.");
+      endNavigation();
+      return;
+    }
+    backgroundNavActive = !!result.backgrounded;
+    currentState = NavLogic.NavState.NAVIGATING;
+    if (!result.backgrounded && result.reason) {
+      backgroundNavNote.textContent = result.reason;
+      backgroundNavNote.style.display = "block";
+    }
+  }
+
+  startNavBtn.addEventListener("click", () => { usingSimulatedGps = false; startNavigation(); });
+  simBtn.addEventListener("click", () => { usingSimulatedGps = true; startNavigation(); });
+  navEndBtn.addEventListener("click", () => endNavigation());
+  document.getElementById("arrivedDoneBtn").addEventListener("click", () => endNavigation());
+
+  // ---------------------------------------------------------------------
+  // PILLAR 2 — Auditory regulation
+  // An adaptive audio layer: AmbientEngine (soundscapes) + VoiceEngine
+  // (already wired above, nav voice) + EffectsEngine share one AudioManager,
+  // so a preset or a volume slider here affects the whole app's mix, not
+  // just this page. See ambientengine.js's file header for why "café" isn't
+  // offered as a soundscape (nothing here is a placeholder — it's an
+  // honestly-scoped omission).
+  //
+  // prefs.get().audio is the one authoritative state object for this whole
+  // screen (per the fix task's "one authoritative state object" requirement)
+  // — every control below reads FROM it and writes THROUGH it; DOM
+  // classes/slider values are a rendering of that state, never the source of
+  // it. Every interaction follows: action -> prefs.set/applyAudioPreset ->
+  // apply*ToEngines() -> render*UI() -> already persisted (Prefs.set saves
+  // synchronously).
+  // ---------------------------------------------------------------------
+  const ambient = new AmbientEngine(audioManager);
+  const presetChips = document.querySelectorAll("#presetChips .pill");
+  const modeChips = document.querySelectorAll("#modeChips .pill");
+  const soundChips = document.querySelectorAll("#soundChips .pill");
+  const ambientVolSlider = document.getElementById("ambientVolSlider");
+  const voiceVolSlider = document.getElementById("voiceVolSlider");
+  const effectsVolSlider = document.getElementById("effectsVolSlider");
+  const captionsToggleEl = document.getElementById("captionsToggle");
+  const auditoryMasterBtn = document.getElementById("auditoryMasterBtn");
+  const auditoryEnabledToggle = document.getElementById("auditoryEnabledToggle");
+  const settingsPresetChips = document.querySelectorAll("#settingsPresetChips .pill");
+  const settingsModeChips = document.querySelectorAll("#settingsModeChips .pill");
+  const settingsSoundChips = document.querySelectorAll("#settingsSoundChips .pill");
+  const settingsAmbientVol = document.getElementById("settingsAmbientVol");
+  const settingsVoiceVol = document.getElementById("settingsVoiceVol");
+  const settingsEffectsVol = document.getElementById("settingsEffectsVol");
+  const resetAudioDefaultsBtn = document.getElementById("resetAudioDefaultsBtn");
+
+  // iOS Safari only allows the audio context to unlock inside a direct user
+  // gesture — do it on the very first tap anywhere, not just a sound chip, so
+  // it's unlocked as early as possible. Respects the master enabled switch:
+  // if the user had auditory regulation OFF last session, don't start
+  // playing anything just because they tapped elsewhere in the app.
+  const unlockAudioOnce = () => {
+    audioManager.ensureCtx();
+    const a = prefs.get().audio;
+    if (a.enabled && ambient.soundscape && ambient.soundscape !== "off" && !ambient.layers.length) {
+      ambient.setSoundscape(ambient.soundscape, a.ambientVolume);
+    }
+    window.removeEventListener("touchend", unlockAudioOnce);
+    window.removeEventListener("click", unlockAudioOnce);
+  };
+  window.addEventListener("touchend", unlockAudioOnce, { once: true });
+  window.addEventListener("click", unlockAudioOnce, { once: true });
+
+  // Slider <-> state-field pairing, built once rather than re-allocated on
+  // every render — renderVolumesUI below just iterates this.
+  const VOLUME_SLIDER_FIELDS = [
+    [ambientVolSlider, "ambientVolume"], [voiceVolSlider, "voiceVolume"], [effectsVolSlider, "effectsVolume"],
+    [settingsAmbientVol, "ambientVolume"], [settingsVoiceVol, "voiceVolume"], [settingsEffectsVol, "effectsVolume"],
+  ];
+
+  // ---- render: state -> DOM (never the other direction) ----
+  function renderPresetUI(name) {
+    presetChips.forEach((c) => c.classList.toggle("calm-active", c.dataset.preset === name));
+    settingsPresetChips.forEach((c) => c.classList.toggle("calm-active", c.dataset.preset === name));
+  }
+  function renderModeUI(mode) {
+    modeChips.forEach((c) => c.classList.toggle("calm-active", c.dataset.mode === mode));
+    settingsModeChips.forEach((c) => c.classList.toggle("calm-active", c.dataset.mode === mode));
+  }
+  function renderSoundUI(name) {
+    soundChips.forEach((c) => c.classList.toggle("active", c.dataset.sound === name));
+    settingsSoundChips.forEach((c) => c.classList.toggle("active", c.dataset.sound === name));
+  }
+  function renderVolumesUI(a) {
+    VOLUME_SLIDER_FIELDS.forEach(([el, field]) => {
+      const pct = String(Math.round(a[field] * 100));
+      el.value = pct;
+      el.setAttribute("aria-valuenow", pct);
+    });
+  }
+  function renderMasterUI(enabled) {
+    auditoryMasterBtn.setAttribute("aria-pressed", String(enabled));
+    auditoryMasterBtn.setAttribute("aria-label", enabled ? "Turn auditory regulation off" : "Turn auditory regulation on");
+    auditoryEnabledToggle.checked = enabled;
+  }
+  // The one place a full state object is reflected into every control on
+  // this screen — used after any change that can affect more than one field
+  // (preset selection, reset-to-defaults, initial load) so those call sites
+  // never have to remember which of the five render* functions to call.
+  function renderAuditoryUI(a) {
+    renderPresetUI(a.preset);
+    renderModeUI(a.mode);
+    renderSoundUI(a.soundscape);
+    renderVolumesUI(a);
+    renderMasterUI(a.enabled);
+  }
+
+  // ---- apply: state -> real audio engines (no duplicate audio systems —
+  // this only ever calls into the existing AmbientEngine/AudioManager) ----
+  function applyVolumesToEngines(a) {
+    audioManager.setBusVolume("ambient", a.ambientVolume);
+    audioManager.setBusVolume("voice", a.voiceVolume);
+    audioManager.setBusVolume("effects", a.effectsVolume);
+  }
+  function applyModeToEngines(mode) {
+    ambient.setMode(mode);
+    audioManager.setRegulationMode(mode);
+  }
+  function applyNightModeToEngines(on) {
+    ambient.setNightMode(on);
+    audioManager.setNightMode(on);
+  }
+  // Only actually plays a.soundscape if the master switch is on — otherwise
+  // just remembers the selection on the engine so turning regulation back on
+  // can resume it without re-reading prefs.
+  function applySoundscapeToEngine(a) {
+    if (!a.enabled) { ambient.soundscape = a.soundscape; return; }
+    ambient.setSoundscape(a.soundscape, a.ambientVolume);
+  }
+  // Counterpart to renderAuditoryUI — mode, volumes, and soundscape all at
+  // once. Night mode is deliberately NOT included here: it's set only via
+  // setNightMode(), never as a side effect of a preset/reset.
+  function applyAuditoryState(a) {
+    applyModeToEngines(a.mode);
+    applyVolumesToEngines(a);
+    applySoundscapeToEngine(a);
+  }
+
+  // Exposed for setNightMode() (called from the theme-toggle handler above,
+  // defined before `ambient`/`audioManager` exist in file order but only
+  // ever invoked later, after the whole script has loaded).
+  function setNightMode(on) {
+    prefs.set({ audio: { nightMode: on } });
+    applyNightModeToEngines(on);
+  }
+
+  // ---- the interaction flow every control below goes through:
+  // user action -> update state (prefs) -> update engines -> update UI ----
+
+  /**
+   * Applies a named preset (or restores the last-captured Custom state) and
+   * syncs it everywhere: prefs, both audio buses, the selected soundscape,
+   * and every control's on-screen state. `name` is trusted to be one of
+   * Prefs.AUDIO_PRESETS' own keys — callers below validate that first.
+   */
+  function setPreset(name) {
+    const a = prefs.applyAudioPreset(name);
+    renderAuditoryUI(a);
+    applyAuditoryState(a);
+  }
+  /** Manual mode change: persists it, demotes the active preset to Custom (per the fix task's requirement), then re-syncs. */
+  function setMode(mode) {
+    prefs.set({ audio: { mode } });
+    prefs.captureCustomAudio();
+    const a = prefs.get().audio;
+    renderModeUI(a.mode);
+    renderPresetUI(a.preset);
+    applyModeToEngines(a.mode);
+  }
+  /** Manual soundscape change: persists it, demotes to Custom, plays it (if the master switch is on), preserving the current ambient volume. */
+  function setSoundscape(name) {
+    prefs.set({ audio: { soundscape: name } });
+    prefs.captureCustomAudio();
+    const a = prefs.get().audio;
+    renderSoundUI(a.soundscape);
+    renderPresetUI(a.preset);
+    applySoundscapeToEngine(a);
+  }
+  /** Manual slider drag (any of ambient/voice/effects, from either the main page or the settings sheet): persists, demotes to Custom, re-syncs both slider sets and the live gain nodes. */
+  function setVolumes(vols) {
+    prefs.set({ audio: vols });
+    prefs.captureCustomAudio();
+    const a = prefs.get().audio;
+    renderVolumesUI(a);
+    renderPresetUI(a.preset);
+    applyVolumesToEngines(a);
+  }
+  /**
+   * Master on/off. Turning off pauses playback only — the selected
+   * soundscape and every slider value stay exactly as they were, so turning
+   * back on resumes the same mix rather than reverting to defaults.
+   */
+  function setAuditoryEnabled(enabled) {
+    const a = prefs.set({ audio: { enabled } }).audio;
+    renderMasterUI(a.enabled);
+    if (a.enabled) {
+      applySoundscapeToEngine(a); // resume the remembered soundscape/level
+    } else {
+      ambient.setSoundscape("off"); // pause playback only — a.soundscape (the selection) is untouched
+    }
+  }
+
+  // dataset.* values are trusted app markup, not external input — still
+  // validated defensively here (per this file's own bar for input handling)
+  // so a future typo'd data-preset/-mode/-sound attribute fails obviously
+  // instead of silently corrupting persisted state.
+  function isKnownPreset(name) { return Object.prototype.hasOwnProperty.call(Prefs.AUDIO_PRESETS, name); }
+  function isKnownMode(mode) { return Prefs.VALID_MODES.indexOf(mode) !== -1; }
+  function isKnownSoundscape(name) { return Prefs.VALID_SOUNDSCAPES.indexOf(name) !== -1; }
+
+  function bindChipGroup(chips, datasetKey, isValid, handler) {
+    chips.forEach((chip) => {
+      const value = chip.dataset[datasetKey];
+      if (!isValid(value)) {
+        console.warn(`Auditory regulation: control has an unrecognized data-${datasetKey}="${value}" and was left unwired.`, chip);
+        return;
+      }
+      chip.addEventListener("click", () => handler(value));
+    });
+  }
+  bindChipGroup(presetChips, "preset", isKnownPreset, setPreset);
+  bindChipGroup(settingsPresetChips, "preset", isKnownPreset, setPreset);
+  bindChipGroup(modeChips, "mode", isKnownMode, setMode);
+  bindChipGroup(settingsModeChips, "mode", isKnownMode, setMode);
+  bindChipGroup(soundChips, "sound", isKnownSoundscape, setSoundscape);
+  bindChipGroup(settingsSoundChips, "sound", isKnownSoundscape, setSoundscape);
+
+  [ambientVolSlider, voiceVolSlider, effectsVolSlider].forEach((slider) => {
+    slider.addEventListener("input", () => setVolumes({
+      ambientVolume: parseFloat(ambientVolSlider.value) / 100,
+      voiceVolume: parseFloat(voiceVolSlider.value) / 100,
+      effectsVolume: parseFloat(effectsVolSlider.value) / 100,
+    }));
+  });
+  [settingsAmbientVol, settingsVoiceVol, settingsEffectsVol].forEach((slider) => {
+    slider.addEventListener("input", () => setVolumes({
+      ambientVolume: parseFloat(settingsAmbientVol.value) / 100,
+      voiceVolume: parseFloat(settingsVoiceVol.value) / 100,
+      effectsVolume: parseFloat(settingsEffectsVol.value) / 100,
+    }));
+  });
+
+  // Master control — the large circular waveform icon at the top of this
+  // page doubles as a real button (role="button"/tabindex in index.html);
+  // click and keyboard (Enter/Space) both activate it.
+  function toggleAuditoryMaster() { setAuditoryEnabled(!prefs.get().audio.enabled); }
+  auditoryMasterBtn.addEventListener("click", toggleAuditoryMaster);
+  auditoryMasterBtn.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleAuditoryMaster(); }
+  });
+  auditoryEnabledToggle.addEventListener("change", () => setAuditoryEnabled(auditoryEnabledToggle.checked));
+
+  resetAudioDefaultsBtn.addEventListener("click", () => {
+    const a = prefs.resetAudioDefaults();
+    renderAuditoryUI(a);
+    applyAuditoryState(a);
+    captionsToggleEl.checked = a.captionsEnabled;
+    voice.setCaptionsEnabled(a.captionsEnabled);
+  });
+
+  captionsToggleEl.checked = prefs.get().audio.captionsEnabled;
+
+  // Restore last session's mix on load. Soundscape playback itself waits for
+  // ensureCtx() on first user gesture (unlockAudioOnce above) — this only
+  // records which one is selected and drives the UI/bus volumes, since
+  // mobile browsers block audio autoplay before a valid user gesture.
+  (function initAudioFromPrefs() {
+    const a = prefs.get().audio;
+    renderAuditoryUI(a);
+    applyModeToEngines(a.mode);
+    applyVolumesToEngines(a);
+    applyNightModeToEngines(a.nightMode);
+    ambient.soundscape = a.soundscape;
+  })();
+
+  // ---------------------------------------------------------------------
+  // PILLAR 3 — Haptic fidgeting
+  // A full Haptic Fidget Engine: HapticManager (device vibration + battery/
+  // enabled awareness), PatternLibrary (named patterns), GestureEngine
+  // (tap/doubleTap/press/longPress/swipe/drag/rub/circle recognition on the
+  // ripple canvas), FeedbackEngine (ties a gesture to pattern+tone+visual).
+  // The three named buttons below are quick-access presets with their own
+  // hand-tuned feel; the ripple canvas is the open "interactive fidget
+  // surface" driven by the gesture engine.
+  // ---------------------------------------------------------------------
+  const hapticSlider = document.getElementById("hapticSlider");
+  const sensitivitySlider = document.getElementById("sensitivitySlider");
+  const hapticsEnabledToggle = document.getElementById("hapticsEnabledToggle");
+  const soundOnToggle = document.getElementById("hapticSoundToggle");
+
+  const hapticManager = new HapticManager(prefs);
+  if (!NavBridge.isNative) NavBridge.haptics = new WebHapticProvider(hapticManager);
+  const feedbackEngine = new FeedbackEngine(hapticManager, audioManager, prefs);
+  const PENTATONIC = [261.63, 293.66, 329.63, 392.0, 440.0, 523.25, 587.33, 659.25]; // C D E G A C D E
+
+  if (!HapticSupport.available) {
+    document.getElementById("noHapticNote").style.display = "block";
+  }
+
+  (function initHapticsFromPrefs() {
+    const h = prefs.get().haptics;
+    hapticSlider.value = Math.round(h.intensity * 100);
+    sensitivitySlider.value = Math.round(h.sensitivity * 100);
+    hapticsEnabledToggle.checked = h.enabled;
+    soundOnToggle.checked = h.soundOn;
+  })();
+  hapticSlider.addEventListener("input", () => prefs.set({ haptics: { intensity: parseFloat(hapticSlider.value) / 100 } }));
+  sensitivitySlider.addEventListener("input", () => prefs.set({ haptics: { sensitivity: parseFloat(sensitivitySlider.value) / 100 } }));
+  hapticsEnabledToggle.addEventListener("change", () => prefs.set({ haptics: { enabled: hapticsEnabledToggle.checked } }));
+  soundOnToggle.addEventListener("change", () => prefs.set({ haptics: { soundOn: soundOnToggle.checked } }));
+
+  function playFidgetTone(freq, duration) { feedbackEngine._tone(freq, duration); }
+
+  document.getElementById("fidgetTap").addEventListener("click", () => {
+    hapticManager.vibratePattern(PatternLibrary.PATTERNS.softTap);
+    burstRipple(1);
+    playFidgetTone(PENTATONIC[2], 0.5);
+  });
+  let holdInterval = null;
+  const holdBtn = document.getElementById("fidgetHold");
+  function startHold() {
+    hapticManager.vibratePattern(PatternLibrary.PATTERNS.slowPulse);
+    burstRipple(1);
+    let step = 0;
+    playFidgetTone(PENTATONIC[0], 0.4);
+    holdInterval = setInterval(() => {
+      hapticManager.vibratePulse(10);
+      step = (step + 1) % PENTATONIC.length;
+      playFidgetTone(PENTATONIC[step], 0.35);
+    }, 220);
+  }
+  function endHold() { clearInterval(holdInterval); }
+  holdBtn.addEventListener("mousedown", startHold);
+  holdBtn.addEventListener("touchstart", (e) => { startHold(); e.preventDefault(); }, { passive: false });
+  window.addEventListener("mouseup", endHold);
+  window.addEventListener("touchend", endHold);
+
+  document.getElementById("fidgetPattern").addEventListener("click", () => {
+    hapticManager.vibratePattern(PatternLibrary.PATTERNS.rollingPulse);
+    burstRipple(3);
+    [0, 2, 4, 7].forEach((idx, i) => setTimeout(() => playFidgetTone(PENTATONIC[idx], 0.4), i * 110));
+  });
+
+  // ---------------------------------------------------------------------
+  // Ripple canvas — the open interactive fidget surface. Visual rendering
+  // (drawRipples/resizeRipple) is unchanged; GestureEngine below replaces
+  // the old single "click = one ripple" handler with full gesture
+  // recognition (tap, doubleTap, press, longPress, swipe, drag, rub, circle).
+  // ---------------------------------------------------------------------
+  const rippleCanvas = document.getElementById("rippleCanvas");
+  const rCtx = rippleCanvas.getContext("2d");
+  let ripples = [];
+
+  function resizeRipple() {
+    const rect = rippleCanvas.getBoundingClientRect();
+    rippleCanvas.width = rect.width * (window.devicePixelRatio || 1);
+    rippleCanvas.height = rect.height * (window.devicePixelRatio || 1);
+  }
+  window.addEventListener("resize", resizeRipple);
+
+  let rippleLoopRunning = false;
+
+  function burstRipple(count, atX, atY) {
+    const rect = rippleCanvas.getBoundingClientRect();
+    const scaleX = rippleCanvas.width / rect.width, scaleY = rippleCanvas.height / rect.height;
+    const cx = atX != null ? (atX - rect.left) * scaleX : (rect.width / 2) * scaleX;
+    const cy = atY != null ? (atY - rect.top) * scaleY : (rect.height / 2) * scaleY;
+    for (let i = 0; i < (count || 1); i++) {
+      ripples.push({ x: cx, y: cy, r: 2 + i * 6, alpha: 0.6 });
+    }
+    if (ripples.length > 24) ripples = ripples.slice(-24);
+    // The draw loop stops rescheduling itself once idle (see drawRipples) to
+    // avoid animating an empty canvas forever — restart it here if needed.
+    if (!rippleLoopRunning) {
+      rippleLoopRunning = true;
+      requestAnimationFrame(drawRipples);
+    }
+  }
+
+  const GESTURE_RIPPLE_COUNT = { tap: 1, doubleTap: 2, press: 1, longPress: 2, swipe: 2, drag: 1, rub: 3, circle: 4 };
+  feedbackEngine.visualFn = (gesture) => {
+    burstRipple(GESTURE_RIPPLE_COUNT[gesture.type] || 1, gesture.x, gesture.y);
+  };
+  new GestureEngine(
+    rippleCanvas,
+    (gesture) => { feedbackEngine.onGesture(gesture, rippleCanvas.getBoundingClientRect()); },
+    () => prefs.get().haptics.sensitivity
+  );
+
+  function drawRipples() {
+    const w = rippleCanvas.width, h = rippleCanvas.height;
+    rCtx.clearRect(0, 0, w, h);
+    const accent = getVar("--accent");
+    for (let i = ripples.length - 1; i >= 0; i--) {
+      const r = ripples[i];
+      rCtx.beginPath();
+      rCtx.arc(r.x, r.y, r.r, 0, Math.PI * 2);
+      rCtx.strokeStyle = accent;
+      rCtx.globalAlpha = r.alpha;
+      rCtx.lineWidth = 2 * (window.devicePixelRatio || 1);
+      rCtx.stroke();
+      r.r += 1.8;
+      r.alpha -= 0.014;
+      if (r.alpha <= 0) ripples.splice(i, 1);
+    }
+    rCtx.globalAlpha = 1;
+    // Ripples are direct feedback for a user's own gesture, not ambient
+    // motion, so they're exempt from the reduced-motion gate below — but the
+    // loop still shouldn't run forever once every ripple has faded out, or
+    // while the tab is backgrounded.
+    if (ripples.length > 0 && !document.hidden) {
+      requestAnimationFrame(drawRipples);
+    } else {
+      rippleLoopRunning = false;
+    }
+  }
+
+  resizeRipple();
+
+  // ---------------------------------------------------------------------
+  // Sound canvas — simple level visualization for the auditory page, so it
+  // isn't a bare control panel; reacts to whether sound is on and its volume.
+  // ---------------------------------------------------------------------
+  const soundCanvas = document.getElementById("soundCanvas");
+  const sCtx = soundCanvas.getContext("2d");
+  let soundT = 0;
+
+  function resizeSoundCanvas() {
+    const rect = soundCanvas.getBoundingClientRect();
+    soundCanvas.width = rect.width * (window.devicePixelRatio || 1);
+    soundCanvas.height = rect.height * (window.devicePixelRatio || 1);
+  }
+  window.addEventListener("resize", resizeSoundCanvas);
+
+  function drawSoundCanvas() {
+    const w = soundCanvas.width, h = soundCanvas.height;
+    sCtx.clearRect(0, 0, w, h);
+    const playing = ambient.soundscape !== "off";
+    const vol = prefs.get().audio.ambientVolume;
+    const calm = getVar("--calm");
+    const bars = 28;
+    const barW = w / bars;
+    for (let i = 0; i < bars; i++) {
+      const phase = soundT * (playing ? 2.2 : 0.4) + i * 0.35;
+      const amp = playing ? (0.25 + vol * 0.65) : 0.08;
+      const barH = (Math.sin(phase) * 0.5 + 0.5) * amp * h * 0.85 + h * 0.05;
+      sCtx.fillStyle = calm;
+      sCtx.globalAlpha = playing ? 0.85 : 0.35;
+      const x = i * barW + barW * 0.18;
+      const bw = barW * 0.64;
+      const y = (h - barH) / 2;
+      const r = Math.min(bw / 2, 6 * (window.devicePixelRatio || 1));
+      sCtx.beginPath();
+      sCtx.roundRect ? sCtx.roundRect(x, y, bw, barH, r) : sCtx.rect(x, y, bw, barH);
+      sCtx.fill();
+    }
+    sCtx.globalAlpha = 1;
+    // This is ambient, non-interactive motion (unlike the ripple canvas,
+    // which only ever animates in direct response to a gesture) — it's
+    // exactly what the reduced-motion setting is meant to stop, so it's
+    // gated on both that and tab visibility (no point animating a hidden tab).
+    if (root.getAttribute("data-motion") !== "reduced" && !document.hidden) {
+      soundT += 0.045;
+      requestAnimationFrame(drawSoundCanvas);
+    } else {
+      soundCanvasLoopRunning = false;
+    }
+  }
+  resizeSoundCanvas();
+  let soundCanvasLoopRunning = true;
+  requestAnimationFrame(drawSoundCanvas);
+
+  // Resume both canvas loops when motion is re-enabled or the tab regains
+  // focus — they only pause themselves, nothing currently restarts them.
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) return;
+    if (ripples.length > 0 && !rippleLoopRunning) { rippleLoopRunning = true; requestAnimationFrame(drawRipples); }
+    if (!soundCanvasLoopRunning && root.getAttribute("data-motion") !== "reduced") { soundCanvasLoopRunning = true; requestAnimationFrame(drawSoundCanvas); }
+  });
+  reducedMotionToggle.addEventListener("change", () => {
+    if (!reducedMotionToggle.checked && !soundCanvasLoopRunning) { soundCanvasLoopRunning = true; requestAnimationFrame(drawSoundCanvas); }
+  });
+
+  // ---------------------------------------------------------------------
+  // CALM ECHOES — the signature feature: after walking a bit, leave a short
+  // Kalimba melody + optional message at this spot; another walker can
+  // discover it later and choose whether to hear it. See CALM_ECHOES.md for
+  // the full architecture/schema/API/privacy/security writeup.
+  //
+  // Uses NavBridge.location.start()/stop() (shared/interfaces.js) for a
+  // dedicated, always-on watch — deliberately NOT threaded through the
+  // turn-by-turn nav fix pipeline (navWatchId/handleFix), since exploration
+  // tracking is a property of real-world walking, independent of whether the
+  // user is actively following a route. During active navigation this means
+  // two concurrent location subscriptions (nav's own + this one) — a modest,
+  // disclosed battery tradeoff chosen over coupling two independent concerns.
+  // ---------------------------------------------------------------------
+  const kalimbaEngine = new KalimbaEngine(audioManager);
+  const echoRecorder = new EchoRecorder({ engine: kalimbaEngine, audioManager, hapticManager });
+
+  // A random, per-device pseudonymous identifier — generated here, hashed
+  // server-side on arrival, and never itself sent anywhere but this app's own
+  // API (see echovalidation.js's hashCreatorToken and migrations/0001_create_echoes.sql).
+  function getOrCreateCreatorToken() {
+    let token = localStorage.getItem("calmEchoes.creatorToken");
+    if (!token) {
+      token = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      localStorage.setItem("calmEchoes.creatorToken", token);
+    }
+    return token;
+  }
+  const creatorToken = getOrCreateCreatorToken();
+
+  // One shared ephemeral toast element for every Calm Echoes message
+  // ("nearby", discovery notifications, save confirmation) — see index.html's
+  // own comment on #echoToast for why these don't get three separate elements.
+  const echoToastEl = document.getElementById("echoToast");
+  let echoToastTimer = null;
+  function showEchoToast(text, ms) {
+    if (echoToastTimer) clearTimeout(echoToastTimer);
+    echoToastEl.textContent = text;
+    echoToastEl.style.display = "block";
+    echoToastTimer = setTimeout(() => { echoToastEl.style.display = "none"; }, ms || 3200);
+  }
+
+  // ---- Exploration tracking + unlock CTA ----
+  const echoUnlockCta = document.getElementById("echoUnlockCta");
+  const echoUnlockCtaText = document.getElementById("echoUnlockCtaText");
+  let explorationState = ExplorationTracker.initialExplorationState();
+
+  function updateUnlockCta() {
+    const progress = ExplorationTracker.unlockProgress(explorationState, Date.now());
+    echoUnlockCta.style.display = "block";
+    echoUnlockCtaText.textContent = ExplorationTracker.progressMessage(explorationState, Date.now());
+    echoUnlockCta.classList.toggle("ready", progress.unlocked);
+  }
+  echoUnlockCta.addEventListener("click", () => {
+    if (!echoUnlockCta.classList.contains("ready")) return;
+    openKalimbaOverlay();
+  });
+
+  // ---- Nearby Echo discovery + map markers/clustering ----
+  const echoMarkersLayer = L.layerGroup().addTo(map);
+  let nearbyEchoes = [];
+  let lastNearbyFetch = { at: 0, lat: null, lon: null };
+  const shownNearbyToastIds = new Set();
+
+  function renderEchoMarkers() {
+    echoMarkersLayer.clearLayers();
+    EchoMarkerClustering.clusterEchoes(nearbyEchoes, 40).forEach((cluster) => {
+      const isCluster = cluster.count > 1;
+      const icon = L.divIcon({
+        className: "echo-marker-pin" + (isCluster ? " echo-cluster" : ""),
+        html: `<div class="echo-marker-glow" aria-hidden="true"></div><div class="echo-marker-icon">${isCluster ? cluster.count : "🪕"}</div>`,
+        iconSize: [30, 30],
+        iconAnchor: [15, 15],
+      });
+      L.marker([cluster.lat, cluster.lon], { icon, keyboard: false })
+        .addTo(echoMarkersLayer)
+        .on("click", () => {
+          if (isCluster) { map.setView([cluster.lat, cluster.lon], Math.min(19, map.getZoom() + 2)); return; }
+          openEchoDetail(cluster.echoes[0]);
+        });
+    });
+  }
+
+  async function fetchNearbyEchoes(lat, lon) {
+    try {
+      const resp = await fetch(`${apiBaseUrl}/api/echoes/nearby?lat=${lat}&lon=${lon}&radiusM=500`);
+      if (!resp.ok) return;
+      const data = await resp.json();
+      nearbyEchoes = data.echoes || [];
+      renderEchoMarkers();
+      const veryClose = nearbyEchoes.find((e) => e.distanceM <= 40 && !shownNearbyToastIds.has(e.id));
+      if (veryClose) {
+        shownNearbyToastIds.add(veryClose.id);
+        showEchoToast("✨ Calm Echo nearby");
+      }
+    } catch (e) {
+      // Best-effort: markers/toast just don't refresh this round — nothing
+      // else in the app depends on this succeeding.
+    }
+  }
+
+  function onEchoFix(fix) {
+    explorationState = ExplorationTracker.applyFix(explorationState, { lat: fix.lat, lon: fix.lon }, Date.now());
+    updateUnlockCta();
+    const now = Date.now();
+    const moved = lastNearbyFetch.lat == null || NavLogic.haversineM(lastNearbyFetch.lat, lastNearbyFetch.lon, fix.lat, fix.lon) > 50;
+    if (moved || now - lastNearbyFetch.at > 20000) {
+      lastNearbyFetch = { at: now, lat: fix.lat, lon: fix.lon };
+      fetchNearbyEchoes(fix.lat, fix.lon);
+    }
+  }
+  NavBridge.location.start(onEchoFix, () => {
+    // Silent, harmless degradation (no unlock progress, no nearby markers) —
+    // routing/turn-by-turn navigation have their own, separate location
+    // error handling and are unaffected by this failing.
+  });
+
+  // ---- Kalimba overlay: record + leave an Echo ----
+  const kalimbaOverlay = document.getElementById("kalimbaOverlay");
+  const kalimbaTineButtons = Array.from(document.querySelectorAll("#kalimbaTineButtons .kalimba-tine-btn"));
+  const echoRecordStatus = document.getElementById("echoRecordStatus");
+  const echoRecordBtn = document.getElementById("echoRecordBtn");
+  const echoStopBtn = document.getElementById("echoStopBtn");
+  const echoRedoBtn = document.getElementById("echoRedoBtn");
+  const echoPlayBackBtn = document.getElementById("echoPlayBackBtn");
+  const echoMessageField = document.getElementById("echoMessageField");
+  const echoMessageInput = document.getElementById("echoMessageInput");
+  const echoMessageCount = document.getElementById("echoMessageCount");
+  const echoSaveBtn = document.getElementById("echoSaveBtn");
+  const echoCancelBtn = document.getElementById("echoCancelBtn");
+
+  function flashTineButton(tineIndex) {
+    const btn = kalimbaTineButtons.find((b) => Number(b.dataset.tine) === tineIndex);
+    if (!btn) return;
+    btn.classList.add("plucked");
+    setTimeout(() => btn.classList.remove("plucked"), 130);
+  }
+
+  // Pointer/multi-touch path (drag/sweep/tap/doubleTap/hold) — see
+  // kalimbacontroller.js's own header for why this is a dedicated pointer
+  // pipeline rather than reusing GestureEngine.
+  new KalimbaController({
+    canvas: document.getElementById("kalimbaTineButtons"),
+    engine: kalimbaEngine,
+    tuning: KalimbaTuning,
+    hapticManager,
+    onPluck: (tineIndex, velocity) => {
+      if (echoRecorder.state.phase === "recording") echoRecorder.registerPluck(tineIndex, velocity);
+      flashTineButton(tineIndex);
+    },
+  });
+
+  // Accessible fallback path — a real <button> per tine, keyboard/screen-
+  // reader operable. `e.detail === 0` is the standard way to tell a
+  // keyboard-triggered click apart from one synthesized after a pointer
+  // tap that kalimbaController above already handled; without this guard
+  // every pointer/touch tap would double-pluck (once via the controller,
+  // once via this button's native click).
+  kalimbaTineButtons.forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      if (e.detail !== 0) return;
+      const tineIndex = Number(btn.dataset.tine);
+      const velocity = KalimbaTuning.velocityFromGesture("tap");
+      kalimbaEngine.pluck(tineIndex, velocity);
+      if (hapticManager) hapticManager.vibratePulse(12);
+      if (echoRecorder.state.phase === "recording") echoRecorder.registerPluck(tineIndex, velocity);
+      flashTineButton(tineIndex);
+    });
+  });
+
+  function resetKalimbaSheetUI() {
+    echoRecordStatus.textContent = "Tap Record, then play something on the kalimba.";
+    echoRecordBtn.style.display = "flex";
+    echoRecordBtn.classList.remove("recording");
+    echoStopBtn.style.display = "none";
+    echoRedoBtn.style.display = "none";
+    echoPlayBackBtn.style.display = "none";
+    echoMessageField.style.display = "none";
+    echoMessageInput.value = "";
+    echoMessageCount.textContent = `0 / ${EchoValidation.MAX_MESSAGE_CHARS}`;
+    echoSaveBtn.disabled = true;
+  }
+
+  let kalimbaReturnFocusEl = null;
+  let autoStopTimer = null;
+  function clearAutoStopTimer() {
+    if (autoStopTimer) clearTimeout(autoStopTimer);
+    autoStopTimer = null;
+  }
+  function openKalimbaOverlay() {
+    if (kalimbaOverlay.classList.contains("open")) return;
+    kalimbaReturnFocusEl = document.activeElement;
+    clearAutoStopTimer();
+    echoRecorder.cancel();
+    resetKalimbaSheetUI();
+    kalimbaOverlay.classList.add("open");
+    echoRecordBtn.focus();
+  }
+  function closeKalimbaOverlay() {
+    if (!kalimbaOverlay.classList.contains("open")) return;
+    clearAutoStopTimer();
+    echoRecorder.cancel();
+    kalimbaOverlay.classList.remove("open");
+    if (kalimbaReturnFocusEl && typeof kalimbaReturnFocusEl.focus === "function") kalimbaReturnFocusEl.focus();
+    kalimbaReturnFocusEl = null;
+  }
+
+  echoRecordBtn.addEventListener("click", () => {
+    echoRecorder.startRecording();
+    echoRecordStatus.textContent = "Recording — play the kalimba. Stop when you're done (up to 20 seconds).";
+    echoRecordBtn.style.display = "none";
+    echoStopBtn.style.display = "flex";
+    clearAutoStopTimer();
+    autoStopTimer = setTimeout(() => {
+      if (echoRecorder.state.phase === "recording") echoStopBtn.click();
+    }, EchoValidation.MAX_DURATION_MS + 50);
+  });
+
+  echoStopBtn.addEventListener("click", () => {
+    clearAutoStopTimer();
+    echoRecorder.stopRecording();
+    echoStopBtn.style.display = "none";
+    if (echoRecorder.canSave()) {
+      echoRecordStatus.textContent = "Nice. Listen back, add a message if you like, then leave it here.";
+      echoRedoBtn.style.display = "flex";
+      echoPlayBackBtn.style.display = "flex";
+      echoMessageField.style.display = "block";
+      echoSaveBtn.disabled = false;
+    } else {
+      echoRecordStatus.textContent = "That was a bit short — melodies need to be at least 2 seconds. Try again.";
+      echoRedoBtn.style.display = "flex";
+      echoSaveBtn.disabled = true;
+    }
+  });
+
+  echoRedoBtn.addEventListener("click", () => {
+    clearAutoStopTimer();
+    echoRecorder.redo();
+    resetKalimbaSheetUI();
+  });
+
+  echoPlayBackBtn.addEventListener("click", () => echoRecorder.play());
+
+  echoMessageInput.addEventListener("input", () => {
+    echoMessageCount.textContent = `${echoMessageInput.value.length} / ${EchoValidation.MAX_MESSAGE_CHARS}`;
+  });
+
+  echoCancelBtn.addEventListener("click", closeKalimbaOverlay);
+  kalimbaOverlay.addEventListener("click", (e) => { if (e.target === kalimbaOverlay) closeKalimbaOverlay(); });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && kalimbaOverlay.classList.contains("open")) closeKalimbaOverlay();
+  });
+
+  echoSaveBtn.addEventListener("click", async () => {
+    const payload = echoRecorder.buildSavePayload();
+    if (!payload) return;
+    const messageCheck = EchoValidation.validateMessage(echoMessageInput.value);
+    if (!messageCheck.valid) {
+      echoRecordStatus.textContent = messageCheck.error;
+      return;
+    }
+    const fix = explorationState.lastFix;
+    if (!fix) {
+      echoRecordStatus.textContent = "Still finding your location — try again in a moment.";
+      return;
+    }
+    echoSaveBtn.disabled = true;
+    echoRecordStatus.textContent = "Leaving your Echo…";
+    try {
+      const resp = await fetch(`${apiBaseUrl}/api/echoes`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          lat: fix.lat, lon: fix.lon,
+          durationMs: payload.durationMs, melody: payload.melody,
+          message: messageCheck.value, nickname: null,
+          creatorToken,
+        }),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        echoRecordStatus.textContent = err.error || "Couldn't save your Echo — please try again.";
+        echoSaveBtn.disabled = false;
+        return;
+      }
+      explorationState = ExplorationTracker.consumeUnlock(explorationState, Date.now());
+      updateUnlockCta();
+      closeKalimbaOverlay();
+      showEchoToast("✨ Your Calm Echo was left here.");
+    } catch (e) {
+      echoRecordStatus.textContent = "Couldn't reach the server — please try again.";
+      echoSaveBtn.disabled = false;
+    }
+  });
+
+  // ---- Discovery detail sheet ----
+  const echoDetailOverlay = document.getElementById("echoDetailOverlay");
+  const echoDetailMessage = document.getElementById("echoDetailMessage");
+  const echoDetailDistance = document.getElementById("echoDetailDistance");
+  const echoDetailTime = document.getElementById("echoDetailTime");
+  const echoDetailPlayBtn = document.getElementById("echoDetailPlayBtn");
+  const echoDetailCloseBtn = document.getElementById("echoDetailCloseBtn");
+  let openEchoId = null;
+  let echoDetailReturnFocusEl = null;
+
+  function formatRelativeTime(ms) {
+    const diffMin = Math.round((Date.now() - ms) / 60000);
+    if (diffMin < 1) return "just now";
+    if (diffMin < 60) return `${diffMin} minute${diffMin === 1 ? "" : "s"} ago`;
+    const diffHr = Math.round(diffMin / 60);
+    if (diffHr < 24) return `${diffHr} hour${diffHr === 1 ? "" : "s"} ago`;
+    const diffDay = Math.round(diffHr / 24);
+    return `${diffDay} day${diffDay === 1 ? "" : "s"} ago`;
+  }
+
+  function openEchoDetail(echo) {
+    openEchoId = echo.id;
+    echoDetailReturnFocusEl = document.activeElement;
+    echoDetailMessage.textContent = echo.message || "";
+    echoDetailMessage.style.display = echo.message ? "block" : "none";
+    echoDetailDistance.textContent = `${echo.distanceM} m away`;
+    echoDetailTime.textContent = formatRelativeTime(echo.createdAt);
+    echoDetailOverlay.classList.add("open");
+    echoDetailPlayBtn.focus();
+  }
+  function closeEchoDetail() {
+    openEchoId = null;
+    echoDetailOverlay.classList.remove("open");
+    if (echoDetailReturnFocusEl && typeof echoDetailReturnFocusEl.focus === "function") echoDetailReturnFocusEl.focus();
+    echoDetailReturnFocusEl = null;
+  }
+  echoDetailCloseBtn.addEventListener("click", closeEchoDetail);
+  echoDetailOverlay.addEventListener("click", (e) => { if (e.target === echoDetailOverlay) closeEchoDetail(); });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && echoDetailOverlay.classList.contains("open")) closeEchoDetail();
+  });
+
+  echoDetailPlayBtn.addEventListener("click", async () => {
+    if (!openEchoId) return;
+    const id = openEchoId;
+    echoDetailPlayBtn.disabled = true;
+    try {
+      const resp = await fetch(`${apiBaseUrl}/api/echoes/${id}/play`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ listenerToken: creatorToken }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        echoRecorder.play({ melody: data.melody, durationMs: data.durationMs });
+      }
+    } catch (e) {
+      // Best-effort — failing to play a discovered Echo is disappointing but not destructive.
+    } finally {
+      echoDetailPlayBtn.disabled = false;
+    }
+  });
+
+  // ---- Creator notifications ("Someone discovered your Calm Echo.") ----
+  // Polled, not pushed — this app has no push infrastructure, and a minute's
+  // delay before a creator sees this is entirely in keeping with the
+  // feature's own unhurried, non-engagement-optimized philosophy.
+  async function pollEchoNotifications() {
+    try {
+      const resp = await fetch(`${apiBaseUrl}/api/echoes/notifications?creatorToken=${encodeURIComponent(creatorToken)}`);
+      if (!resp.ok) return;
+      const data = await resp.json();
+      (data.notifications || []).forEach((n, i) => setTimeout(() => showEchoToast(n.message), i * 3600));
+    } catch (e) {
+      // Best-effort — a missed notification isn't worth surfacing an error for.
+    }
+  }
+  setInterval(pollEchoNotifications, 60000);
+
+  // ---------------------------------------------------------------------
+  // Swipeable page navigation (3 pages: routing / audio / haptics)
+  // ---------------------------------------------------------------------
+  const pagesWrap = document.getElementById("pagesWrap");
+  const pages = Array.from(document.querySelectorAll(".page"));
+  const dots = Array.from(document.querySelectorAll(".dot-btn"));
+  const pageTagline = document.getElementById("pageTagline");
+  const TAGLINES = ["calm routing", "auditory regulation", "haptic fidgeting"];
+  let currentPage = 0;
+  let scrollRAF = null;
+
+  function goToPage(i, smooth) {
+    i = Math.max(0, Math.min(pages.length - 1, i));
+    pagesWrap.scrollTo({ left: pages[i].offsetLeft, behavior: smooth === false ? "auto" : "smooth" });
+  }
+
+  function setActivePage(i) {
+    if (i === currentPage) return;
+    currentPage = i;
+    dots.forEach((d, idx) => {
+      d.classList.toggle("active", idx === i);
+      d.setAttribute("aria-selected", idx === i ? "true" : "false");
+    });
+    pageTagline.textContent = TAGLINES[i] || "";
+    if (i === 0) requestAnimationFrame(() => map.invalidateSize());
+  }
+
+  dots.forEach((dot) => {
+    dot.addEventListener("click", () => goToPage(parseInt(dot.dataset.page, 10)));
+  });
+
+  pagesWrap.addEventListener("scroll", () => {
+    if (scrollRAF) cancelAnimationFrame(scrollRAF);
+    scrollRAF = requestAnimationFrame(() => {
+      const idx = Math.round(pagesWrap.scrollLeft / pagesWrap.clientWidth);
+      setActivePage(idx);
+    });
+  });
+
+  // Basic swipe support is native via scroll-snap; keyboard left/right as a
+  // non-touch fallback for accessibility.
+  pagesWrap.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowRight") { goToPage(currentPage + 1); e.preventDefault(); }
+    if (e.key === "ArrowLeft") { goToPage(currentPage - 1); e.preventDefault(); }
+  });
+
+  // ---------------------------------------------------------------------
+  // Initial render
+  // ---------------------------------------------------------------------
+  window.addEventListener("load", () => {
+    map.invalidateSize();
+    goToPage(0, false);
+  });
+})();

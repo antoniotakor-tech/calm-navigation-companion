@@ -1,0 +1,152 @@
+// ---------------------------------------------------------------------------
+// KalimbaEngine — synthesis only, no DOM/pointer handling (see
+// kalimbacontroller.js for that half — same split as autocompletecontroller.js's
+// pure-vs-DOM division). Everything here is procedurally generated with the
+// Web Audio API, using the same primitives already used throughout this
+// project (filtered noise bursts, detuned oscillators, gain envelopes — see
+// ambientengine.js) — no audio sample files, no new synthesis technique
+// introduced, just the existing toolkit retuned for a plucked metal tine
+// instead of noise/wind/birds.
+//
+// 11 tines, a single pentatonic scale (no semitones at all) — this is a
+// deliberate constraint, not a limitation: on a pentatonic scale, ANY
+// combination or order of tines played together is consonant. There is no
+// wrong note. That's what makes "anyone can create something that sounds
+// good" possible without a formal music lesson, and what guarantees "no
+// harsh sounds" structurally rather than by trusting careful playing.
+// ---------------------------------------------------------------------------
+(function (root) {
+  "use strict";
+
+  // C major pentatonic across ~2 octaves — warm, calm, unambiguous.
+  const KALIMBA_PITCHES = [
+    261.63, 293.66, 329.63, 392.0, 440.0,   // C4 D4 E4 G4 A4
+    523.25, 587.33, 659.25, 783.99, 880.0,  // C5 D5 E5 G5 A5
+    1046.5,                                 // C6
+  ];
+  const TINE_COUNT = KALIMBA_PITCHES.length;
+
+  // Screen left-to-right tine order (an index into KALIMBA_PITCHES for each
+  // physical position), matching a real kalimba's layout: the lowest tine
+  // sits in the center, and pitch rises alternating outward to each side —
+  // not a plain ascending left-to-right row. Center tine (screen position 5
+  // of 11) is the lowest pitch (index 0); the highest pitch (index 10) ends
+  // up at the far right.
+  const TINE_VISUAL_ORDER = [10, 8, 6, 4, 2, 0, 1, 3, 5, 7, 9];
+
+  function clamp01(v) { return Math.max(0, Math.min(1, v)); }
+
+  /**
+   * Maps a raw interaction signal to a 0..1 pluck velocity (loudness/brightness).
+   * @param {string} gestureType one of "tap" | "sweep" | "hold" | "doubleTap"
+   * @param {number} [intensity01] optional extra input (e.g. drag speed, already 0..1) — callers
+   *   that have no natural intensity signal (a plain tap) omit this and get a fixed sensible default.
+   * @returns {number} velocity in 0..1, never exactly 0 (a silent "pluck" isn't a pluck) or above 1.
+   */
+  function velocityFromGesture(gestureType, intensity01) {
+    const base = { tap: 0.7, doubleTap: 0.85, sweep: 0.55, hold: 0.6 }[gestureType];
+    if (base === undefined) return 0.6; // unrecognized gesture — a safe, audible middle velocity, not silence
+    if (intensity01 == null) return base;
+    return clamp01(base * 0.6 + clamp01(intensity01) * 0.4);
+  }
+
+  /** True only for a tine index this engine can actually play — guards against a bad recorded/received note. */
+  function isValidTineIndex(i) {
+    return Number.isInteger(i) && i >= 0 && i < TINE_COUNT;
+  }
+
+  function KalimbaEngine(audioManager) {
+    this.am = audioManager;
+  }
+
+  KalimbaEngine.prototype._ctx = function () { this.am.ensureCtx(); return this.am.ctx; };
+  KalimbaEngine.prototype._bus = function () { return this.am.getBus("instrument"); };
+
+  // A short burst of filtered noise for the pluck's attack transient — same
+  // technique as ambientengine.js's rain/wind layers, just much shorter and
+  // brighter, since a metal tine's attack is a click, not a hiss.
+  KalimbaEngine.prototype._pluckTransient = function (ctx, destination, velocity, pan) {
+    const dur = 0.02;
+    const size = Math.max(1, Math.floor(ctx.sampleRate * dur));
+    const buffer = ctx.createBuffer(1, size, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < size; i++) data[i] = Math.random() * 2 - 1;
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = "highpass";
+    filter.frequency.value = 1800;
+    const gain = ctx.createGain();
+    const panner = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+    gain.gain.value = 0;
+    src.connect(filter);
+    filter.connect(gain);
+    if (panner) { panner.pan.value = pan; gain.connect(panner); panner.connect(destination); }
+    else { gain.connect(destination); }
+    const now = ctx.currentTime;
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.18 * velocity, now + 0.003);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+    src.start(now);
+    src.stop(now + dur + 0.01);
+  };
+
+  // One resonant partial of the tine's body — a detuned oscillator with its
+  // own decay envelope. Real metal tines ring with inharmonic overtones
+  // (not clean integer multiples of the fundamental), which is what keeps
+  // this from sounding like a synth bleep — see the ratios below.
+  KalimbaEngine.prototype._partial = function (ctx, destination, freq, gainMult, decaySec, velocity, pan) {
+    const osc = ctx.createOscillator();
+    const env = ctx.createGain();
+    const panner = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+    osc.type = "triangle";
+    osc.frequency.value = freq;
+    env.gain.value = 0;
+    osc.connect(env);
+    if (panner) { panner.pan.value = pan; env.connect(panner); panner.connect(destination); }
+    else { env.connect(destination); }
+    const now = ctx.currentTime;
+    const peak = gainMult * (0.25 + velocity * 0.55);
+    env.gain.setValueAtTime(0, now);
+    env.gain.linearRampToValueAtTime(peak, now + 0.006); // fast but not instant — a pluck, not a click
+    env.gain.exponentialRampToValueAtTime(0.0005, now + decaySec);
+    osc.start(now);
+    osc.stop(now + decaySec + 0.05);
+  };
+
+  /**
+   * Plays one tine. Silently ignores an invalid index rather than throwing —
+   * this is called from live pointer input and recorded-melody playback
+   * alike, neither of which should be able to crash a performance in
+   * progress over one bad value.
+   * @param {number} tineIndex 0..10 (see KALIMBA_PITCHES)
+   * @param {number} [velocity01] 0..1, defaults to a comfortable middle value
+   */
+  KalimbaEngine.prototype.pluck = function (tineIndex, velocity01) {
+    if (!isValidTineIndex(tineIndex)) {
+      console.warn(`KalimbaEngine: ignored pluck for out-of-range tine index ${tineIndex}.`);
+      return;
+    }
+    const velocity = clamp01(velocity01 == null ? 0.7 : velocity01);
+    const ctx = this._ctx();
+    const bus = this._bus();
+    const freq = KALIMBA_PITCHES[tineIndex];
+    // Pan follows the tine's physical (visual) position, not its pitch rank,
+    // so a sweep across the instrument pans left-to-right exactly as seen.
+    const visualPos = TINE_VISUAL_ORDER.indexOf(tineIndex);
+    const pan = ((visualPos - (TINE_COUNT - 1) / 2) / ((TINE_COUNT - 1) / 2)) * 0.6 + (Math.random() * 0.1 - 0.05);
+
+    this._pluckTransient(ctx, bus, velocity, pan);
+    this._partial(ctx, bus, freq, 1.0, 1.9 + velocity * 0.6, velocity, pan);           // fundamental — longest ring
+    this._partial(ctx, bus, freq * 2.42, 0.34, 0.9 + velocity * 0.3, velocity, pan);    // inharmonic overtone
+    this._partial(ctx, bus, freq * 4.08, 0.14, 0.4, velocity * 0.8, pan);               // bright top, fades fast
+  };
+
+  if (typeof module === "object" && module.exports) {
+    module.exports = { KALIMBA_PITCHES, TINE_COUNT, TINE_VISUAL_ORDER, velocityFromGesture, isValidTineIndex, KalimbaEngine };
+  }
+  if (typeof window !== "undefined") {
+    window.KalimbaEngine = KalimbaEngine;
+    window.KalimbaTuning = { KALIMBA_PITCHES, TINE_COUNT, TINE_VISUAL_ORDER, velocityFromGesture, isValidTineIndex };
+  }
+})(typeof window !== "undefined" ? window : this);

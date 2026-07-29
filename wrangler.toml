@@ -1,0 +1,18 @@
+# Cloudflare Pages configuration for Calm Navigation Companion.
+#
+# This file did not exist before Calm Echoes — the project previously
+# deployed with `wrangler pages deploy .` and zero bindings beyond the
+# GRAPHHOPPER_API_KEY secret (set via `wrangler pages secret put`, not here).
+# Calm Echoes is the first feature needing real storage, hence the first D1
+# database this project has ever provisioned.
+name = "calm-navigation-companion"
+pages_build_output_dir = "."
+compatibility_date = "2026-07-28"
+
+# Calm Echoes metadata (melody note-events + message + fuzzed location).
+# No audio files, no object storage — see CALM_ECHOES.md's architecture
+# section for why a melody is a small JSON array, not a media blob.
+[[d1_databases]]
+binding = "DB"
+database_name = "calm-echoes"
+database_id = "0de88b38-320c-4cf1-9066-cdf8e470a49b"
