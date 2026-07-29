@@ -1,17 +1,16 @@
-// v1 -> v2 (2026-07-28, Calm Echoes) -> v3 (2026-07-29, Flow Mode) -> v4-v12
-// (2026-07-29, Navigation Polish — each of v4-v12 fixed a real bug found
-// during local testing, and each required its own bump to actually reach a
-// returning tab, a live demonstration of why this has to happen on every
-// change, not just once per feature): bumping this is what actually forces
-// already-installed/previously-visited clients onto the new app shell. The
-// fetch handler below is cache-first ("cached || network" always prefers a
-// cached hit if one exists), which means a same-named cache silently never
-// updates what a returning visitor sees, no matter how many times the
-// background revalidation fetch below refreshes its stored copy — only a
-// new cache NAME (triggering activate's old-cache cleanup + a fresh
-// `cache.addAll`) actually surfaces new content. Bump this on every future
-// deploy that changes any file in APP_SHELL, not just this one.
-const CACHE_NAME = "calm-companion-v13";
+// v1 -> v2 (2026-07-28, Calm Echoes) -> v3 (2026-07-29, Flow Mode) -> v4-v13
+// (2026-07-29, Navigation Polish) -> v14 (2026-07-29, product audit fixes —
+// settings-sheet z-index bleed + error-message clarity, both touching
+// app.js): bumping this is what actually forces already-installed/
+// previously-visited clients onto the new app shell. The fetch handler
+// below is cache-first ("cached || network" always prefers a cached hit if
+// one exists), which means a same-named cache silently never updates what
+// a returning visitor sees, no matter how many times the background
+// revalidation fetch below refreshes its stored copy — only a new cache
+// NAME (triggering activate's old-cache cleanup + a fresh `cache.addAll`)
+// actually surfaces new content. Bump this on every future deploy that
+// changes any file in APP_SHELL, not just this one.
+const CACHE_NAME = "calm-companion-v14";
 const APP_SHELL = [
   "/",
   "/index.html",
