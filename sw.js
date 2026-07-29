@@ -1,4 +1,4 @@
-// v1 -> v2 (2026-07-28, Calm Echoes): bumping this is what actually forces
+// v1 -> v2 (2026-07-28, Calm Echoes) -> v3 (2026-07-29, Flow Mode): bumping this is what actually forces
 // already-installed/previously-visited clients onto the new app shell. The
 // fetch handler below is cache-first ("cached || network" always prefers a
 // cached hit if one exists), which means a same-named cache silently never
@@ -7,7 +7,7 @@
 // new cache NAME (triggering activate's old-cache cleanup + a fresh
 // `cache.addAll`) actually surfaces new content. Bump this on every future
 // deploy that changes any file in APP_SHELL, not just this one.
-const CACHE_NAME = "calm-companion-v2";
+const CACHE_NAME = "calm-companion-v3";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -38,6 +38,8 @@ const APP_SHELL = [
   "/echorecorder.js",
   "/explorationtracker.js",
   "/echomarkerclustering.js",
+  // Flow Mode (2026-07-29).
+  "/flowtheme.js",
 ];
 
 self.addEventListener("install", (event) => {
