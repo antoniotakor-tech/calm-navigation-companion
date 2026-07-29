@@ -1617,13 +1617,23 @@
     renderPresetUI(a.preset);
     applyModeToEngines(a.mode);
   }
-  /** Manual soundscape change: persists it, demotes to Custom, plays it (if the master switch is on), preserving the current ambient volume. */
+  /**
+   * Manual soundscape change: persists it, demotes to Custom, plays it,
+   * preserving the current ambient volume. Picking an actual sound (not
+   * "Off") is an unambiguous "play this" gesture, so it also turns the
+   * master switch on if it was off — previously it only remembered the
+   * choice silently until the separate master toggle was found and tapped,
+   * which read as "no sound coming out" once the simplified page no longer
+   * showed presets/mode alongside it as a hint that a master switch existed.
+   */
   function setSoundscape(name) {
-    prefs.set({ audio: { soundscape: name } });
+    const enabled = name !== "off" ? true : prefs.get().audio.enabled;
+    prefs.set({ audio: { soundscape: name, enabled } });
     prefs.captureCustomAudio();
     const a = prefs.get().audio;
     renderSoundUI(a.soundscape);
     renderPresetUI(a.preset);
+    renderMasterUI(a.enabled);
     applySoundscapeToEngine(a);
   }
   /** Manual slider drag (any of ambient/voice/effects, from either the main page or the settings sheet): persists, demotes to Custom, re-syncs both slider sets and the live gain nodes. */

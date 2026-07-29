@@ -98,13 +98,17 @@
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
 
-  /* Calm Echoes' Kalimba — deliberately its own warm wood/metal palette
-     rather than reusing --surface/--calm, so the instrument reads as a
-     distinct physical object rather than another app panel. */
-  --kalimba-wood-1: #8A5A34;
-  --kalimba-wood-2: #6B4223;
-  --kalimba-tine-1: #E8D9B0;
-  --kalimba-tine-2: #B99C68;
+  /* Calm Echoes' Kalimba — built from the same tokens as everything else
+     (product decision, 2026-07-29, reversing an earlier deliberate
+     warm-wood/metal palette that read as a photoreal instrument dropped
+     into the app rather than part of it). The body is just another
+     --surface card; the tines take their highlight-to-base shading from
+     --calm, the same green used for Start/the route dot/active states, so
+     the instrument reads as unmistakably *this app's*. */
+  --kalimba-wood-1: var(--surface-2);
+  --kalimba-wood-2: var(--surface);
+  --kalimba-tine-1: color-mix(in srgb, var(--calm) 45%, white 55%);
+  --kalimba-tine-2: var(--calm);
 }
 :root[data-theme="dark"], :root.hc-dark {
   --bg: #12141F;
