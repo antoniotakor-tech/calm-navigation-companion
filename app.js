@@ -2452,6 +2452,14 @@
   window.addEventListener("load", () => {
     map.invalidateSize();
     goToPage(0, false);
+    // Zero-decision first run: destination is the one field someone's
+    // actually likely to want to change (start already defaults sensibly),
+    // focused and pre-selected so the very first keystroke replaces the
+    // demo placeholder instead of requiring a manual clear first. Placed
+    // last in the load handler, not its own earlier rAF — goToPage's
+    // scrollTo above was winning that race and blurring it.
+    endInput.focus();
+    endInput.select();
   });
 
   // Applies the persisted (or system-default) appearance now that every
