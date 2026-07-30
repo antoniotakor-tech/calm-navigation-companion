@@ -729,6 +729,74 @@
       runSearch();
     }
   });
+
+  // ---- Nearby cafés & bars as instant "Where to?" suggestions ----
+  // Tap the empty search bar and the names of real cafés/bars around your
+  // current location (GPS if granted, map center otherwise) appear
+  // immediately — pick one and it routes there. Reuses the same /api/pois
+  // pipeline (and therefore its caching/mirror discipline); typing anything
+  // hands the list back to the normal address autocomplete.
+  const endAcListEl = document.getElementById("endAcList");
+  let nearbySuggest = { at: 0, key: null, items: [] };
+  async function fetchNearbyFood(center) {
+    const key = `${center.lat.toFixed(3)},${center.lon.toFixed(3)}`;
+    if (nearbySuggest.key === key && Date.now() - nearbySuggest.at < 5 * 60 * 1000) return nearbySuggest.items;
+    const d = 0.006; // ~600m box — walkable "around here"
+    const bbox = `${(center.lat - d).toFixed(4)},${(center.lon - d).toFixed(4)},${(center.lat + d).toFixed(4)},${(center.lon + d).toFixed(4)}`;
+    const resp = await fetch(`${apiBaseUrl}/api/pois?bbox=${bbox}`);
+    if (!resp.ok) return [];
+    const data = await resp.json();
+    const items = (data.pois || [])
+      .filter((p) => p.kind === "food")
+      .map((p) => ({ ...p, distanceM: Math.round(NavLogic.haversineM(center.lat, center.lon, p.lat, p.lon)) }))
+      .sort((a, b) => a.distanceM - b.distanceM)
+      .slice(0, 8);
+    nearbySuggest = { at: Date.now(), key, items };
+    return items;
+  }
+
+  async function showNearbySuggestions() {
+    if (endInput.value.trim() !== "") return;
+    const c = userPoint || (() => { const m = map.getCenter(); return { lat: m.lat, lon: m.lng }; })();
+    let items;
+    try { items = await fetchNearbyFood(c); } catch (e) { return; }
+    // The bar may have been typed into (or unfocused) while we fetched.
+    if (!items.length || endInput.value.trim() !== "" || document.activeElement !== endInput) return;
+    endAcListEl.innerHTML = "";
+    const note = document.createElement("li");
+    note.className = "ac-nearby-note";
+    note.textContent = "Nearby cafés & bars";
+    endAcListEl.appendChild(note);
+    items.forEach((p) => {
+      const li = document.createElement("li");
+      li.className = "ac-option";
+      li.setAttribute("role", "option");
+      li.innerHTML = `<span class="ac-option-icon" aria-hidden="true">☕</span>
+        <span class="ac-option-text">
+          <span class="ac-option-primary"></span>
+          <span class="ac-option-secondary">${p.distanceM} m away</span>
+        </span>`;
+      li.querySelector(".ac-option-primary").textContent = p.name;
+      // pointerdown (not click) so the input's blur can't close the list
+      // before the selection lands — same trick the autocomplete uses.
+      li.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        const selection = { label: p.name, lat: p.lat, lon: p.lon };
+        endSelectedResult = selection;
+        resolvedEnd = { label: p.name, lat: p.lat, lon: p.lon };
+        endInput.value = p.name;
+        endAcListEl.style.display = "none";
+        expandSearchCard();
+        runSearch();
+      });
+      endAcListEl.appendChild(li);
+    });
+    endAcListEl.style.display = "block";
+  }
+  endInput.addEventListener("focus", showNearbySuggestions);
+  endInput.addEventListener("input", () => {
+    if (!endInput.value.trim()) showNearbySuggestions();
+  });
   startInput.addEventListener("focus", ensureUserLocation);
   endInput.addEventListener("focus", ensureUserLocation);
 

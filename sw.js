@@ -29,7 +29,9 @@
 // proxy, itinerary cards + ride/walk leg drawing) -> v29 (2026-07-30:
 // shop cap raised to parity with food, 150 per area) -> v30 (2026-07-30:
 // POIs at density — 400 food/400 shops/150 transit incl. ferry-terminal
-// ways, Overpass mirror fallback chain, GL circle rendering): bumping
+// ways, Overpass mirror fallback chain, GL circle rendering) -> v31
+// (2026-07-30: nearby cafés & bars by name as instant search-bar
+// suggestions around your location): bumping
 // this is what actually forces already-installed/previously-visited clients
 // onto the new app shell. The fetch handler below is cache-first ("cached
 // || network" always prefers a cached hit if one exists), which means a
@@ -39,7 +41,7 @@
 // cleanup + a fresh `cache.addAll`) actually surfaces new content. Bump
 // this on every future deploy that changes any file in APP_SHELL, not just
 // this one.
-const CACHE_NAME = "calm-companion-v30";
+const CACHE_NAME = "calm-companion-v31";
 const APP_SHELL = [
   "/",
   "/index.html",

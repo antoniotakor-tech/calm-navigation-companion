@@ -566,6 +566,10 @@ button:focus-visible, [tabindex]:focus-visible, input:focus-visible { outline: 2
   list-style: none; background: var(--surface); border: 1px solid var(--line); border-radius: 16px;
   box-shadow: var(--shadow); max-height: 300px; overflow-y: auto; -webkit-overflow-scrolling: touch;
 }
+.ac-nearby-note {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted);
+  font-weight: 700; padding: 6px 8px 4px; list-style: none;
+}
 .ac-option {
   display: flex; align-items: center; gap: 10px; padding: 10px 8px; min-height: 44px;
   border-radius: 10px; cursor: pointer;
