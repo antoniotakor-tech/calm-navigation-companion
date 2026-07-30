@@ -310,15 +310,10 @@
   50% { box-shadow: 0 0 0 12px color-mix(in srgb, var(--flow-5) 10%, transparent), 0 0 26px color-mix(in srgb, var(--flow-5) 80%, transparent); }
 }
 
-/* --- Route: slow, subtle shimmer suggesting calm energy toward the
-   destination. Applied via a class app.js toggles on the calm route's
-   rendered SVG path (Leaflet renders polylines as real <path> elements),
-   only while Flow is active. --- */
-.flow-route-glow { animation: flow-route-shimmer 6s ease-in-out infinite; }
-@keyframes flow-route-shimmer {
-  0%, 100% { stroke-opacity: 0.85; filter: drop-shadow(0 0 3px var(--flow-5)); }
-  50% { stroke-opacity: 1; filter: drop-shadow(0 0 10px var(--flow-5)); }
-}
+/* Route shimmer note: the old .flow-route-glow CSS animation targeted the
+   calm route's SVG <path> — with the MapLibre GL renderer there is no path
+   element to animate, so Flow's glow is now a dedicated wide/blurred
+   under-line layer ("route-calm-glow" in app.js), toggled with the theme. */
 
 /* --- Calm Echo markers: soft particles / tiny floating lights (Flow only).
    Two small glowing dots per marker, gentle independent float — kept to
@@ -605,13 +600,13 @@ button:focus-visible, [tabindex]:focus-visible, input:focus-visible { outline: 2
    about any of this: the ResizeObserver in app.js (`new ResizeObserver(...)
    .observe(document.querySelector(".map-wrap"))`) re-syncs the tile grid on
    every genuine layout-box change regardless of *how* the size changed, so
-   no explicit height/transition is needed here purely for Leaflet's sake. */
+   no explicit height/transition is needed here purely for the map's sake. */
 #page-0 .page-inner { position: relative; height: 100%; padding: 0; overflow: hidden; }
 .map-wrap { position: absolute; inset: 0; }
 /* z-index:0 (not just position:absolute) is load-bearing: it makes #map
-   establish its own stacking context, containing Leaflet's internal panes
-   (tile/marker/popup/control panes go up to z-index 1000 in leaflet.css)
-   so they can never leak out and paint over this element's siblings —
+   establish its own stacking context, containing the map renderer's own
+   positioned children (markers, popups, controls) so they can never leak
+   out and paint over this element's siblings —
    .recenter-btn, .nav-banner, .route-search-card, etc. — regardless of how
    modest those siblings' own z-index values are. Without this, position:
    absolute alone does NOT create containment (a positioned element only
@@ -1132,15 +1127,26 @@ footer.foot {
 }
 .poi-dot.poi-shop { background: var(--sky); }
 .poi-dot.poi-food { background: var(--accent); }
-/* Leaflet's default popup is a white speech bubble that ignores theming —
+/* MapLibre's default popup is a white speech bubble that ignores theming —
    restyle just the container to the app's own tokens (same surface/ink/
-   radius as every card), leaving Leaflet's positioning logic alone. */
-.leaflet-popup-content-wrapper {
+   radius as every card), leaving MapLibre's positioning logic alone. */
+.maplibregl-popup-content {
   background: var(--surface); color: var(--ink); border-radius: var(--radius-sm);
   box-shadow: var(--shadow-md); border: 1px solid var(--line);
+  font-family: var(--font-body); font-size: 12.5px; font-weight: 600; padding: 8px 12px;
 }
-.leaflet-popup-content { font-family: var(--font-body); font-size: 12.5px; font-weight: 600; margin: 8px 12px; }
-.leaflet-popup-tip { background: var(--surface); }
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip { border-top-color: var(--surface); }
+.maplibregl-popup-anchor-top .maplibregl-popup-tip { border-bottom-color: var(--surface); }
+.maplibregl-popup-anchor-left .maplibregl-popup-tip { border-right-color: var(--surface); }
+.maplibregl-popup-anchor-right .maplibregl-popup-tip { border-left-color: var(--surface); }
+/* Attribution: same honest credits, restyled from MapLibre's default white
+   pill to the app's tokens so it reads as part of the map, not a sticker. */
+.maplibregl-ctrl-attrib {
+  background: color-mix(in srgb, var(--surface) 85%, transparent) !important;
+  border-radius: var(--radius-sm); font-size: 10px;
+}
+.maplibregl-ctrl-attrib a { color: var(--ink-soft) !important; }
+.maplibregl-ctrl-attrib-button { filter: invert(0.5); }
 
 /* --- Map markers: glowing, never cluttered, animated softly --- */
 .echo-marker-pin {

@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Calm Companion">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -569,7 +569,7 @@
   nothing on the plain web deployment (Cloudflare Pages serves this exact
   source file, unmodified — window.Capacitor is simply never defined there).
 -->
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="config.js"></script>
 <script src="navlogic.js"></script>
 <script src="navsim.js"></script>
@@ -622,7 +622,12 @@
   // window.Capacitor only exists there, so this is a no-op on the plain web
   // deployment (Cloudflare Pages), which keeps registering the SW exactly as
   // before.
-  if ("serviceWorker" in navigator && !(window.Capacitor && window.Capacitor.isNativePlatform())) {
+  // localhost is excluded: the cache-first service worker serving stale
+  // app-shell files during `wrangler pages dev` sessions has repeatedly
+  // masked in-progress edits behind old cached copies. Production (any
+  // non-localhost origin) registers exactly as before.
+  if ("serviceWorker" in navigator && !(window.Capacitor && window.Capacitor.isNativePlatform())
+      && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") {
     window.addEventListener("load", () => {
       navigator.serviceWorker.register("sw.js").catch(() => {});
     });

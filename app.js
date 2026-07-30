@@ -148,7 +148,7 @@
   }
 
   // ---------------------------------------------------------------------
-  // Map (Leaflet + CARTO tiles, built on OpenStreetMap data)
+  // Map (MapLibre GL + OpenFreeMap vector tiles, built on OpenStreetMap data)
   // ---------------------------------------------------------------------
   // Real feedback: a frozen, non-interactive map read as broken rather than
   // intentional, and the default OSM "Mapnik" tile style looks dated/busy.
@@ -159,137 +159,270 @@
   // fallback for switching pages from directly on top of the map.
   const isDark = () => {
     const t = root.getAttribute("data-theme");
-    // Flow uses the dark CARTO tileset too (see flowtheme.js's usesDarkMapTiles
+    // Flow uses the dark map palette too (see flowtheme.js's usesDarkMapTiles
     // for why: a night-sky base is what the aurora-style overlay is designed
     // to sit on top of).
     return t ? FlowTheme.usesDarkMapTiles(t) : (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
   };
-  const map = L.map("map", { zoomControl: false, attributionControl: false }).setView(
-    [CONFIG.DEFAULT_START.lat, CONFIG.DEFAULT_START.lon], 14
-  );
-  let tileLayer = L.tileLayer(
-    isDark()
-      ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-      : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-    { maxZoom: 19, subdomains: "abcd" }
-  ).addTo(map);
-  L.control.attribution({ prefix: false }).addAttribution("&copy; OpenStreetMap contributors &copy; CARTO").addTo(map);
 
-  // Entering/leaving full-screen nav mode resizes #map via a plain CSS
-  // `height` transition (style.css's `.page-inner.nav-active #map` rule) —
-  // smooth and free, but Leaflet's own tile grid doesn't know the resize
-  // happened until told. Calling invalidateSize() repeatedly mid-transition
-  // (e.g. on every animation frame) would work but re-tiles far more than
-  // needed and can visibly stutter; calling it once, right as the CSS
-  // transition finishes, gives a seamless "route stays visible throughout"
-  // resize with a single re-tile. Falls back to a fixed delay matching
-  // --motion-slow if `transitionend` never fires (e.g. reduced-motion
-  // collapses the transition to ~0ms faster than the listener can attach).
-  // Keeps Leaflet's tile grid in sync with .map-wrap's real, observed box
-  // size instead of guessing when a CSS transition has "finished". Timing-
-  // based approaches (transitionend + a delay, even a retry ladder of
-  // several invalidateSize() calls spread across ~1.6s) were confirmed via
-  // repeated manual testing to be flaky — intermittently leaving the tile
-  // grid gray/half-loaded below the fold, evidently because the grid
-  // layer's own tile-fetch pass doesn't reliably "catch up" on any fixed
-  // schedule. A ResizeObserver instead fires on every genuine layout-box
-  // change (every frame of the .map-wrap height transition, plus its final
-  // settled size), so Leaflet is told about the real size continuously
-  // rather than at one guessed moment — this is the standard fix for
-  // Leaflet living inside an animated/CSS-transitioning container. Runs for
-  // the whole app lifetime (not just during nav), which is harmless: an
-  // invalidateSize() call when the size hasn't meaningfully changed is a
-  // cheap no-op.
-  new ResizeObserver(() => map.invalidateSize({ animate: false })).observe(document.querySelector(".map-wrap"));
+  // MapLibre GL + OpenFreeMap vector tiles (free, keyless, no rate cap),
+  // replacing the old CARTO raster tiles. The whole point of going vector:
+  // the basemap's colors are OURS now. One base style (Positron) is loaded
+  // once, then recolorMapForTheme() below repaints its layers from the
+  // app's own palette on every theme change — setPaintProperty only, never
+  // setStyle(), so route lines, markers, and every custom source survive a
+  // Light/Dark/Flow switch untouched instead of being torn down and rebuilt.
+  const map = new maplibregl.Map({
+    container: "map",
+    style: "https://tiles.openfreemap.org/styles/positron",
+    center: [CONFIG.DEFAULT_START.lon, CONFIG.DEFAULT_START.lat],
+    zoom: 14,
+    maxZoom: 19,
+    attributionControl: false,
+    // Pitch/rotate gestures stay off: this app's map is a flat, calm,
+    // north-up surface — same interaction model the Leaflet build had.
+    pitchWithRotate: false,
+    dragRotate: false,
+    touchPitch: false,
+  });
+  map.touchZoomRotate.disableRotation();
+  map.keyboard.disableRotation();
+  // QA hook (?debug=1): exposes the map instance + surfaces renderer errors
+  // that would otherwise be swallowed. No-op in normal use.
+  if (/[?&]debug=1\b/.test(location.search)) {
+    window.__map = map;
+    map.on("error", (e) => console.warn("map error:", e && e.error && e.error.message));
+  }
+  // The style itself carries the full OSM/OpenMapTiles/OpenFreeMap credit
+  // line — adding a customAttribution on top rendered it twice. compact:true
+  // collapses it to the standard (i) toggle, same honest credits, calmer.
+  map.addControl(new maplibregl.AttributionControl({ compact: true }));
+
+  // The map palettes are map-specific shades OF the app palette — deliberate
+  // hexes rather than raw tokens, because the token set has no concept of
+  // "water at 60% visual weight under a route line". Both halves stay in the
+  // same families as --bg/--surface/--calm/--sky per theme.
+  const MAP_PALETTES = {
+    light: {
+      land: "#F3F1EA", residential: "#EEEBE2", green: "#DEE9DC", water: "#C4DCD6",
+      building: "#E7E3D8", casing: "#E2DDD2", roadMinor: "#FFFFFF", roadMajor: "#FDFCF8",
+      motorway: "#F7F4EC", rail: "#DCD7CC", boundary: "#C9C4B9", aeroway: "#EBE8DF",
+      label: "#6F7480", labelHalo: "#F3F1EA", waterLabel: "#7C9A93",
+    },
+    dark: {
+      land: "#12141F", residential: "#141726", green: "#16211D", water: "#0B0E16",
+      building: "#1A1D2B", casing: "#0D0F18", roadMinor: "#232637", roadMajor: "#2A2E42",
+      motorway: "#303550", rail: "#1E2233", boundary: "#333850", aeroway: "#171A28",
+      label: "#8B90A5", labelHalo: "#12141F", waterLabel: "#5F7A8C",
+    },
+  };
+
+  // Repaints every basemap layer from the current theme's palette. Grouped
+  // by Positron's stable layer ids (captured from the style JSON) with a
+  // type-based fallback so an upstream style tweak degrades to "slightly
+  // wrong shade", never a crash — every set is individually best-effort.
+  function recolorMapForTheme() {
+    const p = MAP_PALETTES[isDark() ? "dark" : "light"];
+    const trySet = (layerId, prop, value) => {
+      try { map.setPaintProperty(layerId, prop, value); } catch (e) { /* layer/prop absent — fine */ }
+    };
+    (map.getStyle().layers || []).forEach((layer) => {
+      const id = layer.id;
+      if (layer.type === "background") { trySet(id, "background-color", p.land); return; }
+      if (layer.type === "fill") {
+        let c = p.land;
+        if (id === "water") c = p.water;
+        else if (id === "park" || id.startsWith("landcover_")) c = p.green;
+        else if (id.startsWith("landuse_")) c = p.residential;
+        else if (id === "building") c = p.building;
+        else if (id.startsWith("aeroway") || id.startsWith("road_area")) c = p.aeroway;
+        trySet(id, "fill-color", c);
+        trySet(id, "fill-outline-color", c);
+        return;
+      }
+      if (layer.type === "line") {
+        let c = p.roadMinor;
+        if (id === "waterway") c = p.water;
+        else if (id.includes("casing")) c = p.casing;
+        else if (id.includes("motorway")) c = p.motorway;
+        else if (id.includes("major")) c = p.roadMajor;
+        else if (id.startsWith("railway")) c = p.rail;
+        else if (id.startsWith("boundary")) c = p.boundary;
+        else if (id.startsWith("aeroway") || id === "road_pier") c = p.aeroway;
+        trySet(id, "line-color", c);
+        return;
+      }
+      if (layer.type === "symbol") {
+        const isWater = id.startsWith("water") || id.startsWith("waterway");
+        trySet(id, "text-color", isWater ? p.waterLabel : p.label);
+        trySet(id, "text-halo-color", p.labelHalo);
+      }
+    });
+  }
+  // isStyleLoaded() is NOT a reliable "has the style ever loaded" signal —
+  // it flips false transiently during any style mutation, and "style.load"
+  // fires exactly once, so code that misses the moment and re-subscribes
+  // waits forever. One latched flag + a queue is the dependable version:
+  // callbacks run immediately once the style has loaded, in order, exactly
+  // once each.
+  let mapStyleReady = false;
+  const styleReadyQueue = [];
+  function whenStyleReady(fn) {
+    if (mapStyleReady) fn();
+    else styleReadyQueue.push(fn);
+  }
+  map.once("style.load", () => {
+    mapStyleReady = true;
+    recolorMapForTheme();
+    while (styleReadyQueue.length) styleReadyQueue.shift()();
+  });
+
+  // The map's container can be resized by layout changes it can't see
+  // (entering/leaving full-screen nav mode, banners toggling above it) — a
+  // ResizeObserver telling the renderer about every genuine layout-box
+  // change was the hard-won fix for the old raster build's gray-tile bugs
+  // (timing-based approaches were repeatedly flaky), and it carries over
+  // unchanged: map.resize() is MapLibre's equivalent of invalidateSize(),
+  // and a resize() call when nothing meaningfully changed is a cheap no-op.
+  new ResizeObserver(() => map.resize()).observe(document.querySelector(".map-wrap"));
 
   function refreshMapTheme() {
-    map.removeLayer(tileLayer);
-    tileLayer = L.tileLayer(
-      isDark()
-        ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-        : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-      { maxZoom: 19, subdomains: "abcd" }
-    ).addTo(map);
-    tileLayer.bringToBack();
-  }
-
-  let calmLine = null, fastLine = null, startMarker = null, endMarker = null;
-
-  // "Animate route creation/recalculation... no harsh redraws, no
-  // flickering." A reroute fades the OLD layers out (rather than an
-  // instant removal) while the new ones are created and drawn-on beneath —
-  // the two animations overlap in time, which reads as a single continuous
-  // transition rather than a flash-to-black gap. `fadeOutMs` is only ever
-  // passed on a genuine reroute; a first search (no prior layers to fade)
-  // just removes nothing, same as before.
-  function clearRouteLayers(fadeOutMs) {
-    const layers = [calmLine, fastLine, startMarker, endMarker].filter(Boolean);
-    if (fadeOutMs && layers.length) {
-      layers.forEach((l) => {
-        const el = typeof l.getElement === "function" ? l.getElement() : null;
-        if (el) { el.style.transition = `opacity ${fadeOutMs}ms ease`; el.style.opacity = "0"; }
-      });
-      setTimeout(() => layers.forEach((l) => map.removeLayer(l)), fadeOutMs);
-    } else {
-      layers.forEach((l) => map.removeLayer(l));
+    // No tile-layer swap anymore — repaint the one loaded style in place.
+    // Guarded for the startup race where a theme is applied before the
+    // style has finished loading (the style.load hook above then does the
+    // first recolor anyway).
+    whenStyleReady(() => {
+    recolorMapForTheme();
+    // Flow's route-glow underlayer follows the theme live, so switching
+    // into/out of Flow while a route is on screen behaves like the old
+    // CSS-class toggle did.
+    if (map.getLayer("route-calm-glow")) {
+      map.setLayoutProperty("route-calm-glow", "visibility",
+        FlowTheme.isFlowActive(root.getAttribute("data-theme")) ? "visible" : "none");
     }
-    calmLine = fastLine = startMarker = endMarker = null;
+    });
   }
 
-  // SVG-only "line drawing on" effect (stroke-dasharray/dashoffset) for the
-  // primary calm route — the one line actually in the spec's own visual-
-  // hierarchy priority list. The secondary dashed fastest-route line keeps
-  // its instant appearance: it already uses Leaflet's own `dashArray` style
-  // option for its permanent dashed look, which would otherwise fight this
-  // technique's direct manipulation of the same SVG attribute. No-op
-  // (silently) if the browser ever renders via Canvas instead of SVG,
-  // where `getTotalLength()` doesn't exist on the returned element.
-  function animateRouteDrawOn(polyline, durationMs) {
-    const path = polyline && typeof polyline.getElement === "function" ? polyline.getElement() : null;
-    if (!path || typeof path.getTotalLength !== "function") return;
-    const length = path.getTotalLength();
-    path.style.transition = "none";
-    path.style.strokeDasharray = `${length}`;
-    path.style.strokeDashoffset = `${length}`;
-    // Force a reflow so the browser commits the "fully hidden" starting
-    // state before animating to visible — otherwise the two style writes
-    // in the same tick can get batched and the transition never visibly
-    // starts. Same forced-reflow technique already used for Flow Mode's
-    // reactive pulse.
-    void path.getBoundingClientRect();
-    path.style.transition = `stroke-dashoffset ${durationMs}ms ease-out`;
-    path.style.strokeDashoffset = "0";
+  // Route rendering: two GeoJSON sources + three line layers (a soft glow
+  // under the calm line, Flow Mode only), created once the style loads and
+  // then only ever fed new data — never torn down, which is what keeps
+  // reroutes and theme switches flicker-free by construction.
+  let startMarker = null, endMarker = null;
+  let routeDrawRAF = null;
+  let calmRouteCoords = []; // [lon,lat][] of the current calm route
+  const EMPTY_LINE = { type: "Feature", geometry: { type: "LineString", coordinates: [] } };
+  function lineFeature(coords) {
+    return { type: "Feature", geometry: { type: "LineString", coordinates: coords } };
+  }
+
+  function ensureRouteLayers() {
+    if (map.getSource("route-calm")) return;
+    map.addSource("route-fast", { type: "geojson", data: EMPTY_LINE });
+    map.addSource("route-calm", { type: "geojson", data: EMPTY_LINE });
+    map.addLayer({
+      id: "route-fast-line", type: "line", source: "route-fast",
+      layout: { "line-cap": "round", "line-join": "round" },
+      paint: { "line-color": getVar("--busy"), "line-width": 3, "line-opacity": 0.55, "line-dasharray": [1.5, 2.2] },
+    });
+    // Flow Mode's "route slowly shimmers, suggesting calm energy flowing
+    // toward the destination": with GL rendering there's no SVG <path> to
+    // hang the old CSS animation on, so the shimmer is a wide, blurred
+    // under-line instead — toggled via layer visibility so Light/Dark keep
+    // the exact same single static line as before.
+    map.addLayer({
+      id: "route-calm-glow", type: "line", source: "route-calm",
+      layout: { "line-cap": "round", "line-join": "round", visibility: "none" },
+      paint: { "line-color": getVar("--calm"), "line-width": 12, "line-opacity": 0.3, "line-blur": 8 },
+    });
+    map.addLayer({
+      id: "route-calm-line", type: "line", source: "route-calm",
+      layout: { "line-cap": "round", "line-join": "round" },
+      paint: { "line-color": getVar("--calm"), "line-width": 5, "line-opacity": 0.95 },
+    });
+  }
+
+  function clearRouteLayers() {
+    if (routeDrawRAF) { cancelAnimationFrame(routeDrawRAF); routeDrawRAF = null; }
+    calmRouteCoords = [];
+    if (map.getSource("route-calm")) {
+      map.getSource("route-calm").setData(EMPTY_LINE);
+      map.getSource("route-fast").setData(EMPTY_LINE);
+    }
+    if (startMarker) { startMarker.remove(); startMarker = null; }
+    if (endMarker) { endMarker.remove(); endMarker = null; }
+  }
+
+  // "Line drawing on" effect, reimplemented for GL: the calm source's data
+  // grows from the route's start to its end over `durationMs`, interpolating
+  // within the current segment each frame — reads identically to the old
+  // SVG stroke-dashoffset trick. Distance-weighted so the drawing speed is
+  // constant along the ground, not per-vertex.
+  function animateRouteDrawOn(coords, durationMs) {
+    if (routeDrawRAF) cancelAnimationFrame(routeDrawRAF);
+    const src = map.getSource("route-calm");
+    if (!src || coords.length < 2) { if (src) src.setData(lineFeature(coords)); return; }
+    const segLens = [];
+    let total = 0;
+    for (let i = 1; i < coords.length; i++) {
+      const d = NavLogic.haversineM(coords[i - 1][1], coords[i - 1][0], coords[i][1], coords[i][0]);
+      segLens.push(d); total += d;
+    }
+    if (total <= 0) { src.setData(lineFeature(coords)); return; }
+    const startedAt = performance.now();
+    function step(now) {
+      const t = Math.min(1, (now - startedAt) / durationMs);
+      const eased = 1 - Math.pow(1 - t, 3); // ease-out, matching the old CSS curve
+      let remaining = eased * total;
+      const drawn = [coords[0]];
+      for (let i = 0; i < segLens.length; i++) {
+        if (remaining >= segLens[i]) { drawn.push(coords[i + 1]); remaining -= segLens[i]; }
+        else {
+          const f = segLens[i] > 0 ? remaining / segLens[i] : 1;
+          drawn.push([
+            coords[i][0] + (coords[i + 1][0] - coords[i][0]) * f,
+            coords[i][1] + (coords[i + 1][1] - coords[i][1]) * f,
+          ]);
+          break;
+        }
+      }
+      src.setData(lineFeature(drawn));
+      routeDrawRAF = t < 1 ? requestAnimationFrame(step) : null;
+    }
+    routeDrawRAF = requestAnimationFrame(step);
+  }
+
+  function boundsOfCoords(coords) {
+    return coords.reduce(
+      (b, c) => b.extend(c),
+      new maplibregl.LngLatBounds(coords[0], coords[0])
+    );
   }
 
   function drawRoute(result, start, end, options) {
     const isReroute = !!(options && options.isReroute);
-    clearRouteLayers(isReroute ? 280 : 0);
-    const calmLatLngs = result.calm.coordinates.map(([lon, lat]) => [lat, lon]);
-    const fastLatLngs = result.fastest.coordinates.map(([lon, lat]) => [lat, lon]);
+    const render = () => {
+      ensureRouteLayers();
+      clearRouteLayers();
+      calmRouteCoords = result.calm.coordinates.slice();
+      map.getSource("route-fast").setData(lineFeature(result.fastest.coordinates));
+      animateRouteDrawOn(calmRouteCoords, isReroute ? 700 : 1000);
+      map.setLayoutProperty("route-calm-glow", "visibility",
+        FlowTheme.isFlowActive(root.getAttribute("data-theme")) ? "visible" : "none");
 
-    fastLine = L.polyline(fastLatLngs, { color: getVar("--busy"), weight: 3, opacity: 0.55, dashArray: "5,7" }).addTo(map);
-    calmLine = L.polyline(calmLatLngs, { color: getVar("--calm"), weight: 5, opacity: 0.95 }).addTo(map);
-    animateRouteDrawOn(calmLine, isReroute ? 700 : 1000);
-    // Flow Mode's "route slowly shimmers, suggesting calm energy flowing
-    // toward the destination" — a CSS animation class on the calm route's
-    // real rendered <path> element (Leaflet's SVG renderer), applied only
-    // while Flow is active so Light/Dark keep the exact same static line.
-    if (FlowTheme.isFlowActive(root.getAttribute("data-theme")) && calmLine.getElement()) {
-      calmLine.getElement().classList.add("flow-route-glow");
-    }
+      startMarker = new maplibregl.Marker({ element: makePinElement(getVar("--calm")), anchor: "bottom" })
+        .setLngLat([start.lon, start.lat]).addTo(map);
+      endMarker = new maplibregl.Marker({ element: makePinElement(getVar("--accent")), anchor: "bottom" })
+        .setLngLat([end.lon, end.lat]).addTo(map);
 
-    startMarker = L.marker([start.lat, start.lon], { icon: makePinIcon(getVar("--calm")) }).addTo(map);
-    endMarker = L.marker([end.lat, end.lon], { icon: makePinIcon(getVar("--accent")) }).addTo(map);
-
-    // The map container's on-screen size can have changed since Leaflet last
-    // measured it (e.g. the safety banner or special-event banner toggling
-    // visibility above the map). invalidateSize() re-syncs Leaflet's cached
-    // size before fitBounds computes the fit — otherwise tiles get positioned
-    // for a stale (usually smaller) box and leave the real container's edges
-    // blank. animate:false avoids leftover stale-zoom tiles from an
-    // interrupted pan/zoom animation when markers are added immediately after.
-    map.invalidateSize(false);
-    map.fitBounds(calmLine.getBounds(), { padding: [24, 24], animate: false });
+      // The container's size can have changed since the renderer last
+      // measured it (banners toggling above the map) — resize() before
+      // fitBounds so the fit is computed against the real box.
+      map.resize();
+      map.fitBounds(boundsOfCoords(calmRouteCoords), { padding: 32, animate: false });
+    };
+    // First search can land before the style finishes loading (fast typer,
+    // slow network) — defer once rather than crash on addSource.
+    whenStyleReady(render);
   }
 
   function getVar(name) {
@@ -336,20 +469,27 @@
     notification: NavBridge.isNative ? new NativeNotificationController() : new WebNotificationController(),
   });
 
-  function makeUserDotIcon() {
-    return L.divIcon({ className: "user-dot", html: `<div class="user-dot-inner"></div>`, iconSize: [16, 16], iconAnchor: [8, 8] });
+  // Marker elements: MapLibre positions the OUTER element it's given via
+  // its own inline transform, so every animated/styled class lives on an
+  // inner child instead — the old Leaflet divIcon put classes on the
+  // positioned element itself, where a CSS transform animation and the
+  // positioning transform would now fight. Same DOM/CSS beyond that.
+  function makeUserDotElement() {
+    const wrap = document.createElement("div");
+    wrap.style.pointerEvents = "none"; // taps pass through to the map
+    wrap.style.width = "16px"; wrap.style.height = "16px"; // anchor math needs a real box
+    wrap.innerHTML = `<div class="user-dot"><div class="user-dot-inner"></div></div>`;
+    return wrap;
   }
 
-  // Pikmin-Bloom-style pillowy teardrop pin (rounded, gently swaying), built as
-  // a Leaflet divIcon so it can use the app's own CSS animation instead of a
-  // static default marker image.
-  function makePinIcon(color) {
-    return L.divIcon({
-      className: "map-pin",
-      html: `<svg viewBox="0 0 26 26"><path d="M13 2c-5.5 0-9 4-9 8.5C4 17 13 24 13 24s9-7 9-13.5C22 6 18.5 2 13 2z" fill="${color}"/><circle cx="13" cy="10.5" r="4" fill="rgba(255,255,255,0.85)"/></svg>`,
-      iconSize: [26, 26],
-      iconAnchor: [13, 24],
-    });
+  // Pikmin-Bloom-style pillowy teardrop pin (rounded, gently swaying) — the
+  // app's own CSS animation on the inner .map-pin, not a static marker image.
+  function makePinElement(color) {
+    const wrap = document.createElement("div");
+    wrap.style.pointerEvents = "none";
+    wrap.style.width = "26px"; wrap.style.height = "26px";
+    wrap.innerHTML = `<div class="map-pin"><svg viewBox="0 0 26 26"><path d="M13 2c-5.5 0-9 4-9 8.5C4 17 13 24 13 24s9-7 9-13.5C22 6 18.5 2 13 2z" fill="${color}"/><circle cx="13" cy="10.5" r="4" fill="rgba(255,255,255,0.85)"/></svg></div>`;
+    return wrap;
   }
 
   // ---------------------------------------------------------------------
@@ -766,18 +906,27 @@
   // destination and searches immediately — no typing required. Only on the
   // planning screen: during active navigation a map tap already means
   // "reveal the auto-hidden controls" (see the smart-controls pointerdown
-  // handler below), and the two meanings must not overlap. Leaflet only
-  // fires "click" for a genuine tap (a pan/drag never ends in one), and a
-  // tap on an Echo marker is swallowed by the marker's own handler, so
-  // there's no drag/marker conflict here. The route search starts against
-  // the raw coordinates right away; the human-readable label arrives from a
+  // handler below), and the two meanings must not overlap. A tap on an
+  // Echo/POI marker is swallowed by the marker element's own handler, so
+  // there's no marker conflict. The route search starts against the raw
+  // coordinates right away; the human-readable label arrives from a
   // parallel best-effort reverse geocode and only ever replaces the interim
   // coordinate label — never the selection itself — and is skipped if the
   // user has meanwhile picked a different destination.
-  map.on("click", async (e) => {
+  //
+  // Unlike Leaflet, MapLibre does NOT cancel the pending single-click when
+  // a double-click zoom lands — without the 300ms hold below, every
+  // double-tap zoom would also pin a destination and fire a route search.
+  let pendingMapTap = null;
+  map.on("dblclick", () => { clearTimeout(pendingMapTap); pendingMapTap = null; });
+  map.on("click", (e) => {
+    clearTimeout(pendingMapTap);
+    pendingMapTap = setTimeout(() => handleMapTap(e), 300);
+  });
+  async function handleMapTap(e) {
     if (pageInner0.classList.contains("nav-active")) return;
     if (isSearching) return;
-    const point = { lat: e.latlng.lat, lon: e.latlng.lng };
+    const point = { lat: e.lngLat.lat, lon: e.lngLat.lng };
     const interimLabel = `Pinned spot (${point.lat.toFixed(4)}, ${point.lon.toFixed(4)})`;
     const selection = { label: interimLabel, lat: point.lat, lon: point.lon };
     endSelectedResult = selection;
@@ -799,7 +948,7 @@
     } catch (err) {
       // Best-effort only — the coordinate label above already works.
     }
-  });
+  }
 
   const recenterBtn = document.getElementById("recenterBtn");
   const navMuteBtn = document.getElementById("navMuteBtn");
@@ -839,7 +988,6 @@
   let simulator = null;
   let usingSimulatedGps = false;
   let userDotMarker = null;
-  let userAccuracyCircle = null;
   let smoothedHeadingDeg = null;
   let markerTweenRAF = null;
   let markerTweenFrom = null;
@@ -853,9 +1001,38 @@
   function stepMarkerTween(nowMs) {
     const t = (nowMs - markerTweenStartMs) / MARKER_TWEEN_MS;
     const point = NavLogic.lerpLatLon(markerTweenFrom.lat, markerTweenFrom.lon, markerTweenTo.lat, markerTweenTo.lon, t);
-    if (userDotMarker) userDotMarker.setLatLng([point.lat, point.lon]);
-    if (userAccuracyCircle) userAccuracyCircle.setLatLng([point.lat, point.lon]);
+    if (userDotMarker) userDotMarker.setLngLat([point.lon, point.lat]);
+    if (accuracyCircleState) setAccuracyCircle(point.lat, point.lon, accuracyCircleState.radiusM);
     markerTweenRAF = t < 1 ? requestAnimationFrame(stepMarkerTween) : null;
+  }
+
+  // GPS-accuracy confidence ring as a GeoJSON polygon (GL has no circle
+  // primitive with a meters radius — a 48-segment polygon at these sizes is
+  // visually indistinguishable from a true circle).
+  let accuracyCircleState = null; // { lat, lon, radiusM }
+  function circleFeature(lat, lon, radiusM) {
+    const pts = [];
+    const latR = radiusM / 111320;
+    const lonR = radiusM / (111320 * Math.cos((lat * Math.PI) / 180));
+    for (let i = 0; i <= 48; i++) {
+      const a = (i / 48) * Math.PI * 2;
+      pts.push([lon + Math.cos(a) * lonR, lat + Math.sin(a) * latR]);
+    }
+    return { type: "Feature", geometry: { type: "Polygon", coordinates: [pts] } };
+  }
+  function ensureAccuracyLayer() {
+    if (map.getSource("user-accuracy")) return;
+    map.addSource("user-accuracy", { type: "geojson", data: EMPTY_LINE });
+    map.addLayer({
+      id: "user-accuracy-fill", type: "fill", source: "user-accuracy",
+      paint: { "fill-color": getVar("--sky"), "fill-opacity": 0.12 },
+    });
+  }
+  function setAccuracyCircle(lat, lon, radiusM) {
+    accuracyCircleState = { lat, lon, radiusM };
+    if (!mapStyleReady) return; // first fix can beat the style — drawn on next update
+    ensureAccuracyLayer();
+    map.getSource("user-accuracy").setData(circleFeature(lat, lon, radiusM));
   }
 
   // The user-location marker "should feel alive": smoothly interpolated
@@ -864,20 +1041,22 @@
   // reported GPS accuracy rather than a fixed radius.
   function updateUserMarker(lat, lon, accuracy, headingDeg) {
     if (!userDotMarker) {
-      userDotMarker = L.marker([lat, lon], { icon: makeUserDotIcon(), zIndexOffset: 1000 }).addTo(map);
-      userAccuracyCircle = L.circle([lat, lon], { radius: accuracy || 15, color: getVar("--sky"), fillColor: getVar("--sky"), fillOpacity: 0.12, weight: 1 }).addTo(map);
+      userDotMarker = new maplibregl.Marker({ element: makeUserDotElement(), anchor: "center" })
+        .setLngLat([lon, lat]).addTo(map);
+      userDotMarker.getElement().style.zIndex = "1000";
+      setAccuracyCircle(lat, lon, accuracy || 15);
       smoothedHeadingDeg = headingDeg != null ? headingDeg : null;
     } else {
       cancelMarkerTween();
-      const current = userDotMarker.getLatLng();
+      const current = userDotMarker.getLngLat();
       markerTweenFrom = { lat: current.lat, lon: current.lng };
       markerTweenTo = { lat, lon };
       markerTweenStartMs = performance.now();
       markerTweenRAF = requestAnimationFrame(stepMarkerTween);
       smoothedHeadingDeg = NavLogic.smoothHeading(smoothedHeadingDeg, headingDeg, 0.35);
-      userAccuracyCircle.setRadius(accuracy || 15);
+      setAccuracyCircle(lat, lon, accuracy || 15);
     }
-    const el = userDotMarker.getElement();
+    const el = userDotMarker.getElement().querySelector(".user-dot");
     const effectiveHeading = smoothedHeadingDeg != null ? smoothedHeadingDeg : headingDeg;
     if (el) {
       const inner = el.querySelector(".user-dot-inner");
@@ -886,13 +1065,11 @@
     }
     // "When GPS accuracy decreases, show confidence naturally" — a larger,
     // more visible ring for a genuinely uncertain fix; a subtle, barely-
-    // there one once accuracy is good, rather than a fixed appearance that
-    // implies the same confidence regardless of what the device actually
-    // reported.
-    if (userAccuracyCircle) {
+    // there one once accuracy is good.
+    if (map.getLayer("user-accuracy-fill")) {
       const acc = accuracy || 15;
       const fillOpacity = acc > 30 ? 0.22 : acc > 15 ? 0.16 : 0.08;
-      userAccuracyCircle.setStyle({ fillOpacity, opacity: Math.min(0.9, fillOpacity * 3) });
+      map.setPaintProperty("user-accuracy-fill", "fill-opacity", fillOpacity);
     }
     return effectiveHeading;
   }
@@ -900,7 +1077,9 @@
   function removeUserMarker() {
     cancelMarkerTween();
     smoothedHeadingDeg = null;
-    if (userDotMarker) { map.removeLayer(userDotMarker); map.removeLayer(userAccuracyCircle); userDotMarker = null; userAccuracyCircle = null; }
+    accuracyCircleState = null;
+    if (userDotMarker) { userDotMarker.remove(); userDotMarker = null; }
+    if (map.getSource("user-accuracy")) map.getSource("user-accuracy").setData(EMPTY_LINE);
   }
 
   // Camera intelligence: walking/cycling look-ahead (bias the visual center
@@ -916,7 +1095,8 @@
     const movedM = lastCameraLatLng ? NavLogic.haversineM(lastCameraLatLng[0], lastCameraLatLng[1], lat, lon) : 0;
     const duration = movedM < 3 ? 0.35 : movedM > 25 ? 1.0 : 0.6;
     lastCameraLatLng = [lat, lon];
-    map.setView([target.lat, target.lon], map.getZoom() < 16 ? 17 : map.getZoom(), { animate: true, duration, easeLinearity: 0.25 });
+    // easeTo takes ms (Leaflet's setView took seconds) — same felt speeds.
+    map.easeTo({ center: [target.lon, target.lat], zoom: map.getZoom() < 16 ? 17 : map.getZoom(), duration: duration * 1000 });
   }
 
   function renderNavStep(step) {
@@ -933,7 +1113,7 @@
   }
 
   // Only a real user drag should break follow-mode — programmatic
-  // map.setView() calls (our own recentering) don't fire 'dragstart'.
+  // easeTo() calls (our own recentering) don't fire 'dragstart'.
   map.on("dragstart", () => {
     if (currentState === NavLogic.NavState.NAVIGATING || currentState === NavLogic.NavState.OFF_ROUTE) {
       setFollowMode(false);
@@ -954,14 +1134,14 @@
     autoReturnToFollowTimer = setTimeout(() => {
       if (!followMode && (currentState === NavLogic.NavState.NAVIGATING || currentState === NavLogic.NavState.OFF_ROUTE)) {
         setFollowMode(true);
-        if (lastFixLatLng) map.setView(lastFixLatLng, 17, { animate: true });
+        if (lastFixLatLng) map.easeTo({ center: [lastFixLatLng[1], lastFixLatLng[0]], zoom: 17 });
       }
     }, AUTO_RETURN_TO_FOLLOW_MS);
   }
   recenterBtn.addEventListener("click", () => {
     clearTimeout(autoReturnToFollowTimer);
     setFollowMode(true);
-    if (lastFixLatLng) map.setView(lastFixLatLng, 17, { animate: true });
+    if (lastFixLatLng) map.easeTo({ center: [lastFixLatLng[1], lastFixLatLng[0]], zoom: 17 });
   });
 
   // ---------------------------------------------------------------------
@@ -2097,30 +2277,35 @@
   }
 
   // ---- Nearby Echo discovery + map markers/clustering ----
-  const echoMarkersLayer = L.layerGroup().addTo(map);
+  let echoMarkers = []; // maplibregl.Marker[]
   let nearbyEchoes = [];
   let lastNearbyFetch = { at: 0, lat: null, lon: null };
   const shownNearbyToastIds = new Set();
 
   function renderEchoMarkers() {
-    echoMarkersLayer.clearLayers();
+    echoMarkers.forEach((m) => m.remove());
+    echoMarkers = [];
     EchoMarkerClustering.clusterEchoes(nearbyEchoes, 40).forEach((cluster) => {
       const isCluster = cluster.count > 1;
-      const icon = L.divIcon({
-        className: "echo-marker-pin" + (isCluster ? " echo-cluster" : ""),
-        html: `<div class="echo-marker-glow" aria-hidden="true"></div><div class="echo-marker-icon">${isCluster ? cluster.count : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="14" width="16" height="7" rx="2"/><path d="M7 14V10M10.5 14V6.5M13.5 14V6.5M17 14V10M12 14V3.5"/></svg>'}</div>`,
-        iconSize: [30, 30],
-        iconAnchor: [15, 15],
+      const el = document.createElement("div");
+      el.className = "echo-marker-pin" + (isCluster ? " echo-cluster" : "");
+      el.innerHTML = `<div class="echo-marker-glow" aria-hidden="true"></div><div class="echo-marker-icon">${isCluster ? cluster.count : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="14" width="16" height="7" rx="2"/><path d="M7 14V10M10.5 14V6.5M13.5 14V6.5M17 14V10M12 14V3.5"/></svg>'}</div>`;
+      // stopPropagation is what keeps a marker tap from ALSO reaching the
+      // map's own click handler (tap-to-navigate) — MapLibre marker
+      // elements live inside the canvas container, so without this every
+      // Echo tap would simultaneously pin a new destination underneath.
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (FlowTheme.isFlowActive(root.getAttribute("data-theme"))) {
+          spawnFlowTapRipple(e.clientX, e.clientY);
+        }
+        if (isCluster) { map.easeTo({ center: [cluster.lon, cluster.lat], zoom: Math.min(19, map.getZoom() + 2) }); return; }
+        openEchoDetail(cluster.echoes[0]);
       });
-      L.marker([cluster.lat, cluster.lon], { icon, keyboard: false })
-        .addTo(echoMarkersLayer)
-        .on("click", (e) => {
-          if (FlowTheme.isFlowActive(root.getAttribute("data-theme")) && e.originalEvent) {
-            spawnFlowTapRipple(e.originalEvent.clientX, e.originalEvent.clientY);
-          }
-          if (isCluster) { map.setView([cluster.lat, cluster.lon], Math.min(19, map.getZoom() + 2)); return; }
-          openEchoDetail(cluster.echoes[0]);
-        });
+      echoMarkers.push(
+        new maplibregl.Marker({ element: el, anchor: "center" })
+          .setLngLat([cluster.lon, cluster.lat]).addTo(map)
+      );
     });
   }
 
@@ -2208,7 +2393,8 @@
   //     own cache-control) with a hard floor between upstream calls,
   //   - paused entirely during navigation — route guidance is not the
   //     moment to decorate the map.
-  const poiLayer = L.layerGroup().addTo(map);
+  let poiMarkers = []; // maplibregl.Marker[]
+  function clearPoiMarkers() { poiMarkers.forEach((m) => m.remove()); poiMarkers = []; }
   const POI_MIN_ZOOM = 15;
   const POI_CACHE_MS = 10 * 60 * 1000;
   const POI_MIN_FETCH_GAP_MS = 2500;
@@ -2237,23 +2423,24 @@
   }
 
   function renderPois(pois) {
-    poiLayer.clearLayers();
+    clearPoiMarkers();
     pois.forEach((p) => {
-      const icon = L.divIcon({
-        className: "poi-pin",
-        html: `<span class="poi-dot ${p.kind === "shop" ? "poi-shop" : "poi-food"}" aria-hidden="true"></span>`,
-        iconSize: [12, 12],
-        iconAnchor: [6, 6],
-      });
-      L.marker([p.lat, p.lon], { icon, keyboard: false })
-        .addTo(poiLayer)
-        .bindPopup(p.name, { closeButton: false, offset: [0, -2] });
+      const el = document.createElement("div");
+      el.className = "poi-pin";
+      el.innerHTML = `<span class="poi-dot ${p.kind === "shop" ? "poi-shop" : "poi-food"}" aria-hidden="true"></span>`;
+      const popup = new maplibregl.Popup({ closeButton: false, offset: 10 }).setText(p.name);
+      const marker = new maplibregl.Marker({ element: el, anchor: "center" })
+        .setLngLat([p.lon, p.lat]).setPopup(popup).addTo(map);
+      // Same stopPropagation rationale as the Echo markers: a POI tap opens
+      // its name popup, it must not also pin a new destination underneath.
+      el.addEventListener("click", (e) => e.stopPropagation());
+      poiMarkers.push(marker);
     });
   }
 
   async function refreshPois() {
     if (pageInner0.classList.contains("nav-active")) return;
-    if (map.getZoom() < POI_MIN_ZOOM) { poiLayer.clearLayers(); return; }
+    if (map.getZoom() < POI_MIN_ZOOM) { clearPoiMarkers(); return; }
     const bbox = poiGridBbox();
     const key = `${bbox.minLat},${bbox.minLon},${bbox.maxLat},${bbox.maxLon}`;
     const cached = poiCache.get(key);
@@ -2618,7 +2805,7 @@
       d.setAttribute("aria-selected", idx === i ? "true" : "false");
     });
     pageTagline.textContent = TAGLINES[i] || "";
-    if (i === 0) requestAnimationFrame(() => map.invalidateSize());
+    if (i === 0) requestAnimationFrame(() => map.resize());
     if (i === 2) refreshEchoRecordGate();
   }
 
@@ -2645,7 +2832,7 @@
   // Initial render
   // ---------------------------------------------------------------------
   window.addEventListener("load", () => {
-    map.invalidateSize();
+    map.resize();
     goToPage(0, false);
     // Zero-decision first run: destination is the one field someone's
     // actually likely to want to change (start already defaults sensibly),
