@@ -195,6 +195,13 @@
              toggles `.visible`); the Start button lives here, floating on
              the map, rather than in the old below-the-map row. -->
         <div class="route-results-card" id="routeResultsCard">
+          <!-- One route by default (product decision, 2026-07-30): the calm
+               route is auto-selected the moment a search returns, so the
+               default flow is Find -> Start with no pick-a-route step in
+               between. The fastest alternative still exists, just behind
+               the collapsed disclosure below — an optional comparison, not
+               a required decision. Tapping it selects it (same selectRoute
+               wiring as before). -->
           <div class="route-compare" id="routeCompare" style="display:none;">
             <div class="route-card selected" id="calmCard">
               <div class="rc-label">Calm route</div>
@@ -202,13 +209,18 @@
               <div class="rc-sub" id="calmDist">—</div>
               <div class="breakdown-bar" id="calmBar"></div>
             </div>
-            <div class="route-card" id="fastCard">
-              <div class="rc-label">Fastest route</div>
-              <div class="rc-time" id="fastTime">—</div>
-              <div class="rc-sub" id="fastDist">—</div>
-              <div class="breakdown-bar" id="fastBar"></div>
-            </div>
           </div>
+          <details class="route-alternatives" id="routeAlternatives">
+            <summary>Other routes</summary>
+            <div class="route-compare">
+              <div class="route-card" id="fastCard">
+                <div class="rc-label">Fastest route</div>
+                <div class="rc-time" id="fastTime">—</div>
+                <div class="rc-sub" id="fastDist">—</div>
+                <div class="breakdown-bar" id="fastBar"></div>
+              </div>
+            </div>
+          </details>
 
           <div class="nav-start-row">
             <button class="start-nav-btn" id="startNavBtn" style="display:none;">

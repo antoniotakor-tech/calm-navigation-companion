@@ -879,6 +879,16 @@ button:focus-visible, [tabindex]:focus-visible, input:focus-visible { outline: 2
 
 /* --- Route comparison --- */
 .route-compare { display: flex; gap: 10px; margin-bottom: 16px; }
+/* Optional alternatives disclosure — same visual language as the steps-panel
+   label (11px uppercase muted), collapsed by default so the default flow is
+   Find -> Start with no route-picking step in between. */
+.route-alternatives { margin-bottom: 12px; }
+.route-alternatives summary {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted);
+  font-weight: 700; cursor: pointer; padding: 2px 0 8px;
+}
+.route-alternatives[open] summary { margin-bottom: 4px; }
+.route-alternatives .route-compare { margin-bottom: 0; }
 .route-card {
   flex: 1; background: var(--surface); border: 2px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-4);
   cursor: pointer; box-shadow: var(--shadow-md);

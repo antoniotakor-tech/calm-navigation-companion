@@ -694,6 +694,11 @@
     routeCompare.style.display = "flex";
     routeResultsCard.classList.add("visible");
     startNavBtn.style.display = "flex";
+    // Every fresh search resets to the zero-decision default: calm route
+    // selected, alternatives disclosure collapsed — a leftover open state
+    // (or a leftover "fastest" selection) from a previous search shouldn't
+    // silently carry into a new route.
+    document.getElementById("routeAlternatives").open = false;
     selectRoute("calm");
 
     let note = result.note ? result.note + " " : "";
