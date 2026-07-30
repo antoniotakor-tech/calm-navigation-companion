@@ -97,7 +97,7 @@ test("upstream failure/non-ok: honest 502, not a crash or an empty 200", async (
 
 test("per-kind caps: food is never crowded out by shops (shops listed first upstream)", async () => {
   const elements = [];
-  for (let i = 0; i < 80; i++) elements.push({ type: "node", id: i, lat: 52.36, lon: 4.88, tags: { shop: "gift", name: `Shop ${i}` } });
+  for (let i = 0; i < 160; i++) elements.push({ type: "node", id: i, lat: 52.36, lon: 4.88, tags: { shop: "gift", name: `Shop ${i}` } });
   for (let i = 0; i < 80; i++) elements.push({ type: "node", id: 1000 + i, lat: 52.36, lon: 4.88, tags: { amenity: "bar", name: `Bar ${i}` } });
   await withMockedFetch(
     async () => ({ ok: true, json: async () => ({ elements }) }),
@@ -106,7 +106,7 @@ test("per-kind caps: food is never crowded out by shops (shops listed first upst
       const body = await resp.json();
       const kinds = body.pois.reduce((m, p) => { m[p.kind] = (m[p.kind] || 0) + 1; return m; }, {});
       assert.equal(kinds.food, 80, "every bar survives");
-      assert.equal(kinds.shop, 60, "shops hit their own cap without eating the food budget");
+      assert.equal(kinds.shop, 150, "shops hit their own cap without eating the food budget");
     }
   );
 });

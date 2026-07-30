@@ -23,7 +23,7 @@ const UPSTREAM_TIMEOUT_MS = 9000;
 // restaurants" request. Food/drink places get the deepest cap and are
 // never crowded out by shops or transit stops.
 const MAX_FOOD = 150;
-const MAX_SHOPS = 60;
+const MAX_SHOPS = 150;
 const MAX_TRANSIT = 60;
 const MAX_RESULTS = MAX_FOOD + MAX_SHOPS + MAX_TRANSIT;
 // Neighborhood-sized backstop: the client clamps its query area to roughly
