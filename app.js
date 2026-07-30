@@ -293,6 +293,20 @@
     // first recolor anyway).
     whenStyleReady(() => {
     recolorMapForTheme();
+    // Custom layers capture their colors from CSS tokens at creation time —
+    // a theme switch after that would leave route lines/POI dots painted in
+    // the previous theme's palette unless they're repainted here too. Every
+    // set is guarded: layers that don't exist yet simply get the right
+    // colors when they're created.
+    const trySet = (id, prop, value) => { try { map.setPaintProperty(id, prop, value); } catch (e) {} };
+    trySet("route-calm-line", "line-color", getVar("--calm"));
+    trySet("route-calm-glow", "line-color", getVar("--calm"));
+    trySet("route-fast-line", "line-color", getVar("--busy"));
+    trySet("transit-ride-line", "line-color", getVar("--sky"));
+    trySet("transit-walk-line", "line-color", getVar("--muted"));
+    trySet("user-accuracy-fill", "fill-color", getVar("--sky"));
+    trySet("poi-circles", "circle-color", ["match", ["get", "kind"], "shop", getVar("--sky"), "transit", getVar("--calm"), getVar("--accent")]);
+    trySet("poi-circles", "circle-stroke-color", getVar("--surface"));
     // Flow's route-glow underlayer follows the theme live, so switching
     // into/out of Flow while a route is on screen behaves like the old
     // CSS-class toggle did.
