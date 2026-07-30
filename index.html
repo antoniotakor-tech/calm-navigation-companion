@@ -108,20 +108,28 @@
                nothing else. Auto-hidden after idle walking, tap-to-reveal —
                see app.js's smart-controls section. -->
           <div class="nav-controls-card" id="navBottom">
-            <button class="nav-control-btn" id="navEndBtn" aria-label="Stop navigation" title="Stop navigation">
-              <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
-            </button>
             <button class="nav-control-btn" id="navMuteBtn" aria-label="Toggle voice guidance" title="Voice guidance">
               <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path id="navMuteWave" d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>
+              <span class="nav-control-label">Voice</span>
             </button>
             <button class="nav-control-btn" id="navHapticBtn" aria-label="Toggle haptic feedback" title="Haptic feedback">
               <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M9 12a3 3 0 1 1 6 0v3a3 3 0 0 1-6 0z"/><path d="M9 12V7a3 3 0 0 1 6 0v5"/></svg>
+              <span class="nav-control-label">Haptics</span>
             </button>
             <button class="nav-control-btn" id="recenterBtn" aria-label="Recenter map on my location" title="Recenter">
               <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+              <span class="nav-control-label">Recenter</span>
             </button>
             <button class="nav-control-btn" id="navSettingsBtn" aria-label="Settings" title="Settings">
               <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.2a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.2a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.2a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.2a1.7 1.7 0 0 0-1.4 1z"/></svg>
+              <span class="nav-control-label">Settings</span>
+            </button>
+            <!-- Stop lives outside the auto-hiding icon row on purpose — see
+                 style.css's #navEndBtn rules. It's the one control that must
+                 never fade out or lose its tap target while walking. -->
+            <button class="nav-control-btn nav-end-btn" id="navEndBtn" aria-label="Stop navigation" title="Stop navigation">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+              <span class="nav-control-label">Stop</span>
             </button>
           </div>
 
@@ -329,7 +337,12 @@
          needed. -->
     <section class="page" id="page-2" aria-label="Kalimba">
       <div class="page-inner page-inner-centered">
-        <div class="pillar-icon" aria-hidden="true" style="font-size:26px;">🪕</div>
+        <div class="pillar-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="4" y="14" width="16" height="7" rx="2"/>
+            <path d="M7 14V10M10.5 14V6.5M13.5 14V6.5M17 14V10M12 14V3.5"/>
+          </svg>
+        </div>
         <h2 class="pillar-title display" id="kalimbaHeading">Kalimba</h2>
         <p class="tool-sub">Play a short melody any time. After a 500 metre walk, you can also record it and leave it here as a Calm Echo for others to find.</p>
 
@@ -508,7 +521,12 @@
      likes, followers, or shares. -->
 <div class="echo-overlay" id="echoDetailOverlay" role="dialog" aria-modal="true" aria-labelledby="echoDetailHeading">
   <div class="echo-sheet echo-detail-sheet">
-    <div class="echo-detail-icon" aria-hidden="true">🪕</div>
+    <div class="echo-detail-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="4" y="14" width="16" height="7" rx="2"/>
+        <path d="M7 14V10M10.5 14V6.5M13.5 14V6.5M17 14V10M12 14V3.5"/>
+      </svg>
+    </div>
     <h2 id="echoDetailHeading">Calm Echo</h2>
     <p class="echo-detail-message" id="echoDetailMessage"></p>
     <div class="echo-detail-meta">

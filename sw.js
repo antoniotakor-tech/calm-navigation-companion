@@ -10,16 +10,19 @@
 // subtraction pass step 1: soundscapes trimmed to white/brown/ocean/nature,
 // presets moved behind a real collapsed Advanced disclosure) -> v20
 // (2026-07-29, subtraction pass step 2: destination field auto-focused +
-// pre-selected on load, zero-decision first run): bumping this is what
-// actually forces already-installed/previously-visited clients onto the new
-// app shell. The fetch handler below is cache-first ("cached || network"
-// always prefers a cached hit if one exists), which means a same-named
-// cache silently never updates what a returning visitor sees, no matter how
-// many times the background revalidation fetch below refreshes its stored
-// copy — only a new cache NAME (triggering activate's old-cache cleanup + a
-// fresh `cache.addAll`) actually surfaces new content. Bump this on every
-// future deploy that changes any file in APP_SHELL, not just this one.
-const CACHE_NAME = "calm-companion-v20";
+// pre-selected on load, zero-decision first run) -> v21 (2026-07-30,
+// nav-bar legibility: labeled controls, always-visible Stop pill exempt
+// from auto-hide, real kalimba icon replacing the banjo emoji): bumping
+// this is what actually forces already-installed/previously-visited clients
+// onto the new app shell. The fetch handler below is cache-first ("cached
+// || network" always prefers a cached hit if one exists), which means a
+// same-named cache silently never updates what a returning visitor sees, no
+// matter how many times the background revalidation fetch below refreshes
+// its stored copy — only a new cache NAME (triggering activate's old-cache
+// cleanup + a fresh `cache.addAll`) actually surfaces new content. Bump
+// this on every future deploy that changes any file in APP_SHELL, not just
+// this one.
+const CACHE_NAME = "calm-companion-v21";
 const APP_SHELL = [
   "/",
   "/index.html",

@@ -2064,7 +2064,7 @@
       const isCluster = cluster.count > 1;
       const icon = L.divIcon({
         className: "echo-marker-pin" + (isCluster ? " echo-cluster" : ""),
-        html: `<div class="echo-marker-glow" aria-hidden="true"></div><div class="echo-marker-icon">${isCluster ? cluster.count : "🪕"}</div>`,
+        html: `<div class="echo-marker-glow" aria-hidden="true"></div><div class="echo-marker-icon">${isCluster ? cluster.count : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="14" width="16" height="7" rx="2"/><path d="M7 14V10M10.5 14V6.5M13.5 14V6.5M17 14V10M12 14V3.5"/></svg>'}</div>`,
         iconSize: [30, 30],
         iconAnchor: [15, 15],
       });

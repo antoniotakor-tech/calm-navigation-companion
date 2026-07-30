@@ -753,27 +753,42 @@ button:focus-visible, [tabindex]:focus-visible, input:focus-visible { outline: 2
    only supplies the flex *layout* for once it's actually shown. */
 .nav-controls-card {
   bottom: calc(10px + env(safe-area-inset-bottom, 0px));
-  border-radius: 999px; padding: 6px; align-items: center; justify-content: space-between; gap: 4px;
+  border-radius: var(--radius-lg); padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+  align-items: center; justify-content: space-between; gap: 2px;
 }
+/* Icon-only buttons with only an aria-label/title were reported as "not
+   really understandable" as a bottom bar — every control now carries a
+   real, always-visible text label under its icon, not just a tooltip that
+   never appears on touch. Column layout (icon over label), same tokens as
+   every other control in the app (no new colors/typography introduced). */
 .nav-control-btn {
-  flex: 1 1 0; min-width: 44px; min-height: 44px; border-radius: 50%; background: transparent;
-  border: none; color: var(--ink-soft); display: flex; align-items: center; justify-content: center;
+  flex: 1 1 0; min-width: 44px; min-height: 44px; border-radius: var(--radius-sm); background: transparent;
+  border: none; color: var(--ink-soft); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
   cursor: pointer; transition: transform var(--motion-fast) var(--squish), color var(--motion-fast) ease, background var(--motion-fast) ease;
 }
 .nav-control-btn svg { width: 19px; height: 19px; stroke: currentColor; }
+.nav-control-label { font-size: 9.5px; font-weight: 700; letter-spacing: 0.01em; line-height: 1; }
 .nav-control-btn:active { transform: scale(0.86); }
 .nav-control-btn.active { color: var(--calm); background: var(--calm-soft); }
 .nav-control-btn.muted #navMuteWave { display: none; }
-/* Stop navigation is the one destructive/ends-the-session control here —
-   given a distinct color so it doesn't blend into four otherwise-identical
-   toggle buttons (visual hierarchy within the controls card itself). */
-#navEndBtn { color: var(--accent); }
-#navEndBtn:active { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+/* Stop navigation is the one destructive/ends-the-session control here, and
+   the one that must always be reachable — a filled accent circle (not just
+   a differently-colored icon) so it reads as visually distinct from the
+   four toggle buttons at a glance, not just on close inspection. */
+.nav-end-btn {
+  background: var(--gradient-accent); color: var(--accent-ink); border-radius: var(--radius-full);
+  box-shadow: var(--shadow-sm);
+}
+.nav-end-btn .nav-control-label { color: var(--accent-ink); }
+.nav-end-btn:active { transform: scale(0.9); box-shadow: none; }
 
-/* Smart controls: after idle walking the bottom card fades and lifts
-   slightly out of the way; tapping the map (see app.js) reveals it again.
-   The top card and map are never affected — "never interrupt navigation." */
-.nav-controls-card.nav-controls-hidden {
+/* Smart controls: after idle walking the four toggle buttons fade and lift
+   slightly out of the way; tapping the map (see app.js) reveals them again.
+   Stop is deliberately excluded — see .nav-end-btn above and app.js's
+   resetSmartControlsTimer() comment — there must always be a visible,
+   tappable way to end navigation, idle timer or not. The top card and map
+   are never affected either — "never interrupt navigation." */
+.nav-controls-card.nav-controls-hidden > :not(.nav-end-btn) {
   opacity: 0; transform: translateY(8px); pointer-events: none;
 }
 
@@ -1089,7 +1104,8 @@ footer.foot {
 
 /* --- Discovery detail sheet --- */
 .echo-detail-sheet { text-align: center; }
-.echo-detail-icon { font-size: 34px; margin-bottom: 6px; }
+.echo-detail-icon { margin-bottom: 6px; display: flex; justify-content: center; }
+.echo-detail-icon svg { width: 34px; height: 34px; stroke: var(--accent); }
 .echo-detail-message { font-size: 13.5px; color: var(--ink); font-weight: 600; line-height: 1.4; margin: 6px 0 10px; }
 .echo-detail-meta { font-size: 11.5px; color: var(--muted); font-weight: 600; margin-bottom: 16px; }
 .echo-detail-play-btn { width: 100%; margin: 0 0 8px; }
@@ -1105,7 +1121,8 @@ footer.foot {
   background: color-mix(in srgb, var(--accent) 35%, transparent);
   animation: echo-marker-pulse 2.6s ease-in-out infinite;
 }
-.echo-marker-pin .echo-marker-icon { position: relative; font-size: 16px; line-height: 1; }
+.echo-marker-pin .echo-marker-icon { position: relative; font-size: 16px; line-height: 1; color: #fff; }
+.echo-marker-pin .echo-marker-icon svg { width: 16px; height: 16px; display: block; }
 @keyframes echo-marker-pulse {
   0%, 100% { transform: scale(0.85); opacity: 0.7; }
   50% { transform: scale(1.15); opacity: 0.25; }
