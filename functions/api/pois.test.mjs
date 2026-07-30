@@ -78,19 +78,28 @@ test("happy path: shapes, filters, and caps upstream elements; sends fixed QL wi
   );
 });
 
-test("upstream failure/non-ok: honest 502, not a crash or an empty 200", async () => {
+test("upstream failures: every mirror tried before an honest 502; a later mirror rescues the request", async () => {
+  let calls = 0;
   await withMockedFetch(
-    async () => { throw new Error("network down"); },
+    async () => { calls++; throw new Error("network down"); },
     async () => {
       const resp = await onRequestGet(ctx("https://x/api/pois?bbox=52.36,4.88,52.37,4.89"));
       assert.equal(resp.status, 502);
+      assert.equal(calls, 3, "all three mirrors attempted");
     }
   );
+  calls = 0;
   await withMockedFetch(
-    async () => ({ ok: false, status: 429 }),
+    async () => {
+      calls++;
+      if (calls < 3) return { ok: false, status: 429 };
+      return { ok: true, json: async () => ({ elements: [{ type: "node", id: 1, lat: 52.36, lon: 4.88, tags: { amenity: "bar", name: "Rescue Bar" } }] }) };
+    },
     async () => {
       const resp = await onRequestGet(ctx("https://x/api/pois?bbox=52.36,4.88,52.37,4.89"));
-      assert.equal(resp.status, 502);
+      assert.equal(resp.status, 200);
+      const body = await resp.json();
+      assert.equal(body.pois[0].name, "Rescue Bar", "third mirror rescued the request");
     }
   );
 });
@@ -106,7 +115,7 @@ test("per-kind caps: food is never crowded out by shops (shops listed first upst
       const body = await resp.json();
       const kinds = body.pois.reduce((m, p) => { m[p.kind] = (m[p.kind] || 0) + 1; return m; }, {});
       assert.equal(kinds.food, 80, "every bar survives");
-      assert.equal(kinds.shop, 150, "shops hit their own cap without eating the food budget");
+      assert.equal(kinds.shop, 160, "every shop survives under the raised cap");
     }
   );
 });

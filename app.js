@@ -1119,6 +1119,9 @@
   async function handleMapTap(e) {
     if (pageInner0.classList.contains("nav-active")) return;
     if (isSearching) return;
+    // A tap on a POI circle means "what is this place?", not "route here" —
+    // the layer's own click handler shows the name; this handler stands down.
+    if (map.getLayer("poi-circles") && map.queryRenderedFeatures(e.point, { layers: ["poi-circles"] }).length) return;
     expandSearchCard(); // a tapped destination expands the form like a typed one
     const point = { lat: e.lngLat.lat, lon: e.lngLat.lng };
     const interimLabel = `Pinned spot (${point.lat.toFixed(4)}, ${point.lon.toFixed(4)})`;
@@ -2587,8 +2590,39 @@
   //     own cache-control) with a hard floor between upstream calls,
   //   - paused entirely during navigation — route guidance is not the
   //     moment to decorate the map.
-  let poiMarkers = []; // maplibregl.Marker[]
-  function clearPoiMarkers() { poiMarkers.forEach((m) => m.remove()); poiMarkers = []; }
+  // POIs render as a GL circle layer, not DOM markers: at "show me every
+  // shop and bar in the neighborhood" densities (hundreds of points), DOM
+  // markers jank — a circle layer draws thousands without breaking a
+  // sweat, and clicks come through queryRenderedFeatures instead of
+  // per-element listeners.
+  const EMPTY_FC = { type: "FeatureCollection", features: [] };
+  let poiPopup = null;
+  function ensurePoiLayer() {
+    if (map.getSource("pois")) return;
+    map.addSource("pois", { type: "geojson", data: EMPTY_FC });
+    map.addLayer({
+      id: "poi-circles", type: "circle", source: "pois",
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 14, 3, 17, 5.5],
+        "circle-color": ["match", ["get", "kind"], "shop", getVar("--sky"), "transit", getVar("--calm"), getVar("--accent")],
+        "circle-stroke-width": 1.5,
+        "circle-stroke-color": getVar("--surface"),
+      },
+    });
+    map.on("click", "poi-circles", (e) => {
+      const f = e.features && e.features[0];
+      if (!f) return;
+      if (poiPopup) poiPopup.remove();
+      poiPopup = new maplibregl.Popup({ closeButton: false, offset: 8 })
+        .setLngLat(f.geometry.coordinates)
+        .setText(f.properties.name)
+        .addTo(map);
+    });
+  }
+  function clearPoiMarkers() {
+    if (map.getSource("pois")) map.getSource("pois").setData(EMPTY_FC);
+    if (poiPopup) { poiPopup.remove(); poiPopup = null; }
+  }
   const POI_MIN_ZOOM = 14;
   const POI_CACHE_MS = 10 * 60 * 1000;
   const POI_MIN_FETCH_GAP_MS = 2500;
@@ -2617,18 +2651,15 @@
   }
 
   function renderPois(pois) {
-    clearPoiMarkers();
-    pois.forEach((p) => {
-      const el = document.createElement("div");
-      el.className = "poi-pin";
-      el.innerHTML = `<span class="poi-dot ${p.kind === "shop" ? "poi-shop" : p.kind === "transit" ? "poi-transit" : "poi-food"}" aria-hidden="true"></span>`;
-      const popup = new maplibregl.Popup({ closeButton: false, offset: 10 }).setText(p.name);
-      const marker = new maplibregl.Marker({ element: el, anchor: "center" })
-        .setLngLat([p.lon, p.lat]).setPopup(popup).addTo(map);
-      // Same stopPropagation rationale as the Echo markers: a POI tap opens
-      // its name popup, it must not also pin a new destination underneath.
-      el.addEventListener("click", (e) => e.stopPropagation());
-      poiMarkers.push(marker);
+    ensurePoiLayer();
+    if (poiPopup) { poiPopup.remove(); poiPopup = null; }
+    map.getSource("pois").setData({
+      type: "FeatureCollection",
+      features: pois.map((p) => ({
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [p.lon, p.lat] },
+        properties: { name: p.name, kind: p.kind },
+      })),
     });
   }
 
@@ -2638,7 +2669,7 @@
     const bbox = poiGridBbox();
     const key = `${bbox.minLat},${bbox.minLon},${bbox.maxLat},${bbox.maxLon}`;
     const cached = poiCache.get(key);
-    if (cached && Date.now() - cached.at < POI_CACHE_MS) { renderPois(cached.pois); return; }
+    if (cached && Date.now() - cached.at < POI_CACHE_MS) { whenStyleReady(() => renderPois(cached.pois)); return; }
     if (Date.now() - lastPoiFetchAt < POI_MIN_FETCH_GAP_MS) return; // grid cache misses can't stampede Overpass
     lastPoiFetchAt = Date.now();
     try {
@@ -2647,7 +2678,7 @@
       const data = await resp.json();
       const pois = data.pois || [];
       poiCache.set(key, { at: Date.now(), pois });
-      renderPois(pois);
+      whenStyleReady(() => renderPois(pois));
     } catch (e) {
       // Best-effort decoration — the map is complete without POI markers.
     }

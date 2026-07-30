@@ -15,16 +15,24 @@
 // GET /api/pois?bbox=minLat,minLon,maxLat,maxLon
 // -> { pois: [{ id, lat, lon, name, kind }] }
 
-const UPSTREAM = "https://overpass-api.de/api/interpreter";
+// Ordered fallback chain: the public overpass-api.de instance rate-limits
+// aggressively under bursty use, which surfaced as "the shops just aren't
+// there" on device. Each mirror is tried in order until one answers; all
+// are established public Overpass instances.
+const UPSTREAMS = [
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+  "https://overpass.private.coffee/api/interpreter",
+];
 const UPSTREAM_TIMEOUT_MS = 9000;
 // Per-kind caps instead of one global slice: the global cap silently
 // favored whatever Overpass returned first (shops, per the query's clause
 // order), which is exactly backwards for a "show me all the bars and
 // restaurants" request. Food/drink places get the deepest cap and are
 // never crowded out by shops or transit stops.
-const MAX_FOOD = 150;
-const MAX_SHOPS = 150;
-const MAX_TRANSIT = 60;
+const MAX_FOOD = 400;
+const MAX_SHOPS = 400;
+const MAX_TRANSIT = 150;
 const MAX_RESULTS = MAX_FOOD + MAX_SHOPS + MAX_TRANSIT;
 // Neighborhood-sized backstop: the client clamps its query area to roughly
 // ±0.0125° around the map center and grid-snaps outward (see app.js's
@@ -98,37 +106,36 @@ export async function onRequestGet(context) {
   const bboxQL = `${bbox.minLat},${bbox.minLon},${bbox.maxLat},${bbox.maxLon}`;
   // Fixed query, bbox-only interpolation. `out center` makes ways (a shop
   // mapped as a building outline) come back with a usable single point.
-  const query = `[out:json][timeout:8];(node["shop"]["name"](${bboxQL});way["shop"]["name"](${bboxQL});node["amenity"~"^(${FOOD_AMENITIES})$"]["name"](${bboxQL});way["amenity"~"^(${FOOD_AMENITIES})$"]["name"](${bboxQL});node["amenity"="ferry_terminal"](${bboxQL});node["railway"~"^(${TRANSIT_RAILWAY})$"](${bboxQL});node["highway"="bus_stop"](${bboxQL}););out center ${MAX_RESULTS * 2};`;
+  const query = `[out:json][timeout:8];(node["shop"]["name"](${bboxQL});way["shop"]["name"](${bboxQL});node["amenity"~"^(${FOOD_AMENITIES})$"]["name"](${bboxQL});way["amenity"~"^(${FOOD_AMENITIES})$"]["name"](${bboxQL});node["amenity"="ferry_terminal"](${bboxQL});way["amenity"="ferry_terminal"](${bboxQL});node["railway"~"^(${TRANSIT_RAILWAY})$"](${bboxQL});node["highway"="bus_stop"](${bboxQL}););out center ${MAX_RESULTS * 2};`;
 
-  let resp;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
-  try {
-    resp = await fetch(UPSTREAM, {
-      method: "POST",
-      body: "data=" + encodeURIComponent(query),
-      headers: {
-        "content-type": "application/x-www-form-urlencoded",
-        // Overpass's usage policy asks every client to identify itself, and
-        // their servers reject anonymous/UA-less requests (workerd sends no
-        // default User-Agent — this header is load-bearing, not courtesy).
-        "user-agent": "CalmNavigationCompanion/1.0 (https://calm-navigation-companion.pages.dev)",
-      },
-      signal: controller.signal,
-    });
-  } catch (e) {
-    // Status-level logging only, same convention as route.js/geocode.js —
-    // no coordinates, no user data.
-    console.warn("POIs upstream fetch failed:", e && e.message);
-    return jsonError("POI service unreachable.", 502);
-  } finally {
-    clearTimeout(timer); // also on the error path — a leaked 9s timer pins the runtime alive
+  let resp = null;
+  for (const upstream of UPSTREAMS) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+    try {
+      const attempt = await fetch(upstream, {
+        method: "POST",
+        body: "data=" + encodeURIComponent(query),
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          // Overpass's usage policy asks every client to identify itself, and
+          // their servers reject anonymous/UA-less requests (workerd sends no
+          // default User-Agent — this header is load-bearing, not courtesy).
+          "user-agent": "CalmNavigationCompanion/1.0 (https://calm-navigation-companion.pages.dev)",
+        },
+        signal: controller.signal,
+      });
+      if (attempt.ok) { resp = attempt; break; }
+      // Status-level logging only, same convention as route.js/geocode.js —
+      // no coordinates, no user data.
+      console.warn("POIs upstream non-ok status, trying next mirror:", attempt.status);
+    } catch (e) {
+      console.warn("POIs upstream fetch failed, trying next mirror:", e && e.message);
+    } finally {
+      clearTimeout(timer); // also on the error path — a leaked timer pins the runtime alive
+    }
   }
-  if (!resp.ok) {
-    // Overpass sends 429/504 under load — surface a stable, honest status.
-    console.warn("POIs upstream non-ok status:", resp.status);
-    return jsonError("POI service is busy right now.", 502);
-  }
+  if (!resp) return jsonError("POI service is busy right now.", 502);
 
   let data;
   try {
