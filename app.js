@@ -2132,6 +2132,30 @@
     // error handling and are unaffected by this failing.
   });
 
+  // Echo markers were previously fetched ONLY off GPS fixes (onEchoFix
+  // above) — with location denied, slow, or simply not yet granted, the map
+  // showed zero Echoes no matter where you panned, which read as "Echoes
+  // missing from the map" (reported as mode-dependent, but there is one
+  // shared map/marker layer for walk and bike — the real variable was
+  // whether a GPS fix had arrived yet). Now the visible map area itself is
+  // also a fetch trigger: pan/zoom refreshes markers around the map center,
+  // reusing the same throttle state (>50m moved or >20s stale) as the GPS
+  // path so the two triggers can't stack into request spam. Debounced so a
+  // continuous pan gesture fetches once at rest, not per frame.
+  let echoMoveDebounce = null;
+  map.on("moveend", () => {
+    clearTimeout(echoMoveDebounce);
+    echoMoveDebounce = setTimeout(() => {
+      const c = map.getCenter();
+      const now = Date.now();
+      const moved = lastNearbyFetch.lat == null || NavLogic.haversineM(lastNearbyFetch.lat, lastNearbyFetch.lon, c.lat, c.lng) > 50;
+      if (moved || now - lastNearbyFetch.at > 20000) {
+        lastNearbyFetch = { at: now, lat: c.lat, lon: c.lng };
+        fetchNearbyEchoes(c.lat, c.lng);
+      }
+    }, 400);
+  });
+
   // ---- Kalimba (page 3): play always, record + leave an Echo once unlocked ----
   const kalimbaTineButtons = Array.from(document.querySelectorAll("#kalimbaTineButtons .kalimba-tine-btn"));
   const echoRecordStatus = document.getElementById("echoRecordStatus");
@@ -2239,11 +2263,25 @@
     resetKalimbaSheetUI();
   }
 
+  // The fix an Echo is actually SAVED at. Captured fresh, once, the moment
+  // recording starts — NOT read from explorationState.lastFix at save time.
+  // lastFix comes from the exploration watchPosition stream, which pauses
+  // whenever the tab is backgrounded (iOS Safari suspends it aggressively):
+  // unlock recording near home, pocket the phone, walk to work, record
+  // there — lastFix could still be holding the near-home coordinate, and
+  // the Echo pinned itself to where recording was *unlocked*, not where the
+  // melody was actually played. A one-shot getCurrentPosition at record
+  // start is what "where it was recorded" actually means.
+  let recordingFix = null;
   echoRecordBtn.addEventListener("click", () => {
     echoRecorder.startRecording();
     echoRecordStatus.textContent = "Recording — play the kalimba. Stop when you're done (up to 20 seconds).";
     echoRecordBtn.style.display = "none";
     echoStopBtn.style.display = "flex";
+    recordingFix = null;
+    NavBridge.location.getCurrentPosition()
+      .then((fix) => { recordingFix = { lat: fix.lat, lon: fix.lon }; })
+      .catch(() => { /* falls back to explorationState.lastFix at save time */ });
     clearAutoStopTimer();
     autoStopTimer = setTimeout(() => {
       if (echoRecorder.state.phase === "recording") echoStopBtn.click();
@@ -2287,7 +2325,10 @@
       echoRecordStatus.textContent = messageCheck.error;
       return;
     }
-    const fix = explorationState.lastFix;
+    // Prefer the fresh fix captured when Record was pressed (see
+    // recordingFix above); the exploration stream's lastFix is only the
+    // fallback for the rare case where that one-shot lookup failed.
+    const fix = recordingFix || explorationState.lastFix;
     if (!fix) {
       echoRecordStatus.textContent = "Still finding your location — try again in a moment.";
       return;
