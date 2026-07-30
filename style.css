@@ -682,6 +682,18 @@ button:focus-visible, [tabindex]:focus-visible, input:focus-visible { outline: 2
   max-height: calc(100% - 20px - env(safe-area-inset-top, 0px));
   overflow-y: auto; -webkit-overflow-scrolling: touch;
 }
+/* Collapsed = just the "Where to?" bar; everything else appears once a
+   destination is chosen (app.js removes .collapsed). The map, not the
+   form, owns the first screen. */
+.route-search-card.collapsed .start-wrap,
+.route-search-card.collapsed #travelModePills,
+.route-search-card.collapsed .find-btn,
+.route-search-card.collapsed .safety-toggle-row,
+.route-search-card.collapsed .special-event-banner,
+.route-search-card.collapsed .error-banner,
+.route-search-card.collapsed .mode-note,
+.route-search-card.collapsed .safety-note { display: none !important; }
+.route-search-card.collapsed .route-inputs { margin-bottom: 0; }
 /* The post-search results card (calm vs fastest comparison, Start/Simulate,
    turn-by-turn) — floats at the bottom of the map, shown only once a route
    exists (app.js toggles `.visible`; see also the .nav-active hide-list

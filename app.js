@@ -617,9 +617,23 @@
     onSelect: (result) => {
       startSelectedResult = result;
       resolvedStart = { label: result.label, lat: result.lat, lon: result.lon };
+      // Only re-search when the form is already expanded (i.e. a destination
+      // exists) — changing the start before any destination has been chosen
+      // has nothing to route to yet.
+      if (!routeSearchCard.classList.contains("collapsed")) runSearch();
     },
     onUseCurrentLocation: useCurrentLocationForStart,
   });
+  // Search-bar-first flow: the card starts as a single "Where to?" bar
+  // (see index.html/.route-search-card.collapsed). Choosing a destination
+  // expands the full form AND immediately searches — picking a place IS
+  // the intent, no separate Find tap required. Adjusting the start after
+  // that re-searches live for the same reason. runSearch's isSearching
+  // guard absorbs any double-trigger (Enter + selection racing).
+  const routeSearchCard = document.getElementById("routeSearchCard");
+  function expandSearchCard() {
+    routeSearchCard.classList.remove("collapsed");
+  }
   const endAutocomplete = new AutocompleteController({
     input: endInput,
     listEl: document.getElementById("endAcList"),
@@ -632,7 +646,15 @@
     onSelect: (result) => {
       endSelectedResult = result;
       resolvedEnd = { label: result.label, lat: result.lat, lon: result.lon };
+      expandSearchCard();
+      runSearch();
     },
+  });
+  endInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && endInput.value.trim()) {
+      expandSearchCard();
+      runSearch();
+    }
   });
   startInput.addEventListener("focus", ensureUserLocation);
   endInput.addEventListener("focus", ensureUserLocation);
@@ -937,6 +959,7 @@
   async function handleMapTap(e) {
     if (pageInner0.classList.contains("nav-active")) return;
     if (isSearching) return;
+    expandSearchCard(); // a tapped destination expands the form like a typed one
     const point = { lat: e.lngLat.lat, lon: e.lngLat.lng };
     const interimLabel = `Pinned spot (${point.lat.toFixed(4)}, ${point.lon.toFixed(4)})`;
     const selection = { label: interimLabel, lat: point.lat, lon: point.lon };

@@ -144,23 +144,29 @@
         <!-- Floating search card — always visible on the planning screen,
              hidden once navigation starts (see .page-inner.nav-active in
              style.css). -->
-        <div class="route-search-card" id="routeSearchCard">
+        <!-- Search-bar-first (2026-07-30, user request): the card starts
+             collapsed to ONE "Where to?" bar so the map owns the screen.
+             Picking/searching a destination expands it — start point,
+             Walk/Bike, safety toggle, and Find appear only then. The
+             destination bar therefore comes FIRST in the DOM, start second
+             (the reverse of the old top-to-bottom start->destination form). -->
+        <div class="route-search-card collapsed" id="routeSearchCard">
           <div class="route-inputs">
-            <div class="route-input-wrap">
-              <div class="route-input-row start">
-                <span class="dot"></span>
-                <input id="startInput" type="text" placeholder="Start" aria-label="Start location" />
-              </div>
-              <div class="ac-status" id="startAcStatus" aria-live="polite"></div>
-              <ul class="ac-list" id="startAcList" style="display:none;"></ul>
-            </div>
             <div class="route-input-wrap">
               <div class="route-input-row end">
                 <span class="dot"></span>
-                <input id="endInput" type="text" placeholder="Destination" aria-label="Destination" />
+                <input id="endInput" type="text" placeholder="Where to?" aria-label="Destination" />
               </div>
               <div class="ac-status" id="endAcStatus" aria-live="polite"></div>
               <ul class="ac-list" id="endAcList" style="display:none;"></ul>
+            </div>
+            <div class="route-input-wrap start-wrap">
+              <div class="route-input-row start">
+                <span class="dot"></span>
+                <input id="startInput" type="text" placeholder="Starting from" aria-label="Start location" />
+              </div>
+              <div class="ac-status" id="startAcStatus" aria-live="polite"></div>
+              <ul class="ac-list" id="startAcList" style="display:none;"></ul>
             </div>
           </div>
           <div class="pill-row" id="travelModePills">
