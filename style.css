@@ -884,6 +884,26 @@ button:focus-visible, [tabindex]:focus-visible, input:focus-visible { outline: 2
 }
 .arrived-done-btn:active { transform: scale(0.94); }
 
+/* --- Transit options (Transitous journey planner) --- */
+/* In transit mode the results card swaps its walk/bike content (calm/fast
+   compare, Other routes, Start, turn-by-turn) for the itinerary list —
+   both sets share .route-card's visual language, nothing new invented. */
+.route-results-card.transit-mode .route-compare,
+.route-results-card.transit-mode .route-alternatives,
+.route-results-card.transit-mode .nav-start-row,
+.route-results-card.transit-mode .steps-panel { display: none !important; }
+.transit-results { display: none; flex-direction: column; gap: 10px; }
+.route-results-card.transit-mode .transit-results { display: flex; }
+.transit-option {
+  width: 100%; text-align: left; font-family: inherit; color: var(--ink);
+}
+.transit-option .rc-time { font-size: 19px; }
+.transit-legs { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin-top: 8px; font-size: 13px; }
+.transit-leg { white-space: nowrap; }
+.transit-leg b { font-weight: 700; color: var(--sky); }
+.transit-leg-sep { color: var(--muted); font-size: 11px; }
+.transit-note { text-align: left; }
+
 /* --- Route comparison --- */
 .route-compare { display: flex; gap: 10px; margin-bottom: 16px; }
 /* Optional alternatives disclosure — same visual language as the steps-panel

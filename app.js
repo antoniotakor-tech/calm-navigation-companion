@@ -398,11 +398,84 @@
     );
   }
 
+  // ---- Public transport (Transitous via /api/transit) ----
+  // Standard Google encoded-polyline decoder, precision-aware (MOTIS sends
+  // precision 6 geometry; the classic algorithm is precision 5).
+  function decodePolyline(str, precision) {
+    const factor = Math.pow(10, precision == null ? 6 : precision);
+    const coords = [];
+    let index = 0, lat = 0, lon = 0;
+    while (index < str.length) {
+      for (const which of ["lat", "lon"]) {
+        let result = 0, shift = 0, b;
+        do {
+          b = str.charCodeAt(index++) - 63;
+          result |= (b & 0x1f) << shift;
+          shift += 5;
+        } while (b >= 0x20);
+        const delta = (result & 1) ? ~(result >> 1) : (result >> 1);
+        if (which === "lat") lat += delta; else lon += delta;
+      }
+      coords.push([lon / factor, lat / factor]);
+    }
+    return coords;
+  }
+
+  function ensureTransitLayers() {
+    if (map.getSource("transit-ride")) return;
+    map.addSource("transit-ride", { type: "geojson", data: EMPTY_LINE });
+    map.addSource("transit-walk", { type: "geojson", data: EMPTY_LINE });
+    map.addLayer({
+      id: "transit-walk-line", type: "line", source: "transit-walk",
+      layout: { "line-cap": "round", "line-join": "round" },
+      paint: { "line-color": getVar("--muted"), "line-width": 4, "line-opacity": 0.8, "line-dasharray": [0.5, 1.6] },
+    });
+    map.addLayer({
+      id: "transit-ride-line", type: "line", source: "transit-ride",
+      layout: { "line-cap": "round", "line-join": "round" },
+      paint: { "line-color": getVar("--sky"), "line-width": 5, "line-opacity": 0.95 },
+    });
+  }
+
+  function clearTransitRoute() {
+    if (map.getSource("transit-ride")) {
+      map.getSource("transit-ride").setData(EMPTY_LINE);
+      map.getSource("transit-walk").setData(EMPTY_LINE);
+    }
+  }
+
+  // Draws one itinerary: ride legs solid, walking connections dashed —
+  // MultiLineStrings so a 3-leg journey stays three separate strokes
+  // instead of one line doubling back through stations.
+  function drawTransitItinerary(itinerary) {
+    ensureTransitLayers();
+    clearRouteLayers();
+    const ride = [], walk = [], all = [];
+    itinerary.legs.forEach((leg) => {
+      if (!leg.points) return;
+      const coords = decodePolyline(leg.points, leg.precision);
+      if (coords.length < 2) return;
+      (leg.mode === "WALK" ? walk : ride).push(coords);
+      all.push(...coords);
+    });
+    map.getSource("transit-ride").setData({ type: "Feature", geometry: { type: "MultiLineString", coordinates: ride } });
+    map.getSource("transit-walk").setData({ type: "Feature", geometry: { type: "MultiLineString", coordinates: walk } });
+    if (all.length >= 2) {
+      startMarker = new maplibregl.Marker({ element: makePinElement(getVar("--calm")), anchor: "bottom" })
+        .setLngLat(all[0]).addTo(map);
+      endMarker = new maplibregl.Marker({ element: makePinElement(getVar("--accent")), anchor: "bottom" })
+        .setLngLat(all[all.length - 1]).addTo(map);
+      map.resize();
+      map.fitBounds(boundsOfCoords(all), { padding: 32, animate: false });
+    }
+  }
+
   function drawRoute(result, start, end, options) {
     const isReroute = !!(options && options.isReroute);
     const render = () => {
       ensureRouteLayers();
       clearRouteLayers();
+      clearTransitRoute();
       calmRouteCoords = result.calm.coordinates.slice();
       map.getSource("route-fast").setData(lineFeature(result.fastest.coordinates));
       animateRouteDrawOn(calmRouteCoords, isReroute ? 700 : 1000);
@@ -672,7 +745,11 @@
       travelModePills.forEach((p) => p.classList.remove("active"));
       pill.classList.add("active");
       travelMode = pill.dataset.travel;
-      if (lastResult) runSearch();
+      // Re-search on mode change whenever a destination has been chosen
+      // (the card is expanded) — the old `if (lastResult)` gate never
+      // passed for transit-first sessions, where no calm/fast result
+      // exists yet.
+      if (!routeSearchCard.classList.contains("collapsed")) runSearch();
     });
   });
 
@@ -762,6 +839,67 @@
   const findBtnLabel = document.getElementById("findBtnLabel");
   let isSearching = false;
 
+  // ---- Transit options: fetch, render as cards, draw selection ----
+  const transitResultsEl = document.getElementById("transitResults");
+  const transitNoteEl = document.getElementById("transitNote");
+  let transitItineraries = [];
+
+  const TRANSIT_MODE_ICONS = {
+    WALK: "🚶", TRAM: "🚊", BUS: "🚌", RAIL: "🚆", SUBWAY: "🚇",
+    METRO: "🚇", FERRY: "⛴", COACH: "🚌", HIGHSPEED_RAIL: "🚆",
+    REGIONAL_RAIL: "🚆", REGIONAL_FAST_RAIL: "🚆", LONG_DISTANCE: "🚆", NIGHT_RAIL: "🚆",
+  };
+  function transitTimeHHMM(iso) {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    return isNaN(d) ? "—" : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+
+  function setTransitModeUI(on) {
+    routeResultsCard.classList.toggle("transit-mode", on);
+    transitNoteEl.style.display = on ? "block" : "none";
+    if (!on) { transitResultsEl.innerHTML = ""; clearTransitRoute(); }
+  }
+
+  function selectTransitOption(idx) {
+    transitResultsEl.querySelectorAll(".transit-option").forEach((el, i) => {
+      el.classList.toggle("selected", i === idx);
+    });
+    if (transitItineraries[idx]) drawTransitItinerary(transitItineraries[idx]);
+  }
+
+  function renderTransitOptions(itineraries) {
+    transitResultsEl.innerHTML = "";
+    itineraries.forEach((it, idx) => {
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = "route-card transit-option" + (idx === 0 ? " selected" : "");
+      card.setAttribute("role", "listitem");
+      const mins = it.durationS != null ? Math.round(it.durationS / 60) : null;
+      const legsHtml = it.legs.map((leg) => {
+        const icon = TRANSIT_MODE_ICONS[leg.mode] || "🚌";
+        return `<span class="transit-leg">${icon}${leg.route ? ` <b>${leg.route}</b>` : ""}</span>`;
+      }).join('<span class="transit-leg-sep" aria-hidden="true">›</span>');
+      card.innerHTML = `
+        <div class="rc-label">${transitTimeHHMM(it.startTime)} → ${transitTimeHHMM(it.endTime)}</div>
+        <div class="rc-time">${mins != null ? mins + " min" : "—"}</div>
+        <div class="rc-sub">${it.transfers} transfer${it.transfers === 1 ? "" : "s"}</div>
+        <div class="transit-legs">${legsHtml}</div>`;
+      card.addEventListener("click", () => selectTransitOption(idx));
+      transitResultsEl.appendChild(card);
+    });
+  }
+
+  async function fetchTransitPlan(start, end) {
+    const resp = await fetch(`${apiBaseUrl}/api/transit?from=${start.lat},${start.lon}&to=${end.lat},${end.lon}`);
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.error || "Journey planner unavailable.");
+    }
+    const data = await resp.json();
+    return data.itineraries || [];
+  }
+
   async function runSearch() {
     // Guards all three trigger paths (Find button, travel-mode pills, safety
     // toggle) against firing a second overlapping request while one is still
@@ -821,6 +959,28 @@
     } else if (endFailed) {
       showError(`Couldn't find "${endInput.value}" — kept the previous destination instead.`);
     }
+
+    if (travelMode === "transit") {
+      // Public-transport plan instead of the calm/fastest pair. Everything
+      // above (input resolution, error surfacing) is shared; everything
+      // below (calm scoring, Start button, turn-by-turn) is walk/bike-only.
+      findBtnLabel.textContent = "Finding transit options…";
+      transitItineraries = await fetchTransitPlan(resolvedStart, resolvedEnd);
+      setTransitModeUI(true);
+      routeResultsCard.classList.add("visible");
+      startNavBtn.style.display = "none";
+      if (!transitItineraries.length) {
+        transitResultsEl.innerHTML = '<div class="mode-note">No public-transport options found for this trip right now.</div>';
+        clearTransitRoute();
+      } else {
+        renderTransitOptions(transitItineraries);
+        whenStyleReady(() => selectTransitOption(0));
+      }
+      modeNote.textContent = "";
+      safetyNote.style.display = "none";
+      return;
+    }
+    setTransitModeUI(false);
 
     let result;
     try {

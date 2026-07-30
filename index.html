@@ -172,6 +172,7 @@
           <div class="pill-row" id="travelModePills">
             <button class="pill active" data-travel="walk">Walk</button>
             <button class="pill" data-travel="bike">Bike</button>
+            <button class="pill" data-travel="transit">Transit</button>
           </div>
 
           <button class="find-btn" id="findBtn">
@@ -201,6 +202,18 @@
              toggles `.visible`); the Start button lives here, floating on
              the map, rather than in the old below-the-map row. -->
         <div class="route-results-card" id="routeResultsCard">
+          <!-- Public transport options (Transitous/MOTIS via /api/transit).
+               Shown instead of the calm/fastest cards when the Transit
+               travel mode is selected; turn-by-turn Start stays a
+               walk/bike-only feature (live GPS guidance for a tram you're
+               sitting in would be noise, not calm) — the honest note below
+               says so instead of pretending otherwise. -->
+          <div class="transit-results" id="transitResults" role="list"></div>
+          <div class="mode-note transit-note" id="transitNote" style="display:none;">
+            Live turn-by-turn stays available for Walk and Bike — for transit,
+            follow the departure times above. Times come from the open
+            Transitous journey planner and may differ from real-time boards.
+          </div>
           <!-- One route by default (product decision, 2026-07-30): the calm
                route is auto-selected the moment a search returns, so the
                default flow is Find -> Start with no pick-a-route step in

@@ -24,7 +24,9 @@
 // search-bar-first layout — collapsed "Where to?" bar, map-first screen,
 // auto-search on destination pick) -> v27 (2026-07-30: comprehensive
 // bars/restaurants — more venue kinds, per-kind caps so food is never
-// crowded out, POI dots from zoom 14): bumping
+// crowded out, POI dots from zoom 14) -> v28 (2026-07-30: public
+// transport options — Transit travel mode, Transitous journey planner
+// proxy, itinerary cards + ride/walk leg drawing): bumping
 // this is what actually forces already-installed/previously-visited clients
 // onto the new app shell. The fetch handler below is cache-first ("cached
 // || network" always prefers a cached hit if one exists), which means a
@@ -34,7 +36,7 @@
 // cleanup + a fresh `cache.addAll`) actually surfaces new content. Bump
 // this on every future deploy that changes any file in APP_SHELL, not just
 // this one.
-const CACHE_NAME = "calm-companion-v27";
+const CACHE_NAME = "calm-companion-v28";
 const APP_SHELL = [
   "/",
   "/index.html",
