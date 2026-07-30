@@ -2195,6 +2195,88 @@
     }, 400);
   });
 
+  // ---- Points of interest: shops & restaurants (OSM via /api/pois) ----
+  // External community data (Overpass), fetched sparingly by design:
+  //   - only at neighborhood zoom (>= POI_MIN_ZOOM — at city zoom the
+  //     markers would be unreadable clutter AND the bbox would blow the
+  //     server-side area cap anyway),
+  //   - debounced to the end of a pan/zoom gesture,
+  //   - bbox snapped OUTWARD to a coarse grid, so wandering around one
+  //     neighborhood keeps hitting the same cache key instead of minting a
+  //     fresh request per pixel of pan,
+  //   - answers cached for 10 minutes client-side (matching the server's
+  //     own cache-control) with a hard floor between upstream calls,
+  //   - paused entirely during navigation — route guidance is not the
+  //     moment to decorate the map.
+  const poiLayer = L.layerGroup().addTo(map);
+  const POI_MIN_ZOOM = 15;
+  const POI_CACHE_MS = 10 * 60 * 1000;
+  const POI_MIN_FETCH_GAP_MS = 2500;
+  const poiCache = new Map(); // gridKey -> { at, pois }
+  let poiDebounce = null;
+  let lastPoiFetchAt = 0;
+
+  function poiGridBbox() {
+    // The query area is the viewport CLAMPED to ±0.0125° around the map
+    // center — a wide desktop/tablet window at street zoom must not turn
+    // into a multi-km Overpass query just because the screen is big. POIs
+    // beyond the clamp simply arrive when the user pans there (each pan is
+    // its own fetch trigger anyway). Snapped outward to a coarse grid so
+    // small pans reuse the same cache key.
+    const b = map.getBounds();
+    const c = map.getCenter();
+    const HALF = 0.0125;
+    const G = 0.005; // ~500m of latitude per grid step
+    const snap = (v, up) => (up ? Math.ceil(v / G) : Math.floor(v / G)) * G;
+    return {
+      minLat: snap(Math.max(b.getSouth(), c.lat - HALF), false),
+      minLon: snap(Math.max(b.getWest(), c.lng - HALF), false),
+      maxLat: snap(Math.min(b.getNorth(), c.lat + HALF), true),
+      maxLon: snap(Math.min(b.getEast(), c.lng + HALF), true),
+    };
+  }
+
+  function renderPois(pois) {
+    poiLayer.clearLayers();
+    pois.forEach((p) => {
+      const icon = L.divIcon({
+        className: "poi-pin",
+        html: `<span class="poi-dot ${p.kind === "shop" ? "poi-shop" : "poi-food"}" aria-hidden="true"></span>`,
+        iconSize: [12, 12],
+        iconAnchor: [6, 6],
+      });
+      L.marker([p.lat, p.lon], { icon, keyboard: false })
+        .addTo(poiLayer)
+        .bindPopup(p.name, { closeButton: false, offset: [0, -2] });
+    });
+  }
+
+  async function refreshPois() {
+    if (pageInner0.classList.contains("nav-active")) return;
+    if (map.getZoom() < POI_MIN_ZOOM) { poiLayer.clearLayers(); return; }
+    const bbox = poiGridBbox();
+    const key = `${bbox.minLat},${bbox.minLon},${bbox.maxLat},${bbox.maxLon}`;
+    const cached = poiCache.get(key);
+    if (cached && Date.now() - cached.at < POI_CACHE_MS) { renderPois(cached.pois); return; }
+    if (Date.now() - lastPoiFetchAt < POI_MIN_FETCH_GAP_MS) return; // grid cache misses can't stampede Overpass
+    lastPoiFetchAt = Date.now();
+    try {
+      const resp = await fetch(`${apiBaseUrl}/api/pois?bbox=${key}`);
+      if (!resp.ok) return;
+      const data = await resp.json();
+      const pois = data.pois || [];
+      poiCache.set(key, { at: Date.now(), pois });
+      renderPois(pois);
+    } catch (e) {
+      // Best-effort decoration — the map is complete without POI markers.
+    }
+  }
+
+  map.on("moveend", () => {
+    clearTimeout(poiDebounce);
+    poiDebounce = setTimeout(refreshPois, 600);
+  });
+
   // ---- Kalimba (page 3): play always, record + leave an Echo once unlocked ----
   const kalimbaTineButtons = Array.from(document.querySelectorAll("#kalimbaTineButtons .kalimba-tine-btn"));
   const echoRecordStatus = document.getElementById("echoRecordStatus");

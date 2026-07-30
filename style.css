@@ -1123,6 +1123,25 @@ footer.foot {
 .echo-detail-play-btn { width: 100%; margin: 0 0 8px; }
 .echo-detail-play-btn svg { width: 15px; height: 15px; }
 
+/* --- Points of interest: small quiet dots, never competing with the route
+   or Echo markers for attention. Color says what it is (shop vs food);
+   tapping one shows its name in a token-styled popup. --- */
+.poi-dot {
+  display: block; width: 10px; height: 10px; border-radius: 50%;
+  border: 2px solid var(--surface); box-shadow: var(--shadow-sm);
+}
+.poi-dot.poi-shop { background: var(--sky); }
+.poi-dot.poi-food { background: var(--accent); }
+/* Leaflet's default popup is a white speech bubble that ignores theming —
+   restyle just the container to the app's own tokens (same surface/ink/
+   radius as every card), leaving Leaflet's positioning logic alone. */
+.leaflet-popup-content-wrapper {
+  background: var(--surface); color: var(--ink); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md); border: 1px solid var(--line);
+}
+.leaflet-popup-content { font-family: var(--font-body); font-size: 12.5px; font-weight: 600; margin: 8px 12px; }
+.leaflet-popup-tip { background: var(--surface); }
+
 /* --- Map markers: glowing, never cluttered, animated softly --- */
 .echo-marker-pin {
   width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;

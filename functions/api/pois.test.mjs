@@ -1,0 +1,95 @@
+// Run with: node --test functions/api/pois.test.mjs
+// Exercises the actual Cloudflare Pages Function (functions/api/pois.js) —
+// same convention as geocode.test.mjs: mock global.fetch, never touch the
+// real Overpass service.
+import test from "node:test";
+import assert from "node:assert/strict";
+import { onRequestGet, parseBbox, normalizePoi } from "./pois.js";
+
+function ctx(url) {
+  return { request: { url }, env: {} };
+}
+
+async function withMockedFetch(impl, fn) {
+  const original = global.fetch;
+  global.fetch = impl;
+  try {
+    return await fn();
+  } finally {
+    global.fetch = original;
+  }
+}
+
+test("parseBbox: accepts a small valid bbox, rejects malformed/oversized/inverted ones", () => {
+  assert.ok(parseBbox("52.36,4.88,52.37,4.89"));
+  assert.equal(parseBbox(null), null);
+  assert.equal(parseBbox("not,a,bbox"), null);
+  assert.equal(parseBbox("52.37,4.89,52.36,4.88"), null, "inverted corners");
+  assert.equal(parseBbox("52.0,4.0,53.0,5.0"), null, "a whole province is far over the area cap");
+  assert.equal(parseBbox("91,4.88,92,4.89"), null, "latitude out of range");
+});
+
+test("normalizePoi: keeps named nodes/ways, classifies shop vs food, drops unnamed ones", () => {
+  const shop = normalizePoi({ type: "node", id: 1, lat: 52.1, lon: 4.9, tags: { shop: "bakery", name: "Bakkerij Jan" } });
+  assert.deepEqual(shop, { id: "node/1", lat: 52.1, lon: 4.9, name: "Bakkerij Jan", kind: "shop" });
+
+  const cafe = normalizePoi({ type: "way", id: 2, center: { lat: 52.2, lon: 4.8 }, tags: { amenity: "cafe", name: "Café Zee" } });
+  assert.equal(cafe.kind, "food");
+  assert.equal(cafe.lat, 52.2, "a way uses its center point");
+
+  assert.equal(normalizePoi({ type: "node", id: 3, lat: 52.1, lon: 4.9, tags: { shop: "bakery" } }), null, "unnamed POIs are dropped");
+  assert.equal(normalizePoi({ type: "node", id: 4, tags: { name: "No coords" } }), null);
+});
+
+test("missing/invalid bbox: 400, upstream never called", async () => {
+  let called = false;
+  await withMockedFetch(
+    async () => { called = true; return { ok: true, json: async () => ({ elements: [] }) }; },
+    async () => {
+      const resp = await onRequestGet(ctx("https://x/api/pois"));
+      assert.equal(resp.status, 400);
+      const oversized = await onRequestGet(ctx("https://x/api/pois?bbox=50,4,53,6"));
+      assert.equal(oversized.status, 400);
+      assert.equal(called, false);
+    }
+  );
+});
+
+test("happy path: shapes, filters, and caps upstream elements; sends fixed QL with only the bbox interpolated", async () => {
+  let sentBody = null;
+  const elements = [
+    { type: "node", id: 1, lat: 52.361, lon: 4.881, tags: { shop: "books", name: "Boekhandel" } },
+    { type: "node", id: 2, lat: 52.362, lon: 4.882, tags: { amenity: "restaurant", name: "Eethuis" } },
+    { type: "node", id: 3, lat: 52.363, lon: 4.883, tags: { shop: "florist" } }, // unnamed -> dropped
+  ];
+  await withMockedFetch(
+    async (url, opts) => { sentBody = decodeURIComponent(opts.body); return { ok: true, json: async () => ({ elements }) }; },
+    async () => {
+      const resp = await onRequestGet(ctx("https://x/api/pois?bbox=52.36,4.88,52.37,4.89"));
+      assert.equal(resp.status, 200);
+      const body = await resp.json();
+      assert.equal(body.pois.length, 2);
+      assert.deepEqual(body.pois.map((p) => p.kind), ["shop", "food"]);
+      assert.match(sentBody, /52\.36,4\.88,52\.37,4\.89/, "bbox reaches the QL");
+      assert.doesNotMatch(sentBody, /out:csv|out:xml/, "query shape is the fixed server-side one");
+      assert.equal(resp.headers.get("cache-control"), "public, max-age=600");
+    }
+  );
+});
+
+test("upstream failure/non-ok: honest 502, not a crash or an empty 200", async () => {
+  await withMockedFetch(
+    async () => { throw new Error("network down"); },
+    async () => {
+      const resp = await onRequestGet(ctx("https://x/api/pois?bbox=52.36,4.88,52.37,4.89"));
+      assert.equal(resp.status, 502);
+    }
+  );
+  await withMockedFetch(
+    async () => ({ ok: false, status: 429 }),
+    async () => {
+      const resp = await onRequestGet(ctx("https://x/api/pois?bbox=52.36,4.88,52.37,4.89"));
+      assert.equal(resp.status, 502);
+    }
+  );
+});
