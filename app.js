@@ -762,6 +762,45 @@
     if (appShellEl.classList.contains("nav-fullscreen")) e.preventDefault();
   });
 
+  // Tap-to-navigate: tapping anywhere on the map sets that point as the
+  // destination and searches immediately — no typing required. Only on the
+  // planning screen: during active navigation a map tap already means
+  // "reveal the auto-hidden controls" (see the smart-controls pointerdown
+  // handler below), and the two meanings must not overlap. Leaflet only
+  // fires "click" for a genuine tap (a pan/drag never ends in one), and a
+  // tap on an Echo marker is swallowed by the marker's own handler, so
+  // there's no drag/marker conflict here. The route search starts against
+  // the raw coordinates right away; the human-readable label arrives from a
+  // parallel best-effort reverse geocode and only ever replaces the interim
+  // coordinate label — never the selection itself — and is skipped if the
+  // user has meanwhile picked a different destination.
+  map.on("click", async (e) => {
+    if (pageInner0.classList.contains("nav-active")) return;
+    if (isSearching) return;
+    const point = { lat: e.latlng.lat, lon: e.latlng.lng };
+    const interimLabel = `Pinned spot (${point.lat.toFixed(4)}, ${point.lon.toFixed(4)})`;
+    const selection = { label: interimLabel, lat: point.lat, lon: point.lon };
+    endSelectedResult = selection;
+    resolvedEnd = { label: interimLabel, lat: point.lat, lon: point.lon };
+    endInput.value = interimLabel;
+    endAutocomplete.close();
+    runSearch();
+    try {
+      const { hits } = await reverseGeocode({ point, endpointBase: apiBaseUrl });
+      const normalized = hits.map(normalizeHit).filter(Boolean);
+      if (normalized[0] && endSelectedResult === selection) {
+        const label = normalized[0].secondary
+          ? `${normalized[0].primary}, ${normalized[0].secondary}`
+          : normalized[0].primary;
+        selection.label = label;
+        resolvedEnd.label = label;
+        endInput.value = label;
+      }
+    } catch (err) {
+      // Best-effort only — the coordinate label above already works.
+    }
+  });
+
   const recenterBtn = document.getElementById("recenterBtn");
   const navMuteBtn = document.getElementById("navMuteBtn");
   const navArrived = document.getElementById("navArrived");
