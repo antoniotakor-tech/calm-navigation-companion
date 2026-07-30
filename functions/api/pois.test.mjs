@@ -69,7 +69,8 @@ test("happy path: shapes, filters, and caps upstream elements; sends fixed QL wi
       assert.equal(resp.status, 200);
       const body = await resp.json();
       assert.equal(body.pois.length, 2);
-      assert.deepEqual(body.pois.map((p) => p.kind), ["shop", "food"]);
+      // Food first is deliberate (see the per-kind caps in pois.js).
+      assert.deepEqual(body.pois.map((p) => p.kind), ["food", "shop"]);
       assert.match(sentBody, /52\.36,4\.88,52\.37,4\.89/, "bbox reaches the QL");
       assert.doesNotMatch(sentBody, /out:csv|out:xml/, "query shape is the fixed server-side one");
       assert.equal(resp.headers.get("cache-control"), "public, max-age=600");
@@ -92,4 +93,25 @@ test("upstream failure/non-ok: honest 502, not a crash or an empty 200", async (
       assert.equal(resp.status, 502);
     }
   );
+});
+
+test("per-kind caps: food is never crowded out by shops (shops listed first upstream)", async () => {
+  const elements = [];
+  for (let i = 0; i < 80; i++) elements.push({ type: "node", id: i, lat: 52.36, lon: 4.88, tags: { shop: "gift", name: `Shop ${i}` } });
+  for (let i = 0; i < 80; i++) elements.push({ type: "node", id: 1000 + i, lat: 52.36, lon: 4.88, tags: { amenity: "bar", name: `Bar ${i}` } });
+  await withMockedFetch(
+    async () => ({ ok: true, json: async () => ({ elements }) }),
+    async () => {
+      const resp = await onRequestGet(ctx("https://x/api/pois?bbox=52.36,4.88,52.37,4.89"));
+      const body = await resp.json();
+      const kinds = body.pois.reduce((m, p) => { m[p.kind] = (m[p.kind] || 0) + 1; return m; }, {});
+      assert.equal(kinds.food, 80, "every bar survives");
+      assert.equal(kinds.shop, 60, "shops hit their own cap without eating the food budget");
+    }
+  );
+});
+
+test("expanded food kinds: biergarten and nightclub classify as food", () => {
+  assert.equal(normalizePoi({ type: "node", id: 1, lat: 52, lon: 4, tags: { amenity: "biergarten", name: "Garten" } }).kind, "food");
+  assert.equal(normalizePoi({ type: "node", id: 2, lat: 52, lon: 4, tags: { amenity: "nightclub", name: "Club" } }).kind, "food");
 });

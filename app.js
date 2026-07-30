@@ -2429,7 +2429,7 @@
   //     moment to decorate the map.
   let poiMarkers = []; // maplibregl.Marker[]
   function clearPoiMarkers() { poiMarkers.forEach((m) => m.remove()); poiMarkers = []; }
-  const POI_MIN_ZOOM = 15;
+  const POI_MIN_ZOOM = 14;
   const POI_CACHE_MS = 10 * 60 * 1000;
   const POI_MIN_FETCH_GAP_MS = 2500;
   const poiCache = new Map(); // gridKey -> { at, pois }

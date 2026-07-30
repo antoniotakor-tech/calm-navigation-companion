@@ -17,7 +17,15 @@
 
 const UPSTREAM = "https://overpass-api.de/api/interpreter";
 const UPSTREAM_TIMEOUT_MS = 9000;
-const MAX_RESULTS = 120;
+// Per-kind caps instead of one global slice: the global cap silently
+// favored whatever Overpass returned first (shops, per the query's clause
+// order), which is exactly backwards for a "show me all the bars and
+// restaurants" request. Food/drink places get the deepest cap and are
+// never crowded out by shops or transit stops.
+const MAX_FOOD = 150;
+const MAX_SHOPS = 60;
+const MAX_TRANSIT = 60;
+const MAX_RESULTS = MAX_FOOD + MAX_SHOPS + MAX_TRANSIT;
 // Neighborhood-sized backstop: the client clamps its query area to roughly
 // ±0.0125° around the map center and grid-snaps outward (see app.js's
 // poiGridBbox), which worst-cases near 0.035° x 0.035° ≈ 0.0012 deg².
@@ -27,7 +35,7 @@ const MAX_BBOX_AREA_DEG2 = 0.0015;
 
 // The amenity values that count as "restaurants" for this feature — eating
 // and drinking places, not every amenity OSM knows about.
-const FOOD_AMENITIES = "restaurant|cafe|fast_food|ice_cream|bar|pub";
+const FOOD_AMENITIES = "restaurant|cafe|fast_food|ice_cream|bar|pub|biergarten|food_court|nightclub";
 // Public-transport places (2026-07-30, user request): ferry terminals,
 // train/metro stations, tram stops, bus stops — the places themselves;
 // transit ROUTING is a separate concern this endpoint doesn't attempt.
@@ -129,10 +137,16 @@ export async function onRequestGet(context) {
     return jsonError("POI service returned an unreadable response.", 502);
   }
 
-  const pois = (Array.isArray(data.elements) ? data.elements : [])
+  const all = (Array.isArray(data.elements) ? data.elements : [])
     .map(normalizePoi)
-    .filter(Boolean)
-    .slice(0, MAX_RESULTS);
+    .filter(Boolean);
+  const byKind = { food: [], shop: [], transit: [] };
+  all.forEach((p) => { if (byKind[p.kind]) byKind[p.kind].push(p); });
+  const pois = [
+    ...byKind.food.slice(0, MAX_FOOD),
+    ...byKind.shop.slice(0, MAX_SHOPS),
+    ...byKind.transit.slice(0, MAX_TRANSIT),
+  ];
 
   return new Response(JSON.stringify({ pois }), {
     headers: {
