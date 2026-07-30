@@ -59,9 +59,10 @@ test("isDoubleTap: no prior tap at all is never a double tap", () => {
 test("octaveHarmonyTine: adds the accent tine five positions up when the instrument has room", () => {
   assert.equal(octaveHarmonyTine(0, TINE_COUNT), 5);
   assert.equal(octaveHarmonyTine(5, TINE_COUNT), 10);
+  assert.equal(octaveHarmonyTine(9, TINE_COUNT), 14);
 });
 
 test("octaveHarmonyTine: returns null instead of an out-of-range tine when there's no room left to add the accent", () => {
-  assert.equal(octaveHarmonyTine(6, TINE_COUNT), null);
   assert.equal(octaveHarmonyTine(10, TINE_COUNT), null);
+  assert.equal(octaveHarmonyTine(14, TINE_COUNT), null);
 });

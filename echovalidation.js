@@ -26,7 +26,7 @@
   // sustained ~5 notes/sec for the full 20s is only 100 events) while still
   // bounding the size of a single request body against abuse.
   const MAX_MELODY_EVENTS = 500;
-  const MAX_TINE_INDEX = 10; // kalimbaengine.js's KALIMBA_PITCHES has 11 tines, 0-10
+  const MAX_TINE_INDEX = 14; // kalimbaengine.js's KALIMBA_PITCHES has 15 tines, 0-14 (extended from 11 on 2026-07-30)
 
   // "Nearby" search radius the /api/echoes/nearby endpoint accepts — bounded
   // server-side regardless of what a client requests, so a malicious/buggy

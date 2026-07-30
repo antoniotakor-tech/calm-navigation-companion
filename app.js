@@ -2163,6 +2163,7 @@
   const echoStopBtn = document.getElementById("echoStopBtn");
   const echoRedoBtn = document.getElementById("echoRedoBtn");
   const echoPlayBackBtn = document.getElementById("echoPlayBackBtn");
+  const echoLayerBtn = document.getElementById("echoLayerBtn");
   const echoMessageField = document.getElementById("echoMessageField");
   const echoMessageInput = document.getElementById("echoMessageInput");
   const echoMessageCount = document.getElementById("echoMessageCount");
@@ -2236,6 +2237,7 @@
     echoStopBtn.style.display = "none";
     echoRedoBtn.style.display = "none";
     echoPlayBackBtn.style.display = "none";
+    echoLayerBtn.style.display = "none";
     echoMessageField.style.display = "none";
     echoMessageInput.value = "";
     echoMessageCount.textContent = `0 / ${EchoValidation.MAX_MESSAGE_CHARS}`;
@@ -2293,9 +2295,13 @@
     echoRecorder.stopRecording();
     echoStopBtn.style.display = "none";
     if (echoRecorder.canSave()) {
-      echoRecordStatus.textContent = "Nice. Listen back, add a message if you like, then leave it here.";
+      echoRecordStatus.textContent = echoRecorder.state.layers >= 2
+        ? "Two layers down. Listen back, add a message if you like, then leave it here."
+        : "Nice. Listen back, add a second layer, or leave it here.";
       echoRedoBtn.style.display = "flex";
       echoPlayBackBtn.style.display = "flex";
+      // Two layers max — the button only offers an overlay on a single-layer take.
+      echoLayerBtn.style.display = echoRecorder.state.layers < 2 ? "flex" : "none";
       echoMessageField.style.display = "block";
       echoSaveBtn.disabled = false;
     } else {
@@ -2312,6 +2318,28 @@
   });
 
   echoPlayBackBtn.addEventListener("click", () => echoRecorder.play());
+
+  // Overlay a second melody on the first: layer 1 plays as an audible guide
+  // while layer 2 records on the same t=0 timeline (see echorecorder.js's
+  // startOverdub). Reuses the exact Record-in-progress UI — Stop works the
+  // same way, the auto-stop cap still applies, and the save-time location
+  // fix stays whatever Record originally captured (the Echo belongs to
+  // where the take was started, an overlay seconds later doesn't move it).
+  echoLayerBtn.addEventListener("click", () => {
+    if (echoRecorder.state.phase !== "recorded" || echoRecorder.state.layers >= 2) return;
+    echoRecorder.startOverdub();
+    echoRecordStatus.textContent = "Layer 2 — play along with your first melody. Stop when you're done.";
+    echoRedoBtn.style.display = "none";
+    echoPlayBackBtn.style.display = "none";
+    echoLayerBtn.style.display = "none";
+    echoMessageField.style.display = "none";
+    echoSaveBtn.disabled = true;
+    echoStopBtn.style.display = "flex";
+    clearAutoStopTimer();
+    autoStopTimer = setTimeout(() => {
+      if (echoRecorder.state.phase === "recording") echoStopBtn.click();
+    }, EchoValidation.MAX_DURATION_MS + 50);
+  });
 
   echoMessageInput.addEventListener("input", () => {
     echoMessageCount.textContent = `${echoMessageInput.value.length} / ${EchoValidation.MAX_MESSAGE_CHARS}`;

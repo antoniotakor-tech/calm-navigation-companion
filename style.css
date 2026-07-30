@@ -1077,12 +1077,14 @@ footer.foot {
    matching a real kalimba's construction (longer tines = lower pitch,
    center = lowest). Keyed to visual position (nth-child), not pitch rank —
    see kalimbaengine.js's TINE_VISUAL_ORDER for why the two aren't the same. */
-.kalimba-tine-btn:nth-child(6) { height: 172px; }
-.kalimba-tine-btn:nth-child(5), .kalimba-tine-btn:nth-child(7) { height: 152px; }
-.kalimba-tine-btn:nth-child(4), .kalimba-tine-btn:nth-child(8) { height: 132px; }
-.kalimba-tine-btn:nth-child(3), .kalimba-tine-btn:nth-child(9) { height: 114px; }
-.kalimba-tine-btn:nth-child(2), .kalimba-tine-btn:nth-child(10) { height: 98px; }
-.kalimba-tine-btn:nth-child(1), .kalimba-tine-btn:nth-child(11) { height: 84px; }
+.kalimba-tine-btn:nth-child(8) { height: 172px; }
+.kalimba-tine-btn:nth-child(7), .kalimba-tine-btn:nth-child(9) { height: 157px; }
+.kalimba-tine-btn:nth-child(6), .kalimba-tine-btn:nth-child(10) { height: 143px; }
+.kalimba-tine-btn:nth-child(5), .kalimba-tine-btn:nth-child(11) { height: 130px; }
+.kalimba-tine-btn:nth-child(4), .kalimba-tine-btn:nth-child(12) { height: 117px; }
+.kalimba-tine-btn:nth-child(3), .kalimba-tine-btn:nth-child(13) { height: 105px; }
+.kalimba-tine-btn:nth-child(2), .kalimba-tine-btn:nth-child(14) { height: 94px; }
+.kalimba-tine-btn:nth-child(1), .kalimba-tine-btn:nth-child(15) { height: 84px; }
 
 .echo-record-status { min-height: 16px; margin: 10px 0 0; font-size: 12px; color: var(--ink-soft); font-weight: 600; text-align: center; }
 .echo-record-controls { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 10px; }

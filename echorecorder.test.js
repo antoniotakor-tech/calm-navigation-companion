@@ -134,3 +134,57 @@ test("canSave: false for idle/tooShort/empty-events states, true only for a vali
   assert.equal(R.canSave({ phase: "recorded", events: [], durationMs: 3000 }), false);
   assert.equal(R.canSave({ phase: "recorded", events: [{ t: 0, tine: 1, v: 0.5 }], durationMs: 3000 }), true);
 });
+
+test("applyRecorderAction: overdubStart keeps layer 1's events and duration, and records layer 2 on the shared t=0 timeline", () => {
+  let state = R.initialRecorderState();
+  state = R.applyRecorderAction(state, { type: "recordStart", atMs: 0 });
+  state = R.applyRecorderAction(state, { type: "pluck", tine: 2, v: 0.6, atMs: 1000 });
+  state = R.applyRecorderAction(state, { type: "stop", atMs: 5000 });
+  assert.equal(state.phase, "recorded");
+  assert.equal(state.layers, 1);
+
+  // Overdub starts at wall-clock 60s — but its plucks land relative to the
+  // overdub's own start, i.e. on the same t=0 timeline as layer 1.
+  state = R.applyRecorderAction(state, { type: "overdubStart", atMs: 60000 });
+  assert.equal(state.phase, "recording");
+  assert.equal(state.events.length, 1, "layer 1's events must be carried into the overdub");
+  state = R.applyRecorderAction(state, { type: "pluck", tine: 9, v: 0.8, atMs: 60500 });
+  state = R.applyRecorderAction(state, { type: "stop", atMs: 63000 });
+
+  assert.equal(state.phase, "recorded");
+  assert.equal(state.layers, 2);
+  assert.equal(state.events.length, 2);
+  assert.equal(state.events[1].t, 500, "layer-2 pluck timing is relative to the overdub start, not wall clock");
+  assert.equal(state.durationMs, 5000, "a shorter overlay never shrinks the melody below layer 1's duration");
+});
+
+test("applyRecorderAction: overdubStart is ignored outside 'recorded' (idle, tooShort, mid-recording)", () => {
+  const idle = R.initialRecorderState();
+  assert.equal(R.applyRecorderAction(idle, { type: "overdubStart", atMs: 0 }).phase, "idle");
+  let rec = R.applyRecorderAction(idle, { type: "recordStart", atMs: 0 });
+  assert.equal(R.applyRecorderAction(rec, { type: "overdubStart", atMs: 100 }), rec);
+});
+
+test("applyRecorderAction: an overlay longer than layer 1 extends the melody's duration", () => {
+  let state = R.initialRecorderState();
+  state = R.applyRecorderAction(state, { type: "recordStart", atMs: 0 });
+  state = R.applyRecorderAction(state, { type: "pluck", tine: 0, v: 0.5, atMs: 100 });
+  state = R.applyRecorderAction(state, { type: "stop", atMs: 3000 });
+  state = R.applyRecorderAction(state, { type: "overdubStart", atMs: 10000 });
+  state = R.applyRecorderAction(state, { type: "pluck", tine: 14, v: 0.5, atMs: 17000 });
+  state = R.applyRecorderAction(state, { type: "stop", atMs: 18000 });
+  assert.equal(state.durationMs, 8000);
+  assert.equal(state.events[1].t, 7000);
+});
+
+test("applyRecorderAction: recordStart after an overdubbed take wipes everything back to a fresh single-layer recording", () => {
+  let state = R.initialRecorderState();
+  state = R.applyRecorderAction(state, { type: "recordStart", atMs: 0 });
+  state = R.applyRecorderAction(state, { type: "pluck", tine: 1, v: 0.5, atMs: 200 });
+  state = R.applyRecorderAction(state, { type: "stop", atMs: 3000 });
+  state = R.applyRecorderAction(state, { type: "overdubStart", atMs: 5000 });
+  state = R.applyRecorderAction(state, { type: "stop", atMs: 9000 });
+  state = R.applyRecorderAction(state, { type: "recordStart", atMs: 20000 });
+  assert.equal(state.events.length, 0);
+  assert.equal(state.layers, 0);
+});

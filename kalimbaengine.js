@@ -18,21 +18,26 @@
 (function (root) {
   "use strict";
 
-  // C major pentatonic across ~2 octaves — warm, calm, unambiguous.
+  // C major pentatonic across ~3 octaves — warm, calm, unambiguous.
+  // Extended from 11 to 15 tines (2026-07-30): two lower (G3/A3) and two
+  // higher (D6/E6) notes, still strictly the same pentatonic scale, so the
+  // "no wrong note" guarantee in this file's header holds unchanged.
   const KALIMBA_PITCHES = [
+    196.0, 220.0,                           // G3 A3
     261.63, 293.66, 329.63, 392.0, 440.0,   // C4 D4 E4 G4 A4
     523.25, 587.33, 659.25, 783.99, 880.0,  // C5 D5 E5 G5 A5
-    1046.5,                                 // C6
+    1046.5, 1174.66, 1318.51,               // C6 D6 E6
   ];
   const TINE_COUNT = KALIMBA_PITCHES.length;
 
   // Screen left-to-right tine order (an index into KALIMBA_PITCHES for each
   // physical position), matching a real kalimba's layout: the lowest tine
   // sits in the center, and pitch rises alternating outward to each side —
-  // not a plain ascending left-to-right row. Center tine (screen position 5
-  // of 11) is the lowest pitch (index 0); the highest pitch (index 10) ends
-  // up at the far right.
-  const TINE_VISUAL_ORDER = [10, 8, 6, 4, 2, 0, 1, 3, 5, 7, 9];
+  // not a plain ascending left-to-right row. Center tine (screen position 8
+  // of 15) is the lowest pitch (index 0); the highest pitch (index 14) ends
+  // up at the far right. Even pitch ranks fan left, odd fan right — the
+  // same rule the old 11-tine order followed.
+  const TINE_VISUAL_ORDER = [14, 12, 10, 8, 6, 4, 2, 0, 1, 3, 5, 7, 9, 11, 13];
 
   function clamp01(v) { return Math.max(0, Math.min(1, v)); }
 

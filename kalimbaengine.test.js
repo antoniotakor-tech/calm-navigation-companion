@@ -2,9 +2,9 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const K = require("./kalimbaengine.js");
 
-test("KALIMBA_PITCHES: 11 tines, strictly ascending (each tine higher than the last)", () => {
-  assert.equal(K.KALIMBA_PITCHES.length, 11);
-  assert.equal(K.TINE_COUNT, 11);
+test("KALIMBA_PITCHES: 15 tines, strictly ascending (each tine higher than the last)", () => {
+  assert.equal(K.KALIMBA_PITCHES.length, 15);
+  assert.equal(K.TINE_COUNT, 15);
   for (let i = 1; i < K.KALIMBA_PITCHES.length; i++) {
     assert.ok(K.KALIMBA_PITCHES[i] > K.KALIMBA_PITCHES[i - 1], `tine ${i} is not higher-pitched than tine ${i - 1}`);
   }
@@ -12,17 +12,17 @@ test("KALIMBA_PITCHES: 11 tines, strictly ascending (each tine higher than the l
 
 test("TINE_VISUAL_ORDER: a permutation of every tine index exactly once, lowest pitch centered", () => {
   const sorted = K.TINE_VISUAL_ORDER.slice().sort((a, b) => a - b);
-  assert.deepEqual(sorted, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  assert.deepEqual(sorted, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
   const centerIndex = Math.floor(K.TINE_VISUAL_ORDER.length / 2);
   assert.equal(K.TINE_VISUAL_ORDER[centerIndex], 0, "the lowest tine (index 0) should sit in the physical center");
 });
 
 test("isValidTineIndex: only integers within the tine range are valid", () => {
   assert.equal(K.isValidTineIndex(0), true);
-  assert.equal(K.isValidTineIndex(10), true);
+  assert.equal(K.isValidTineIndex(14), true);
   assert.equal(K.isValidTineIndex(5), true);
   assert.equal(K.isValidTineIndex(-1), false);
-  assert.equal(K.isValidTineIndex(11), false);
+  assert.equal(K.isValidTineIndex(15), false);
   assert.equal(K.isValidTineIndex(2.5), false);
   assert.equal(K.isValidTineIndex(NaN), false);
   assert.equal(K.isValidTineIndex(undefined), false);

@@ -62,12 +62,18 @@
   // "idle"/"recorded"/"tooShort" all support "cancel" back to a blank idle.
 
   function initialRecorderState() {
-    return { phase: "idle", events: [], startedAt: null, durationMs: 0, isPlaying: false };
+    // `layers` counts completed takes: 1 after the first recording, 2 after
+    // an overlay — the UI uses it to cap overdubbing at two layers total.
+    return { phase: "idle", events: [], startedAt: null, durationMs: 0, isPlaying: false, layers: 0 };
   }
 
   /**
    * action: one of
    *   { type: "recordStart", atMs }
+   *   { type: "overdubStart", atMs }            — only valid from "recorded":
+   *     keeps the already-recorded events as layer 1 and records new plucks
+   *     on top, both sharing t=0, so the merged result is still one plain
+   *     {t,tine,v}[] melody (no format/schema change anywhere downstream).
    *   { type: "pluck", tine, v, atMs }          — ignored outside "recording"
    *   { type: "stop", atMs }
    *   { type: "playStart" } / { type: "playEnd" } — only valid from "recorded"
@@ -80,22 +86,33 @@
     switch (action.type) {
       case "recordStart":
         if (state.phase !== "idle" && state.phase !== "recorded" && state.phase !== "tooShort") return state;
-        return { phase: "recording", events: [], startedAt: action.atMs, durationMs: 0, isPlaying: false };
+        return { phase: "recording", events: [], startedAt: action.atMs, durationMs: 0, isPlaying: false, layers: 0 };
+
+      case "overdubStart":
+        if (state.phase !== "recorded") return state;
+        // events carries the frozen layer-1 take forward; durationMs keeps
+        // layer 1's length as the floor (see "stop" below — a short overlay
+        // never shrinks the melody, both layers play from t=0).
+        return { ...state, phase: "recording", startedAt: action.atMs, isPlaying: false };
 
       case "pluck": {
         if (state.phase !== "recording") return state;
         const elapsed = clampElapsed(action.atMs - state.startedAt);
         const events = state.events.concat([{ t: elapsed, tine: action.tine, v: action.v }]);
         if (elapsed >= MAX_DURATION_MS) {
-          return { ...state, events, phase: "recorded", durationMs: MAX_DURATION_MS };
+          return { ...state, events, phase: "recorded", durationMs: MAX_DURATION_MS, layers: state.layers + 1 };
         }
         return { ...state, events };
       }
 
       case "stop": {
         if (state.phase !== "recording") return state;
-        const durationMs = clampElapsed(action.atMs - state.startedAt);
-        return { ...state, phase: isDurationValid(durationMs) ? "recorded" : "tooShort", durationMs };
+        const elapsed = clampElapsed(action.atMs - state.startedAt);
+        // An overlay stop keeps layer 1's duration as the floor; a first
+        // take's stop is exactly the old behavior (state.durationMs is 0).
+        const durationMs = Math.max(state.durationMs, elapsed);
+        if (!isDurationValid(durationMs)) return { ...state, phase: "tooShort", durationMs };
+        return { ...state, phase: "recorded", durationMs, layers: state.layers + 1 };
       }
 
       case "playStart":
@@ -154,12 +171,40 @@
     return this._dispatch({ type: "recordStart", atMs: this.now() });
   };
 
+  /**
+   * Records a second layer on top of the already-recorded take: layer 1
+   * plays back as an audible guide (same engine, so it sounds exactly like
+   * the final merge will) while new plucks land on the shared t=0 timeline.
+   * The guide playback and the overdub clock start in the same call so the
+   * two layers stay aligned. Only valid with a completed take ("recorded").
+   */
+  EchoRecorder.prototype.startOverdub = function () {
+    if (this.state.phase !== "recorded") return this.state;
+    this._cancelPlaybackTimers();
+    const guide = buildMelodyPayload(this.state.events, this.state.durationMs);
+    const next = this._dispatch({ type: "overdubStart", atMs: this.now() });
+    this.audioManager.duck("ambient", 0.3, 300);
+    guide.melody.forEach((note) => {
+      const id = setTimeout(() => {
+        this.engine.pluck(note.tine, note.v);
+        if (this.onNote) this.onNote(note.tine, note.v);
+      }, note.t);
+      this._playbackTimers.push(id);
+    });
+    return next;
+  };
+
   /** Called by whatever wires KalimbaController.onPluck to this recorder while `state.phase === "recording"`. */
   EchoRecorder.prototype.registerPluck = function (tineIndex, velocity01) {
     return this._dispatch({ type: "pluck", tine: tineIndex, v: velocity01, atMs: this.now() });
   };
 
   EchoRecorder.prototype.stopRecording = function () {
+    // Also tears down an overdub's guide playback: cancel any still-pending
+    // guide notes and un-duck ambient. Both are no-ops for a plain first
+    // take (no timers queued, restore on an un-ducked bus just re-ramps to 1).
+    this._cancelPlaybackTimers();
+    this.audioManager.restore("ambient", 400);
     return this._dispatch({ type: "stop", atMs: this.now() });
   };
 

@@ -367,17 +367,21 @@
                pointer-gesture surface, per the accessibility requirement that
                this instrument not be canvas-only. -->
           <div class="kalimba-tine-buttons" id="kalimbaTineButtons" role="group" aria-label="Kalimba tines, arranged low to high with the lowest note in the center">
-            <button type="button" class="kalimba-tine-btn" data-tine="10" aria-label="Note 11 of 11, highest"></button>
-            <button type="button" class="kalimba-tine-btn" data-tine="8" aria-label="Note 9 of 11"></button>
-            <button type="button" class="kalimba-tine-btn" data-tine="6" aria-label="Note 7 of 11"></button>
-            <button type="button" class="kalimba-tine-btn" data-tine="4" aria-label="Note 5 of 11"></button>
-            <button type="button" class="kalimba-tine-btn" data-tine="2" aria-label="Note 3 of 11"></button>
-            <button type="button" class="kalimba-tine-btn" data-tine="0" aria-label="Note 1 of 11, lowest"></button>
-            <button type="button" class="kalimba-tine-btn" data-tine="1" aria-label="Note 2 of 11"></button>
-            <button type="button" class="kalimba-tine-btn" data-tine="3" aria-label="Note 4 of 11"></button>
-            <button type="button" class="kalimba-tine-btn" data-tine="5" aria-label="Note 6 of 11, middle"></button>
-            <button type="button" class="kalimba-tine-btn" data-tine="7" aria-label="Note 8 of 11"></button>
-            <button type="button" class="kalimba-tine-btn" data-tine="9" aria-label="Note 10 of 11"></button>
+            <button type="button" class="kalimba-tine-btn" data-tine="14" aria-label="Note 15 of 15, highest"></button>
+            <button type="button" class="kalimba-tine-btn" data-tine="12" aria-label="Note 13 of 15"></button>
+            <button type="button" class="kalimba-tine-btn" data-tine="10" aria-label="Note 11 of 15"></button>
+            <button type="button" class="kalimba-tine-btn" data-tine="8" aria-label="Note 9 of 15"></button>
+            <button type="button" class="kalimba-tine-btn" data-tine="6" aria-label="Note 7 of 15"></button>
+            <button type="button" class="kalimba-tine-btn" data-tine="4" aria-label="Note 5 of 15"></button>
+            <button type="button" class="kalimba-tine-btn" data-tine="2" aria-label="Note 3 of 15"></button>
+            <button type="button" class="kalimba-tine-btn" data-tine="0" aria-label="Note 1 of 15, lowest"></button>
+            <button type="button" class="kalimba-tine-btn" data-tine="1" aria-label="Note 2 of 15"></button>
+            <button type="button" class="kalimba-tine-btn" data-tine="3" aria-label="Note 4 of 15"></button>
+            <button type="button" class="kalimba-tine-btn" data-tine="5" aria-label="Note 6 of 15"></button>
+            <button type="button" class="kalimba-tine-btn" data-tine="7" aria-label="Note 8 of 15, middle"></button>
+            <button type="button" class="kalimba-tine-btn" data-tine="9" aria-label="Note 10 of 15"></button>
+            <button type="button" class="kalimba-tine-btn" data-tine="11" aria-label="Note 12 of 15"></button>
+            <button type="button" class="kalimba-tine-btn" data-tine="13" aria-label="Note 14 of 15"></button>
           </div>
         </div>
 
@@ -391,6 +395,10 @@
           <button type="button" class="echo-control-btn" id="echoStopBtn" style="display:none;">Stop</button>
           <button type="button" class="echo-control-btn" id="echoRedoBtn" style="display:none;">Redo</button>
           <button type="button" class="echo-control-btn" id="echoPlayBackBtn" style="display:none;">Play back</button>
+          <!-- Two-layer recording: after a first take, overlay a second
+               melody on top while the first plays back as a guide. Capped
+               at two layers (hidden again once state.layers reaches 2). -->
+          <button type="button" class="echo-control-btn" id="echoLayerBtn" style="display:none;">Add a layer</button>
         </div>
 
         <div class="echo-message-field" id="echoMessageField" style="display:none;">

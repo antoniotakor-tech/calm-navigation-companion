@@ -12,7 +12,10 @@
 // (2026-07-29, subtraction pass step 2: destination field auto-focused +
 // pre-selected on load, zero-decision first run) -> v21 (2026-07-30,
 // nav-bar legibility: labeled controls, always-visible Stop pill exempt
-// from auto-hide, real kalimba icon replacing the banjo emoji): bumping
+// from auto-hide, real kalimba icon replacing the banjo emoji) -> v22
+// (2026-07-30: one-route default + Other routes disclosure, Echo placement
+// fixed to a fresh record-time fix, Echoes fetch on map pan, kalimba
+// extended to 15 tines with two-layer recording): bumping
 // this is what actually forces already-installed/previously-visited clients
 // onto the new app shell. The fetch handler below is cache-first ("cached
 // || network" always prefers a cached hit if one exists), which means a
@@ -22,7 +25,7 @@
 // cleanup + a fresh `cache.addAll`) actually surfaces new content. Bump
 // this on every future deploy that changes any file in APP_SHELL, not just
 // this one.
-const CACHE_NAME = "calm-companion-v21";
+const CACHE_NAME = "calm-companion-v22";
 const APP_SHELL = [
   "/",
   "/index.html",

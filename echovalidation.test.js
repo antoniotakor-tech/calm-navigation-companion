@@ -42,7 +42,7 @@ test("validateMelody: rejects an event whose t exceeds the claimed durationMs", 
 });
 
 test("validateMelody: rejects an out-of-range or non-integer tine index", () => {
-  assert.equal(V.validateMelody([{ t: 0, tine: 11, v: 0.5 }], 5000).valid, false);
+  assert.equal(V.validateMelody([{ t: 0, tine: 15, v: 0.5 }], 5000).valid, false);
   assert.equal(V.validateMelody([{ t: 0, tine: -1, v: 0.5 }], 5000).valid, false);
   assert.equal(V.validateMelody([{ t: 0, tine: 1.5, v: 0.5 }], 5000).valid, false);
 });
