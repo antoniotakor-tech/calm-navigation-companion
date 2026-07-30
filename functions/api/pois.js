@@ -17,7 +17,7 @@
 
 const UPSTREAM = "https://overpass-api.de/api/interpreter";
 const UPSTREAM_TIMEOUT_MS = 9000;
-const MAX_RESULTS = 60;
+const MAX_RESULTS = 120;
 // Neighborhood-sized backstop: the client clamps its query area to roughly
 // ±0.0125° around the map center and grid-snaps outward (see app.js's
 // poiGridBbox), which worst-cases near 0.035° x 0.035° ≈ 0.0012 deg².
@@ -28,6 +28,10 @@ const MAX_BBOX_AREA_DEG2 = 0.0015;
 // The amenity values that count as "restaurants" for this feature — eating
 // and drinking places, not every amenity OSM knows about.
 const FOOD_AMENITIES = "restaurant|cafe|fast_food|ice_cream|bar|pub";
+// Public-transport places (2026-07-30, user request): ferry terminals,
+// train/metro stations, tram stops, bus stops — the places themselves;
+// transit ROUTING is a separate concern this endpoint doesn't attempt.
+const TRANSIT_RAILWAY = "station|tram_stop|halt|subway_entrance";
 
 const CORS_HEADERS = { "access-control-allow-origin": "*" };
 
@@ -63,9 +67,15 @@ export function normalizePoi(el) {
   const lat = el.lat != null ? el.lat : (el.center && el.center.lat);
   const lon = el.lon != null ? el.lon : (el.center && el.center.lon);
   const tags = el.tags || {};
-  const name = typeof tags.name === "string" ? tags.name.trim() : "";
+  const isTransit = tags.amenity === "ferry_terminal" || tags.railway != null || tags.highway === "bus_stop";
+  let name = typeof tags.name === "string" ? tags.name.trim() : "";
+  // Transit stops are worth showing even unnamed (a ferry dock IS its
+  // location); shops/restaurants without names stay filtered as clutter.
+  if (!name && isTransit) {
+    name = tags.amenity === "ferry_terminal" ? "Ferry" : tags.railway ? "Station" : "Bus stop";
+  }
   if (typeof lat !== "number" || typeof lon !== "number" || !name) return null;
-  const kind = tags.shop ? "shop" : "food";
+  const kind = isTransit ? "transit" : tags.shop ? "shop" : "food";
   return { id: `${el.type || "node"}/${el.id}`, lat, lon, name: name.slice(0, 80), kind };
 }
 
@@ -80,7 +90,7 @@ export async function onRequestGet(context) {
   const bboxQL = `${bbox.minLat},${bbox.minLon},${bbox.maxLat},${bbox.maxLon}`;
   // Fixed query, bbox-only interpolation. `out center` makes ways (a shop
   // mapped as a building outline) come back with a usable single point.
-  const query = `[out:json][timeout:8];(node["shop"]["name"](${bboxQL});way["shop"]["name"](${bboxQL});node["amenity"~"^(${FOOD_AMENITIES})$"]["name"](${bboxQL});way["amenity"~"^(${FOOD_AMENITIES})$"]["name"](${bboxQL}););out center ${MAX_RESULTS * 2};`;
+  const query = `[out:json][timeout:8];(node["shop"]["name"](${bboxQL});way["shop"]["name"](${bboxQL});node["amenity"~"^(${FOOD_AMENITIES})$"]["name"](${bboxQL});way["amenity"~"^(${FOOD_AMENITIES})$"]["name"](${bboxQL});node["amenity"="ferry_terminal"](${bboxQL});node["railway"~"^(${TRANSIT_RAILWAY})$"](${bboxQL});node["highway"="bus_stop"](${bboxQL}););out center ${MAX_RESULTS * 2};`;
 
   let resp;
   const controller = new AbortController();

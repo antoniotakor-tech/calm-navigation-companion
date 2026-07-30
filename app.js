@@ -752,6 +752,12 @@
     findBtnLabel.textContent = "Finding your calm route…";
     modeNote.textContent = "";
     clearError();
+    // The whole body runs inside try/finally: these three flags MUST reset
+    // no matter what throws mid-search (a renderer edge case, a rejected
+    // fetch) — reported from real device testing as "stopped a route, then
+    // couldn't search again": one uncaught throw left isSearching stuck
+    // true and the guard above silently swallowed every later tap.
+    try {
 
     // Geocoding/routing both go through same-origin Functions proxies
     // (functions/api/*.js) — no API key lives in this bundle. If the
@@ -861,10 +867,15 @@
       safetyNote.style.display = "none";
     }
 
-    isSearching = false;
-    findBtn.disabled = false;
-    findBtn.classList.remove("loading");
-    findBtnLabel.textContent = "Find calm route";
+    } catch (err) {
+      console.warn("Route search failed:", err && err.message);
+      showError("Something went wrong finding that route — please try again.");
+    } finally {
+      isSearching = false;
+      findBtn.disabled = false;
+      findBtn.classList.remove("loading");
+      findBtnLabel.textContent = "Find calm route";
+    }
   }
 
   findBtn.addEventListener("click", runSearch);
@@ -2427,7 +2438,7 @@
     pois.forEach((p) => {
       const el = document.createElement("div");
       el.className = "poi-pin";
-      el.innerHTML = `<span class="poi-dot ${p.kind === "shop" ? "poi-shop" : "poi-food"}" aria-hidden="true"></span>`;
+      el.innerHTML = `<span class="poi-dot ${p.kind === "shop" ? "poi-shop" : p.kind === "transit" ? "poi-transit" : "poi-food"}" aria-hidden="true"></span>`;
       const popup = new maplibregl.Popup({ closeButton: false, offset: 10 }).setText(p.name);
       const marker = new maplibregl.Marker({ element: el, anchor: "center" })
         .setLngLat([p.lon, p.lat]).setPopup(popup).addTo(map);

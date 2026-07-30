@@ -43,6 +43,17 @@
 
   AudioManager.prototype.ensureCtx = function () {
     if (!this.ctx) {
+      // iOS 17+ Audio Session API: installed-to-Home-Screen (standalone)
+      // PWAs get the "ambient" audio session by default, which the ringer/
+      // silent switch mutes outright — reported from real device testing as
+      // "audio doesn't work when I put the app on homescreen". Declaring
+      // the session as "playback" makes Web Audio behave like media
+      // playback (audible regardless of the switch), which is what a
+      // navigation voice + deliberate soundscapes actually are. Safe no-op
+      // on browsers without navigator.audioSession.
+      try {
+        if (navigator.audioSession) navigator.audioSession.type = "playback";
+      } catch (e) { /* older iOS / other browsers — keep default session */ }
       this.ctx = new (window.AudioContext || window.webkitAudioContext)();
       this.master = this.ctx.createGain();
       this.master.gain.value = 0.8;

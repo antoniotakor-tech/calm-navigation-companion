@@ -1127,6 +1127,7 @@ footer.foot {
 }
 .poi-dot.poi-shop { background: var(--sky); }
 .poi-dot.poi-food { background: var(--accent); }
+.poi-dot.poi-transit { background: var(--calm); }
 /* MapLibre's default popup is a white speech bubble that ignores theming —
    restyle just the container to the app's own tokens (same surface/ink/
    radius as every card), leaving MapLibre's positioning logic alone. */

@@ -18,7 +18,9 @@
 // extended to 15 tines with two-layer recording) -> v23 (2026-07-30:
 // tap-to-navigate + Overpass POI markers) -> v24 (2026-07-30: MapLibre GL
 // vector map themed from the app palette, replacing Leaflet + CARTO raster
-// tiles; SW no longer registers on localhost): bumping
+// tiles; SW no longer registers on localhost) -> v25 (2026-07-30: search
+// re-lock fix after stopping navigation, standalone-PWA audio session fix,
+// POIs expanded with transit places incl. ferries): bumping
 // this is what actually forces already-installed/previously-visited clients
 // onto the new app shell. The fetch handler below is cache-first ("cached
 // || network" always prefers a cached hit if one exists), which means a
@@ -28,7 +30,7 @@
 // cleanup + a fresh `cache.addAll`) actually surfaces new content. Bump
 // this on every future deploy that changes any file in APP_SHELL, not just
 // this one.
-const CACHE_NAME = "calm-companion-v24";
+const CACHE_NAME = "calm-companion-v25";
 const APP_SHELL = [
   "/",
   "/index.html",
