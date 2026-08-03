@@ -32,7 +32,9 @@
 // ways, Overpass mirror fallback chain, GL circle rendering) -> v31
 // (2026-07-30: nearby cafés & bars by name as instant search-bar
 // suggestions around your location) -> v32 (2026-07-30: custom map
-// layers repaint on theme switch): bumping
+// layers repaint on theme switch) -> v33 (2026-08-03: accessibility pass —
+// pinch-zoom re-enabled, all font-sizes converted px->rem, three sub-44pt
+// touch targets fixed): bumping
 // this is what actually forces already-installed/previously-visited clients
 // onto the new app shell. The fetch handler below is cache-first ("cached
 // || network" always prefers a cached hit if one exists), which means a
@@ -42,7 +44,7 @@
 // cleanup + a fresh `cache.addAll`) actually surfaces new content. Bump
 // this on every future deploy that changes any file in APP_SHELL, not just
 // this one.
-const CACHE_NAME = "calm-companion-v32";
+const CACHE_NAME = "calm-companion-v33";
 const APP_SHELL = [
   "/",
   "/index.html",
