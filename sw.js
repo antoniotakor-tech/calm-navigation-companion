@@ -34,7 +34,12 @@
 // suggestions around your location) -> v32 (2026-07-30: custom map
 // layers repaint on theme switch) -> v33 (2026-08-03: accessibility pass —
 // pinch-zoom re-enabled, all font-sizes converted px->rem, three sub-44pt
-// touch targets fixed): bumping
+// touch targets fixed) -> v34 (2026-08-03: calm-by-measurement pass — real
+// haversine-distance road-class weighting (was point-index span), a new
+// greenscore.js + functions/api/greenspace.js measuring actual OSM green-
+// space coverage and blending it into calmScore, stereo-decorrelated +
+// reverb soundscapes instead of dead-center mono, stale SOUNDSCAPE_LABELS
+// entries removed): bumping
 // this is what actually forces already-installed/previously-visited clients
 // onto the new app shell. The fetch handler below is cache-first ("cached
 // || network" always prefers a cached hit if one exists), which means a
@@ -44,7 +49,7 @@
 // cleanup + a fresh `cache.addAll`) actually surfaces new content. Bump
 // this on every future deploy that changes any file in APP_SHELL, not just
 // this one.
-const CACHE_NAME = "calm-companion-v33";
+const CACHE_NAME = "calm-companion-v34";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -63,6 +68,7 @@ const APP_SHELL = [
   "/patternlibrary.js",
   "/prefs.js",
   "/routing.js",
+  "/greenscore.js",
   "/voiceengine.js",
   "/voicequeue.js",
   "/config.js",
