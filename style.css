@@ -35,6 +35,17 @@
   --secondary: var(--sky);
   --success: var(--calm);
   --warning: var(--busy);
+  /* CalmSpots map markers (calmspots.js, 2026-08-03). Tried as a color-mix()
+     derived token first (like --gradient-accent) so it wouldn't need 4
+     separate per-theme declarations — but MapLibre GL's paint-property color
+     parser rejects a literal `color-mix(...)` string outright (it has its
+     own color grammar, not the browser's), and this token gets read via
+     getVar() specifically to feed a MapLibre circle-color paint property, so
+     it has to be a literal hex like --busy/--sky/--calm below, not a derived
+     function. Kept deliberately distinct from --busy (already the
+     fastest-route line color) and --sky/--calm (already shop/transit POI
+     dots) so a calm-spot marker never reads as "the same thing" as those. */
+  --calm-spot: #D9825C;
   --danger: #E0492F;
   --danger-bg: #FBE3DC;
   --danger-ink: #7A2E1A;
@@ -124,6 +135,7 @@
   --calm-soft: #1C3A30;
   --busy: #F0C24E;
   --sky: #9CA3F5;
+  --calm-spot: #E8926B;
   --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 18px 36px rgba(0,0,0,0.4);
   /* No --gradient-accent override needed here: the base :root's definition
      (line ~48) is written in terms of var(--calm)/var(--sky)/var(--accent),
@@ -140,6 +152,7 @@
     --bg: #12141F; --surface: #1A1D2B; --surface-2: #232637; --ink: #F1F0F5;
     --ink-soft: #B4B8CC; --muted: #767C93; --line: #2A2E42; --accent: #FF9270;
     --accent-ink: #1C0F08; --calm: #4ECB9A; --calm-soft: #1C3A30; --busy: #F0C24E; --sky: #9CA3F5;
+    --calm-spot: #E8926B;
     --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 18px 36px rgba(0,0,0,0.4);
     --secondary: #9CA3F5; --success: #4ECB9A; --warning: #F0C24E;
     --danger: #FF6B4A; --danger-bg: #3A241D; --danger-ink: #FFC7B0;
@@ -173,6 +186,7 @@
   --calm-soft: rgba(63, 209, 217, 0.18);
   --busy: #E38FB0;
   --sky: #7FE0EA;
+  --calm-spot: #B98BD4;
   --shadow: 0 8px 32px rgba(6, 4, 30, 0.5);
   /* The 7-color palette itself (deep blue, violet, teal, emerald, cyan,
      gold, soft pink) — matches flowtheme.js's FLOW_PALETTE order exactly,
@@ -564,6 +578,25 @@ button:focus-visible, [tabindex]:focus-visible, input:focus-visible { outline: 2
    keyboard-focus indicator instead, as a shape change (ring), not colour alone. */
 .route-input-row:focus-within { border-color: var(--calm); box-shadow: 0 0 0 3px var(--calm-soft); }
 
+/* Save-as-pinned-place (2026-08-03) — a plain icon button beside the
+   destination field, and a small inline editor that drops down below the
+   input row when tapped (same "own small panel" pattern as .ac-list, not a
+   modal — saving a pin shouldn't interrupt the planning screen). */
+.pin-dest-btn {
+  flex-shrink: 0; border: none; background: none; font-size: 1rem; line-height: 1;
+  padding: 4px; border-radius: 8px; cursor: pointer; opacity: 0.75;
+}
+.pin-dest-btn:hover { opacity: 1; background: var(--surface-2); }
+.pin-editor {
+  margin-top: 8px; padding: 10px; border-radius: 14px; background: var(--surface);
+  border: 1px solid var(--line); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 8px;
+}
+.pin-editor-label {
+  border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font-size: 0.8125rem;
+  font-family: inherit; color: var(--ink); background: var(--surface-2);
+}
+.pin-editor-actions { display: flex; gap: 7px; justify-content: flex-end; }
+
 /* --- Address autocomplete --- */
 .ac-status { min-height: 14px; padding: 2px 14px 0; font-size: 0.6875rem; color: var(--ink-soft); }
 .ac-status[data-error="true"] { color: var(--accent); }
@@ -710,6 +743,17 @@ button:focus-visible, [tabindex]:focus-visible, input:focus-visible { outline: 2
 .route-search-card.collapsed .mode-note,
 .route-search-card.collapsed .safety-note { display: none !important; }
 .route-search-card.collapsed .route-inputs { margin-bottom: 0; }
+/* Pre-existing bug found + fixed 2026-08-03 while verifying the new
+   Pinned/Recent suggestions: .ac-list is `position: absolute` inside
+   .route-input-wrap, whose containing block is .route-search-card — which
+   sets `overflow-y: auto` for the EXPANDED state's own long content (results
+   card, steps panel). In the collapsed state there is no such long content
+   (everything except the destination row is display:none above), so that
+   overflow was clipping the suggestions dropdown down to an ~13px sliver of
+   itself instead of letting it float over the map like it visually should.
+   Scoped to .collapsed only — the expanded state's own scrolling need is
+   untouched. */
+.route-search-card.collapsed { overflow-y: visible; }
 /* The post-search results card (calm vs fastest comparison, Start/Simulate,
    turn-by-turn) — floats at the bottom of the map, shown only once a route
    exists (app.js toggles `.visible`; see also the .nav-active hide-list
@@ -998,6 +1042,7 @@ button:focus-visible, [tabindex]:focus-visible, input:focus-visible { outline: 2
 .tool-sub { font-size: 0.71875rem; color: var(--muted); margin: -6px 0 10px; font-weight: 600; }
 
 .pill-row { display: flex; gap: 7px; flex-wrap: wrap; width: 100%; min-width: 0; }
+.kalimba-key-row { justify-content: center; margin: 4px 0 2px; width: auto; }
 .pill {
   /* min-height 44px (Apple HIG / WCAG 2.5.5) — was 30px tall; used for
      every selectable chip (travel mode, soundscapes, presets, modes), all
@@ -1043,7 +1088,22 @@ canvas.fidget-canvas { width: 100%; height: 84px; border-radius: 16px; backgroun
 .setting-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .setting-row:last-of-type { border-bottom: none; }
 .setting-row .label { font-size: 0.84375rem; font-weight: 700; }
-.setting-row .desc { font-size: 0.6875rem; color: var(--muted); font-weight: 600; }
+.desc { font-size: 0.6875rem; color: var(--muted); font-weight: 600; }
+
+/* Saved places list (2026-08-03) — settings-sheet management (delete only;
+   adding happens from the destination field's pin button, see .pin-editor
+   above). Reuses the same row/pill visual language as the rest of the sheet. */
+.pinned-places-list { list-style: none; padding: 0; margin: 0 0 8px; display: flex; flex-direction: column; gap: 6px; }
+.pinned-place-row {
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 12px;
+  background: var(--surface-2); font-size: 0.8125rem; font-weight: 600; color: var(--ink);
+}
+.pinned-place-row .pinned-place-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pinned-place-remove-btn {
+  flex-shrink: 0; border: none; background: none; color: var(--muted); font-size: 1rem;
+  line-height: 1; padding: 2px 6px; border-radius: 8px; cursor: pointer;
+}
+.pinned-place-remove-btn:hover { color: var(--danger); background: var(--danger-bg); }
 .switch { position: relative; width: 42px; height: 26px; flex-shrink: 0; }
 .switch input { opacity: 0; width: 0; height: 0; }
 .switch .track { position: absolute; inset: 0; background: var(--line); border-radius: 999px; transition: background var(--motion-fast); cursor: pointer; }
@@ -1195,6 +1255,11 @@ footer.foot {
   box-shadow: var(--shadow-md); border: 1px solid var(--line);
   font-family: var(--font-body); font-size: 0.78125rem; font-weight: 600; padding: 8px 12px;
 }
+/* CalmSpots popup carries a name + a note, unlike the plain-text POI popup
+   above it — restyle just the note line to read as secondary/body text
+   instead of inheriting the popup's bold default. */
+.calmspot-popup strong { display: block; margin-bottom: 3px; color: var(--calm-spot); }
+.calmspot-popup div { font-weight: 500; color: var(--ink-soft); line-height: 1.35; }
 .maplibregl-popup-anchor-bottom .maplibregl-popup-tip { border-top-color: var(--surface); }
 .maplibregl-popup-anchor-top .maplibregl-popup-tip { border-bottom-color: var(--surface); }
 .maplibregl-popup-anchor-left .maplibregl-popup-tip { border-right-color: var(--surface); }

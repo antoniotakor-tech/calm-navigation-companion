@@ -85,12 +85,14 @@ All under `/api/echoes`, implemented as individual Cloudflare Pages Functions (f
 | Method | Path | Purpose | Notes |
 |---|---|---|---|
 | `POST` | `/api/echoes` | Create an Echo | Validates payload, checks the 5/day rate limit (`creator_token_hash` + `created_at` in the last 24h), fuzzes the location 10-20m before storing, hashes the creator token, never echoes the raw token back |
-| `GET` | `/api/echoes/nearby?lat=&lon=&radiusM=` | Discover nearby Echoes | Bounding-box prefilter (indexed columns) + exact haversine filter (D1/SQLite has no native great-circle function); `radiusM` is clamped server-side (max 2000m) regardless of what's requested; **never returns the melody** — only enough for a marker + detail sheet |
+| `GET` | `/api/echoes/nearby?lat=&lon=&radiusM=` | Discover nearby Echoes | Bounding-box prefilter (indexed columns) + exact haversine filter (D1/SQLite has no native great-circle function); `radiusM` is clamped server-side (max 2000m) regardless of what's requested; **48h visibility window** (added 2026-08-03) — a `created_at > ?` cutoff excludes anything older; **never returns the melody** — only enough for a marker + detail sheet |
 | `POST` | `/api/echoes/:id/play` | Reveal + play an Echo | The *only* endpoint that ever returns a melody; increments `play_count` (internal-only); creates a "Someone discovered your Calm Echo" notification, but only if the listener's hashed token differs from the creator's (replaying your own Echo never notifies you) |
 | `DELETE` | `/api/echoes/:id?creatorToken=` | Delete your own Echo | Ownership is proven by hashing the caller's token and comparing to the stored hash — this comparison *is* the entire access-control model, since there are no sessions/accounts |
 | `GET` | `/api/echoes/notifications?creatorToken=` | Poll for discoveries | Fetch-and-consume: every unseen notification returned is marked seen in the same request, so a second poll never re-delivers it |
 
 All five endpoints were exercised end-to-end against a real local D1 instance (`wrangler pages dev`), not just unit tests — see Manual testing checklist below.
+
+**On the 48h visibility window being hide-not-delete (2026-08-03):** the requested behavior was "Echoes last 48 hours on the map." The simplest, safest way to get that is a query-time filter — one line, fully reversible, no data actually destroyed, no destructive cron job to get wrong. A real deletion/retention policy (actually removing rows past some age, e.g. via a scheduled Worker) is a bigger, separate decision — it touches the rate-limit table's own `created_at` lookups, the `play_count`/discovery-notification history, and moderation records, none of which this pass touched. If "actually delete old Echoes" is ever wanted, treat it as its own scoped change, not a natural extension of this one.
 
 ## Files created
 

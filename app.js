@@ -69,6 +69,7 @@
     // a modal sheet has focus.
     if (typeof startAutocomplete !== "undefined") startAutocomplete.close();
     if (typeof endAutocomplete !== "undefined") endAutocomplete.close();
+    renderPinnedPlacesList();
     settingsReturnFocusEl = document.activeElement;
     settingsOverlay.classList.add("open");
     const focusables = getFocusableInSettings();
@@ -274,6 +275,7 @@
   map.once("style.load", () => {
     mapStyleReady = true;
     recolorMapForTheme();
+    ensureCalmSpotsLayer();
     while (styleReadyQueue.length) styleReadyQueue.shift()();
   });
 
@@ -307,6 +309,8 @@
     trySet("user-accuracy-fill", "fill-color", getVar("--sky"));
     trySet("poi-circles", "circle-color", ["match", ["get", "kind"], "shop", getVar("--sky"), "transit", getVar("--calm"), getVar("--accent")]);
     trySet("poi-circles", "circle-stroke-color", getVar("--surface"));
+    trySet("calmspot-circles", "circle-color", getVar("--calm-spot"));
+    trySet("calmspot-circles", "circle-stroke-color", getVar("--surface"));
     // Flow's route-glow underlayer follows the theme live, so switching
     // into/out of Flow while a route is on screen behaves like the old
     // CSS-class toggle did.
@@ -524,6 +528,9 @@
   // ---------------------------------------------------------------------
   const prefs = new Prefs();
   const audioManager = new AudioManager();
+  // Recent routes + pinned places (2026-08-03) — localStorage only, see
+  // placesstore.js's header for the privacy-stance context.
+  const placesStore = new PlacesStore();
 
   // Reduced motion starts on if EITHER the OS currently prefers it OR the
   // user previously turned it on in this app (persisted — see prefs.js).
@@ -769,42 +776,90 @@
     return items;
   }
 
+  // Selecting any empty-state suggestion (pinned place, recent route,
+  // nearby café) all does the same thing to the destination field — pulled
+  // out once so the three sections below share one code path instead of
+  // three near-identical pointerdown handlers.
+  function selectDestinationSuggestion(label, lat, lon) {
+    const selection = { label, lat, lon };
+    endSelectedResult = selection;
+    resolvedEnd = { label, lat, lon };
+    endInput.value = label;
+    endAcListEl.style.display = "none";
+    expandSearchCard();
+    runSearch();
+  }
+  const PIN_ICONS = { home: "🏠", work: "💼", star: "📍" };
+  function appendSuggestionHeading(text) {
+    const note = document.createElement("li");
+    note.className = "ac-nearby-note";
+    note.textContent = text;
+    endAcListEl.appendChild(note);
+  }
+  function appendSuggestionOption(icon, primary, secondary, onPick) {
+    const li = document.createElement("li");
+    li.className = "ac-option";
+    li.setAttribute("role", "option");
+    const iconEl = document.createElement("span");
+    iconEl.className = "ac-option-icon";
+    iconEl.setAttribute("aria-hidden", "true");
+    iconEl.textContent = icon;
+    const textWrap = document.createElement("span");
+    textWrap.className = "ac-option-text";
+    const primaryEl = document.createElement("span");
+    primaryEl.className = "ac-option-primary";
+    primaryEl.textContent = primary;
+    textWrap.appendChild(primaryEl);
+    if (secondary) {
+      const secondaryEl = document.createElement("span");
+      secondaryEl.className = "ac-option-secondary";
+      secondaryEl.textContent = secondary;
+      textWrap.appendChild(secondaryEl);
+    }
+    li.appendChild(iconEl);
+    li.appendChild(textWrap);
+    // pointerdown (not click) so the input's blur can't close the list
+    // before the selection lands — same trick the autocomplete uses.
+    li.addEventListener("pointerdown", (e) => { e.preventDefault(); onPick(); });
+    endAcListEl.appendChild(li);
+  }
+
   async function showNearbySuggestions() {
     if (endInput.value.trim() !== "") return;
     const c = userPoint || (() => { const m = map.getCenter(); return { lat: m.lat, lon: m.lng }; })();
     let items;
-    try { items = await fetchNearbyFood(c); } catch (e) { return; }
+    try { items = await fetchNearbyFood(c); } catch (e) { items = []; }
     // The bar may have been typed into (or unfocused) while we fetched.
-    if (!items.length || endInput.value.trim() !== "" || document.activeElement !== endInput) return;
+    if (endInput.value.trim() !== "" || document.activeElement !== endInput) return;
+
+    const pinned = placesStore.getPinned();
+    const recent = placesStore.getRecentRoutes();
+    if (!items.length && !pinned.length && !recent.length) return;
     endAcListEl.innerHTML = "";
-    const note = document.createElement("li");
-    note.className = "ac-nearby-note";
-    note.textContent = "Nearby cafés & bars";
-    endAcListEl.appendChild(note);
-    items.forEach((p) => {
-      const li = document.createElement("li");
-      li.className = "ac-option";
-      li.setAttribute("role", "option");
-      li.innerHTML = `<span class="ac-option-icon" aria-hidden="true">☕</span>
-        <span class="ac-option-text">
-          <span class="ac-option-primary"></span>
-          <span class="ac-option-secondary">${p.distanceM} m away</span>
-        </span>`;
-      li.querySelector(".ac-option-primary").textContent = p.name;
-      // pointerdown (not click) so the input's blur can't close the list
-      // before the selection lands — same trick the autocomplete uses.
-      li.addEventListener("pointerdown", (e) => {
-        e.preventDefault();
-        const selection = { label: p.name, lat: p.lat, lon: p.lon };
-        endSelectedResult = selection;
-        resolvedEnd = { label: p.name, lat: p.lat, lon: p.lon };
-        endInput.value = p.name;
-        endAcListEl.style.display = "none";
-        expandSearchCard();
-        runSearch();
+
+    if (pinned.length) {
+      appendSuggestionHeading("Pinned places");
+      pinned.forEach((p) => {
+        appendSuggestionOption(PIN_ICONS[p.icon] || PIN_ICONS.star, p.label, null, () => selectDestinationSuggestion(p.label, p.lat, p.lon));
       });
-      endAcListEl.appendChild(li);
-    });
+    }
+    if (recent.length) {
+      appendSuggestionHeading("Recent");
+      // De-duplicated by destination label — searching to the same place
+      // with different starts (rare) shouldn't repeat the same entry twice.
+      const seen = new Set();
+      recent.forEach((r) => {
+        if (seen.has(r.endLabel)) return;
+        seen.add(r.endLabel);
+        appendSuggestionOption("🕒", r.endLabel, null, () => selectDestinationSuggestion(r.endLabel, r.endLat, r.endLon));
+      });
+    }
+    if (items.length) {
+      appendSuggestionHeading("Nearby cafés & bars");
+      items.forEach((p) => {
+        appendSuggestionOption("☕", p.name, `${p.distanceM} m away`, () => selectDestinationSuggestion(p.name, p.lat, p.lon));
+      });
+    }
     endAcListEl.style.display = "block";
   }
   endInput.addEventListener("focus", showNearbySuggestions);
@@ -813,6 +868,77 @@
   });
   startInput.addEventListener("focus", ensureUserLocation);
   endInput.addEventListener("focus", ensureUserLocation);
+
+  // ---- Save-as-pinned-place (2026-08-03) ----
+  const pinDestinationBtn = document.getElementById("pinDestinationBtn");
+  const pinEditor = document.getElementById("pinEditor");
+  const pinEditorLabel = document.getElementById("pinEditorLabel");
+  const pinEditorIcons = Array.from(document.querySelectorAll("#pinEditorIcons .pill"));
+  let pinEditorIcon = "star";
+  // Only meaningful once a destination is actually resolved to real
+  // coordinates — a raw, unresolved text field has nothing to pin.
+  function updatePinButtonVisibility() {
+    pinDestinationBtn.style.display = endSelectedResult ? "inline-flex" : "none";
+  }
+  pinDestinationBtn.addEventListener("click", () => {
+    if (!endSelectedResult) return;
+    pinEditorLabel.value = endSelectedResult.label;
+    pinEditorIcon = "star";
+    pinEditorIcons.forEach((btn) => btn.classList.toggle("active", btn.dataset.icon === "star"));
+    pinEditor.style.display = "flex";
+    pinEditorLabel.focus();
+    pinEditorLabel.select();
+  });
+  pinEditorIcons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      pinEditorIcon = btn.dataset.icon;
+      pinEditorIcons.forEach((b) => b.classList.toggle("active", b === btn));
+    });
+  });
+  document.getElementById("pinEditorCancel").addEventListener("click", () => {
+    pinEditor.style.display = "none";
+  });
+  document.getElementById("pinEditorSave").addEventListener("click", () => {
+    if (!endSelectedResult) { pinEditor.style.display = "none"; return; }
+    const label = pinEditorLabel.value.trim() || endSelectedResult.label;
+    placesStore.addPin({ label, icon: pinEditorIcon, lat: endSelectedResult.lat, lon: endSelectedResult.lon });
+    pinEditor.style.display = "none";
+    modeNote.textContent = `Pinned "${label}".`;
+    renderPinnedPlacesList();
+  });
+
+  // Settings-sheet management: list + delete only (adding happens from the
+  // pin button above, in context, where the destination is already known).
+  const pinnedPlacesListEl = document.getElementById("pinnedPlacesList");
+  const pinnedPlacesEmptyEl = document.getElementById("pinnedPlacesEmpty");
+  function renderPinnedPlacesList() {
+    const pins = placesStore.getPinned();
+    pinnedPlacesListEl.innerHTML = "";
+    pinnedPlacesEmptyEl.style.display = pins.length ? "none" : "block";
+    pins.forEach((p) => {
+      const li = document.createElement("li");
+      li.className = "pinned-place-row";
+      const icon = document.createElement("span");
+      icon.setAttribute("aria-hidden", "true");
+      icon.textContent = PIN_ICONS[p.icon] || PIN_ICONS.star;
+      const label = document.createElement("span");
+      label.className = "pinned-place-label";
+      label.textContent = p.label;
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "pinned-place-remove-btn";
+      removeBtn.setAttribute("aria-label", `Remove pinned place "${p.label}"`);
+      removeBtn.textContent = "✕";
+      removeBtn.addEventListener("click", () => {
+        placesStore.removePin(p.id);
+        renderPinnedPlacesList();
+      });
+      li.appendChild(icon);
+      li.appendChild(label);
+      li.appendChild(removeBtn);
+      pinnedPlacesListEl.appendChild(li);
+    });
+  }
 
   function showError(message) {
     errorBanner.textContent = message;
@@ -1057,6 +1183,19 @@
       showError(`Couldn't find "${endInput.value}" — kept the previous destination instead.`);
     }
 
+    // Recorded once here — shared by both the transit and walk/bike branches
+    // below, since resolvedStart/resolvedEnd are already final at this point
+    // regardless of which one runs. Not recorded on a failed resolution of
+    // BOTH fields (that's not a real place the user searched for).
+    if (!(startFailed && endFailed)) {
+      placesStore.addRoute({
+        startLabel: resolvedStart.label, startLat: resolvedStart.lat, startLon: resolvedStart.lon,
+        endLabel: resolvedEnd.label, endLat: resolvedEnd.lat, endLon: resolvedEnd.lon,
+        travelMode,
+      });
+    }
+    updatePinButtonVisibility();
+
     if (travelMode === "transit") {
       // Public-transport plan instead of the calm/fastest pair. Everything
       // above (input resolution, error surfacing) is shared; everything
@@ -1199,7 +1338,7 @@
   // planning screen: during active navigation a map tap already means
   // "reveal the auto-hidden controls" (see the smart-controls pointerdown
   // handler below), and the two meanings must not overlap. A tap on an
-  // Echo/POI marker is swallowed by the marker element's own handler, so
+  // Echo/POI/CalmSpot marker is swallowed by that marker's own handler, so
   // there's no marker conflict. The route search starts against the raw
   // coordinates right away; the human-readable label arrives from a
   // parallel best-effort reverse geocode and only ever replaces the interim
@@ -1218,9 +1357,11 @@
   async function handleMapTap(e) {
     if (pageInner0.classList.contains("nav-active")) return;
     if (isSearching) return;
-    // A tap on a POI circle means "what is this place?", not "route here" —
-    // the layer's own click handler shows the name; this handler stands down.
+    // A tap on a POI or CalmSpot circle means "what is this place?", not
+    // "route here" — the layer's own click handler shows the name/note;
+    // this handler stands down.
     if (map.getLayer("poi-circles") && map.queryRenderedFeatures(e.point, { layers: ["poi-circles"] }).length) return;
+    if (map.getLayer("calmspot-circles") && map.queryRenderedFeatures(e.point, { layers: ["calmspot-circles"] }).length) return;
     expandSearchCard(); // a tapped destination expands the form like a typed one
     const point = { lat: e.lngLat.lat, lon: e.lngLat.lng };
     const interimLabel = `Pinned spot (${point.lat.toFixed(4)}, ${point.lon.toFixed(4)})`;
@@ -2718,6 +2859,63 @@
         .addTo(map);
     });
   }
+
+  // CalmSpots (2026-08-03): a small, static, hand-curated layer (see
+  // calmspots.js) — separate from the dynamic Overpass-fed "pois" source
+  // above on purpose (there's no OSM tag for "calm", so this can't be a live
+  // query). Loaded once at map init, not re-fetched per viewport.
+  let calmSpotPopup = null;
+  function ensureCalmSpotsLayer() {
+    if (map.getSource("calmspots") || typeof CalmSpots === "undefined") return;
+    map.addSource("calmspots", {
+      type: "geojson",
+      data: {
+        type: "FeatureCollection",
+        features: CalmSpots.CALM_SPOTS.map((s) => ({
+          type: "Feature",
+          geometry: { type: "Point", coordinates: [s.lon, s.lat] },
+          properties: { name: s.name, note: s.note, category: s.category },
+        })),
+      },
+    });
+    map.addLayer({
+      id: "calmspot-circles", type: "circle", source: "calmspots",
+      // Only 10 fixed points citywide — visible a bit earlier than the
+      // dynamic POI layer (zoom 14) so they don't feel buried under a wall
+      // of shop/food dots once the user does zoom in that far.
+      minzoom: 12,
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 12, 4, 16, 7],
+        "circle-color": getVar("--calm-spot"),
+        "circle-stroke-width": 1.5,
+        "circle-stroke-color": getVar("--surface"),
+      },
+    });
+    map.on("mouseenter", "calmspot-circles", () => { map.getCanvas().style.cursor = "pointer"; });
+    map.on("mouseleave", "calmspot-circles", () => { map.getCanvas().style.cursor = ""; });
+    map.on("click", "calmspot-circles", (e) => {
+      const f = e.features && e.features[0];
+      if (!f) return;
+      if (calmSpotPopup) calmSpotPopup.remove();
+      // Built as real DOM nodes (textContent, not innerHTML/setHTML) — this
+      // data is static/developer-authored today, but building it the same
+      // safe way as any user-generated content in this app costs nothing
+      // and never becomes a problem if this list grows a user-submission
+      // path later.
+      const wrap = document.createElement("div");
+      wrap.className = "calmspot-popup";
+      const title = document.createElement("strong");
+      title.textContent = f.properties.name;
+      const note = document.createElement("div");
+      note.textContent = f.properties.note;
+      wrap.appendChild(title);
+      wrap.appendChild(note);
+      calmSpotPopup = new maplibregl.Popup({ closeButton: false, offset: 8, maxWidth: "220px" })
+        .setLngLat(f.geometry.coordinates)
+        .setDOMContent(wrap)
+        .addTo(map);
+    });
+  }
   function clearPoiMarkers() {
     if (map.getSource("pois")) map.getSource("pois").setData(EMPTY_FC);
     if (poiPopup) { poiPopup.remove(); poiPopup = null; }
@@ -2790,6 +2988,19 @@
 
   // ---- Kalimba (page 3): play always, record + leave an Echo once unlocked ----
   const kalimbaTineButtons = Array.from(document.querySelectorAll("#kalimbaTineButtons .kalimba-tine-btn"));
+
+  // Key presets (2026-08-03) — only affects live play/preview, never saved
+  // Echo playback (see kalimbaengine.js's KalimbaEngine.pluck forceCanonicalKey
+  // and echorecorder.js's play()). Not persisted to prefs.js on purpose: this
+  // is a playing preference for right now, not a setting worth remembering
+  // across sessions the way audio/haptics prefs are.
+  const kalimbaKeyButtons = Array.from(document.querySelectorAll("#kalimbaKeyRow .pill"));
+  kalimbaKeyButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      kalimbaEngine.setKey(btn.dataset.key);
+      kalimbaKeyButtons.forEach((b) => b.classList.toggle("active", b === btn));
+    });
+  });
   const echoRecordStatus = document.getElementById("echoRecordStatus");
   const echoRecordBtn = document.getElementById("echoRecordBtn");
   const echoStopBtn = document.getElementById("echoStopBtn");

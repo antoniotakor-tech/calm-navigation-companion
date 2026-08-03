@@ -44,6 +44,39 @@ test("velocityFromGesture: an unrecognized gesture still returns a safe, audible
   assert.ok(v > 0 && v <= 1);
 });
 
+test("KALIMBA_KEYS: C is the canonical, unmodified KALIMBA_PITCHES array", () => {
+  assert.deepEqual(K.KALIMBA_KEYS.C, K.KALIMBA_PITCHES);
+});
+
+test("KALIMBA_KEYS: every key is the same length and strictly ascending — a real transposition of the same shape", () => {
+  K.KEY_NAMES.forEach((name) => {
+    const pitches = K.KALIMBA_KEYS[name];
+    assert.equal(pitches.length, K.TINE_COUNT, `key "${name}" has the wrong tine count`);
+    for (let i = 1; i < pitches.length; i++) {
+      assert.ok(pitches[i] > pitches[i - 1], `key "${name}" tine ${i} is not higher-pitched than tine ${i - 1}`);
+    }
+  });
+});
+
+test("transposeSemitones: +12 semitones is exactly one octave up (2x frequency) for every pitch", () => {
+  const up = K.transposeSemitones(K.KALIMBA_PITCHES, 12);
+  K.KALIMBA_PITCHES.forEach((f, i) => {
+    assert.ok(Math.abs(up[i] - f * 2) < 0.01, `expected ${f * 2}, got ${up[i]}`);
+  });
+});
+
+test("transposeSemitones: 0 semitones returns the same pitches (a real no-op transposition, not the same array reference)", () => {
+  const same = K.transposeSemitones(K.KALIMBA_PITCHES, 0);
+  assert.deepEqual(same, K.KALIMBA_PITCHES);
+});
+
+test("isValidKeyName: only real, offered key names pass", () => {
+  assert.equal(K.isValidKeyName("C"), true);
+  assert.equal(K.isValidKeyName("G"), true);
+  assert.equal(K.isValidKeyName("bogus"), false);
+  assert.equal(K.isValidKeyName(undefined), false);
+});
+
 test("velocityFromGesture: an intensity signal blends with the base velocity, always staying in range", () => {
   const low = K.velocityFromGesture("sweep", 0);
   const high = K.velocityFromGesture("sweep", 1);

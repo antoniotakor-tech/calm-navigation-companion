@@ -30,6 +30,29 @@
   ];
   const TINE_COUNT = KALIMBA_PITCHES.length;
 
+  // Selectable keys (2026-08-03, direct request: "more sound like different
+  // keys") — each one is a real equal-tempered TRANSPOSITION of the exact
+  // same pentatonic shape above, computed from KALIMBA_PITCHES rather than
+  // hand-typed, so every key is guaranteed to be the same interval pattern
+  // at a different pitch center (still "no wrong note" — see this file's
+  // header). Deliberately NOT offering a same-notes "relative minor" preset
+  // (e.g. "A minor pentatonic" uses the identical pitch classes as C major
+  // pentatonic) — on an instrument with no drone/bass to establish a tonal
+  // center, that would be a cosmetic label change with no audible
+  // difference, not a real "different key".
+  function transposeSemitones(pitches, semitones) {
+    const ratio = Math.pow(2, semitones / 12);
+    return pitches.map((f) => f * ratio);
+  }
+  const KALIMBA_KEYS = {
+    C: KALIMBA_PITCHES, // canonical — see KalimbaEngine.pluck's forceCanonicalKey param
+    G: transposeSemitones(KALIMBA_PITCHES, 7),
+    D: transposeSemitones(KALIMBA_PITCHES, 2),
+    F: transposeSemitones(KALIMBA_PITCHES, 5),
+  };
+  const KEY_NAMES = Object.keys(KALIMBA_KEYS);
+  function isValidKeyName(name) { return KEY_NAMES.indexOf(name) !== -1; }
+
   // Screen left-to-right tine order (an index into KALIMBA_PITCHES for each
   // physical position), matching a real kalimba's layout: the lowest tine
   // sits in the center, and pitch rises alternating outward to each side —
@@ -62,10 +85,20 @@
 
   function KalimbaEngine(audioManager) {
     this.am = audioManager;
+    this.keyName = "C";
   }
 
   KalimbaEngine.prototype._ctx = function () { this.am.ensureCtx(); return this.am.ctx; };
   KalimbaEngine.prototype._bus = function () { return this.am.getBus("instrument"); };
+
+  // Changes the key used by live plucking (on-screen taps AND the local
+  // preview of a just-recorded melody) — see pluck()'s forceCanonicalKey
+  // param for why saved-Echo discovery playback deliberately does NOT
+  // follow this. Falls back to "C" (canonical) for an unrecognized name.
+  KalimbaEngine.prototype.setKey = function (name) {
+    this.keyName = isValidKeyName(name) ? name : "C";
+  };
+  KalimbaEngine.prototype.getKey = function () { return this.keyName; };
 
   // A short burst of filtered noise for the pluck's attack transient — same
   // technique as ambientengine.js's rain/wind layers, just much shorter and
@@ -124,10 +157,20 @@
    * this is called from live pointer input and recorded-melody playback
    * alike, neither of which should be able to crash a performance in
    * progress over one bad value.
-   * @param {number} tineIndex 0..10 (see KALIMBA_PITCHES)
+   * @param {number} tineIndex 0..14 (see KALIMBA_PITCHES)
    * @param {number} [velocity01] 0..1, defaults to a comfortable middle value
+   * @param {boolean} [forceCanonicalKey] When true, ignores the currently
+   *   selected key and always plays tineIndex against the canonical C
+   *   tuning (KALIMBA_PITCHES) regardless of this.keyName. Echoes only ever
+   *   store a raw tine INDEX (see migrations/0001_create_echoes.sql's
+   *   melody_json), never a frequency or key name — so without this, an
+   *   Echo recorded in one key would sound different to whoever discovers
+   *   it later with a different key selected, or even to its own creator
+   *   after switching keys. echorecorder.js sets this true specifically for
+   *   discovery playback (an explicitly-passed melody payload), false for
+   *   live plucking and previewing your own just-recorded take.
    */
-  KalimbaEngine.prototype.pluck = function (tineIndex, velocity01) {
+  KalimbaEngine.prototype.pluck = function (tineIndex, velocity01, forceCanonicalKey) {
     if (!isValidTineIndex(tineIndex)) {
       console.warn(`KalimbaEngine: ignored pluck for out-of-range tine index ${tineIndex}.`);
       return;
@@ -135,7 +178,8 @@
     const velocity = clamp01(velocity01 == null ? 0.7 : velocity01);
     const ctx = this._ctx();
     const bus = this._bus();
-    const freq = KALIMBA_PITCHES[tineIndex];
+    const pitches = forceCanonicalKey ? KALIMBA_PITCHES : (KALIMBA_KEYS[this.keyName] || KALIMBA_PITCHES);
+    const freq = pitches[tineIndex];
     // Pan follows the tine's physical (visual) position, not its pitch rank,
     // so a sweep across the instrument pans left-to-right exactly as seen.
     const visualPos = TINE_VISUAL_ORDER.indexOf(tineIndex);
@@ -148,10 +192,16 @@
   };
 
   if (typeof module === "object" && module.exports) {
-    module.exports = { KALIMBA_PITCHES, TINE_COUNT, TINE_VISUAL_ORDER, velocityFromGesture, isValidTineIndex, KalimbaEngine };
+    module.exports = {
+      KALIMBA_PITCHES, TINE_COUNT, TINE_VISUAL_ORDER, velocityFromGesture, isValidTineIndex, KalimbaEngine,
+      KALIMBA_KEYS, KEY_NAMES, isValidKeyName, transposeSemitones,
+    };
   }
   if (typeof window !== "undefined") {
     window.KalimbaEngine = KalimbaEngine;
-    window.KalimbaTuning = { KALIMBA_PITCHES, TINE_COUNT, TINE_VISUAL_ORDER, velocityFromGesture, isValidTineIndex };
+    window.KalimbaTuning = {
+      KALIMBA_PITCHES, TINE_COUNT, TINE_VISUAL_ORDER, velocityFromGesture, isValidTineIndex,
+      KALIMBA_KEYS, KEY_NAMES, isValidKeyName,
+    };
   }
 })(typeof window !== "undefined" ? window : this);

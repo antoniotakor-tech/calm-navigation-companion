@@ -12,9 +12,18 @@
 // Bounding-box prefilter (indexed lat/lon columns) then an exact haversine
 // check, per migrations/0001_create_echoes.sql's own comment — SQLite has no
 // native great-circle distance function.
+//
+// 48-hour visibility window (2026-08-03, direct request): Echoes older than
+// this stop appearing here. Deliberately a HIDE, not a DELETE — no row is
+// ever removed from D1 by this filter, so it's a one-line, fully reversible
+// change (no destructive cron job, no data actually lost) rather than a
+// real retention/cleanup policy. See CALM_ECHOES.md for the fuller writeup,
+// including why hide-not-delete was chosen.
 import EchoValidation from "../../../echovalidation.js";
 import NavLogic from "../../../navlogic.js";
 import { jsonError, jsonResponse, requireDb, CORS_HEADERS } from "./_util.js";
+
+export const VISIBILITY_WINDOW_MS = 48 * 60 * 60 * 1000;
 
 export async function onRequestOptions() {
   return new Response(null, { status: 204, headers: CORS_HEADERS });
@@ -34,12 +43,13 @@ export async function onRequestGet(context) {
   const radiusM = EchoValidation.clampNearbyRadius(url.searchParams.get("radiusM"));
   const box = EchoValidation.boundingBox(lat, lon, radiusM);
 
+  const visibleSinceMs = Date.now() - VISIBILITY_WINDOW_MS;
   const { results } = await env.DB
     .prepare(
       `SELECT id, lat, lon, created_at, message FROM echoes
-       WHERE moderation_status = 'visible' AND lat BETWEEN ? AND ? AND lon BETWEEN ? AND ?`
+       WHERE moderation_status = 'visible' AND created_at > ? AND lat BETWEEN ? AND ? AND lon BETWEEN ? AND ?`
     )
-    .bind(box.minLat, box.maxLat, box.minLon, box.maxLon)
+    .bind(visibleSinceMs, box.minLat, box.maxLat, box.minLon, box.maxLon)
     .all();
 
   const echoes = (results || [])

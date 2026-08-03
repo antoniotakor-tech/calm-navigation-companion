@@ -11,7 +11,11 @@ This document describes exactly what location data Calm Navigation Companion col
 | Active navigation (foreground) | While a route is being followed with the app open | Continuous fixes | Sent to `/api/route` only when a reroute is needed (off-route). Fixes themselves never leave the device except as part of a reroute request's start point. |
 | Active navigation (background, native app only, opt-in) | Only while a navigation session is active AND the user explicitly checked "keep navigating when locked" AND granted background/"Always" permission | Continuous fixes, processed natively (off-route/maneuver/arrival math) | Same as foreground: fixes stay on-device; only a reroute request (if needed) sends a single current point to `/api/route` |
 
-**No location history is ever written to disk, on either platform.** The only location-related state kept anywhere is:
+**Location history written to disk (2026-08-03, a deliberate reversal of this document's earlier "none, ever" stance, made on direct request):** `placesstore.js` persists two things to the browser's `localStorage`, under the key `calmcompanion.places.v1` — never sent over the network, never readable by this app's own servers or Functions, never synced anywhere:
+- Your last 5 searched routes (start/end label + coordinates + travel mode + timestamp), most-recent-first, oldest dropped automatically past 5.
+- Any places you explicitly pinned (label, icon, coordinates) via the destination field's "📌" button — kept until you delete them yourself in Settings → Saved places.
+
+Clearing this app's site data (or its own future "clear history" control, not yet built) removes it entirely; it is purely a same-device convenience feature, not a server-side record. Everything else location-related remains exactly as strict as before:
 - An in-memory "current city" cache (city/state/country code + the one coordinate it was resolved from), cleared on page reload / app restart — used only to bias search ranking.
 - Whatever `getNavigationSnapshot()` holds *while a navigation session is actively running* (current step index, distance to next maneuver, the route itself) — used only to restore the UI correctly if the app is backgrounded and reopened during that same session. This is cleared entirely when navigation ends (`stopNavigationSession()`), not persisted across app launches.
 

@@ -238,10 +238,22 @@
    * melody fetched from the API (discovery playback) — same code path either
    * way, since both are just {t,tine,v}[] arrays played through the same
    * engine. Ducks ambient for the duration + a release tail, then restores.
+   *
+   * When an explicit melodyPayload is passed (discovery playback, always
+   * fetched from the API — see app.js's /api/echoes/:id/play call site),
+   * forceCanonicalKey is passed through to the engine so the Echo plays in
+   * its original canonical tuning regardless of whatever key the listener
+   * currently has selected (2026-08-03, see kalimbaengine.js's KALIMBA_KEYS
+   * for the full reasoning — melody_json only stores a tine index, never a
+   * key, so this is what keeps every Echo sounding the same to everyone).
+   * Previewing your OWN just-recorded take (no payload passed — the default
+   * buildSavePayload() branch) intentionally does NOT force canonical, so
+   * the preview matches whatever you were actually just playing.
    * @param {{melody: Array<{t:number,tine:number,v:number}>, durationMs:number}} [melodyPayload]
    * @param {function} [onComplete]
    */
   EchoRecorder.prototype.play = function (melodyPayload, onComplete) {
+    const forceCanonicalKey = !!melodyPayload;
     const payload = melodyPayload || this.buildSavePayload();
     if (!payload || !payload.melody.length) return;
     this._cancelPlaybackTimers();
@@ -250,7 +262,7 @@
     this.audioManager.duck("ambient", 0.3, 300);
     payload.melody.forEach((note) => {
       const id = setTimeout(() => {
-        this.engine.pluck(note.tine, note.v);
+        this.engine.pluck(note.tine, note.v, forceCanonicalKey);
         if (this.hapticManager) this.hapticManager.vibratePulse(12);
         if (this.onNote) this.onNote(note.tine, note.v);
       }, note.t);

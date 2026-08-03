@@ -160,9 +160,26 @@
               <div class="route-input-row end">
                 <span class="dot"></span>
                 <input id="endInput" type="text" placeholder="Where to?" aria-label="Destination" />
+                <!-- Pin the current destination as a saved place (2026-08-03).
+                     Only meaningful once a destination is actually resolved —
+                     see app.js's pinDestinationBtn wiring, which hides this
+                     until endSelectedResult exists. -->
+                <button type="button" class="pin-dest-btn" id="pinDestinationBtn" aria-label="Save this destination as a pinned place" style="display:none;">📌</button>
               </div>
               <div class="ac-status" id="endAcStatus" aria-live="polite"></div>
               <ul class="ac-list" id="endAcList" style="display:none;"></ul>
+              <div class="pin-editor" id="pinEditor" style="display:none;">
+                <input type="text" id="pinEditorLabel" class="pin-editor-label" placeholder="Label (e.g. Home)" maxlength="60" aria-label="Pinned place label" />
+                <div class="pill-row" id="pinEditorIcons" role="group" aria-label="Pin icon">
+                  <button type="button" class="pill active" data-icon="star">📍 Spot</button>
+                  <button type="button" class="pill" data-icon="home">🏠 Home</button>
+                  <button type="button" class="pill" data-icon="work">💼 Work</button>
+                </div>
+                <div class="pin-editor-actions">
+                  <button type="button" class="pill" id="pinEditorCancel">Cancel</button>
+                  <button type="button" class="pill active" id="pinEditorSave">Save pin</button>
+                </div>
+              </div>
             </div>
             <div class="route-input-wrap start-wrap">
               <div class="route-input-row start">
@@ -415,6 +432,19 @@
           </div>
         </div>
 
+        <!-- Key presets (2026-08-03) — each a real transposition of the same
+             pentatonic shape (see kalimbaengine.js's KALIMBA_KEYS), so every
+             key keeps the "no wrong note" guarantee. Only changes live
+             playing/previewing — a saved Echo always plays back in its
+             original canonical tuning regardless of this, see
+             echorecorder.js's forceCanonicalKey. -->
+        <div class="pill-row kalimba-key-row" id="kalimbaKeyRow" role="group" aria-label="Kalimba key">
+          <button type="button" class="pill active" data-key="C">Key: C</button>
+          <button type="button" class="pill" data-key="G">Key: G</button>
+          <button type="button" class="pill" data-key="D">Key: D</button>
+          <button type="button" class="pill" data-key="F">Key: F</button>
+        </div>
+
         <div class="echo-record-status" id="echoRecordStatus" aria-live="polite">Tap Record, then play something on the kalimba.</div>
 
         <div class="echo-record-controls" id="echoRecordControls">
@@ -478,7 +508,7 @@
   </div>
 
   <footer class="foot">
-    Calm Navigation Companion — a working prototype. Routing runs live via GraphHopper once an API key is set in config.js; otherwise it runs in demo mode. Nothing is saved or sent anywhere except the route request itself.
+    Calm Navigation Companion — a working prototype. Routing runs live via GraphHopper once an API key is set in config.js; otherwise it runs in demo mode. Your last 5 routes and any pinned places are saved only on this device (localStorage) — nothing about them is ever sent anywhere, including to this app's own servers.
   </footer>
 </div>
 
@@ -560,6 +590,11 @@
       </div>
       <div class="desc" style="margin-top:6px;">Flow is an optional, calming animated theme — fully accessible, and it respects Reduced Motion/High Contrast just like Light and Dark.</div>
     </div>
+    <h2>Saved places</h2>
+    <p class="desc" style="margin:-6px 0 8px;">Pin a place from the "📌" button next to the destination field. Stored only on this device.</p>
+    <ul class="pinned-places-list" id="pinnedPlacesList"></ul>
+    <div class="desc" id="pinnedPlacesEmpty">No pinned places yet.</div>
+
     <button class="close-sheet" id="resetAudioDefaultsBtn" style="background:var(--surface); border:1px solid var(--line); margin-top:10px;">Reset auditory settings to defaults</button>
     <button class="close-sheet" id="closeSettings">Done</button>
   </div>
@@ -605,11 +640,13 @@
 <script src="navsim.js"></script>
 <script src="routing.js"></script>
 <script src="greenscore.js"></script>
+<script src="calmspots.js"></script>
 <script src="searchranking.js"></script>
 <script src="geocodingservice.js"></script>
 <script src="autocompletecontroller.js"></script>
 <script src="audioregulation.js"></script>
 <script src="prefs.js"></script>
+<script src="placesstore.js"></script>
 <script src="audiomanager.js"></script>
 <script src="ambientengine.js"></script>
 <script src="voicequeue.js"></script>
