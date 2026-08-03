@@ -853,6 +853,21 @@
     });
   }
 
+  // greenPct is real, measured OSM data (see routing.js's fetchGreenWays +
+  // greenscore.js), not another road-class guess — null means it genuinely
+  // wasn't measured (demo mode, or the Overpass fetch failed), and the badge
+  // hides itself rather than showing a fabricated number. Distinct wording
+  // ("measured") from the road-class breakdown bar above it on purpose.
+  function renderGreenMeasurement(el, greenPct) {
+    if (greenPct == null) {
+      el.style.display = "none";
+      return;
+    }
+    el.style.display = "flex";
+    el.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22V12M12 12C12 7 8 4 3 4c0 5 3 8 9 8ZM12 12c0-5 4-8 9-8 0 5-3 8-9 8Z"/></svg>';
+    el.appendChild(document.createTextNode(`${greenPct}% measured near green space`));
+  }
+
   function fmtMin(ms) { return Math.round(ms / 60000) + " min"; }
   function fmtDist(m) { return m >= 1000 ? (m / 1000).toFixed(1) + " km" : Math.round(m) + " m"; }
   // Wall-clock arrival time (e.g. "14:32") for the top card's "Arrival time"
@@ -1101,6 +1116,8 @@
     document.getElementById("fastDist").textContent = fmtDist(result.fastest.distanceM);
     renderBar(document.getElementById("calmBar"), result.calm.breakdownPct);
     renderBar(document.getElementById("fastBar"), result.fastest.breakdownPct);
+    renderGreenMeasurement(document.getElementById("calmGreen"), result.calm.greenPct);
+    renderGreenMeasurement(document.getElementById("fastGreen"), result.fastest.greenPct);
     routeCompare.style.display = "flex";
     routeResultsCard.classList.add("visible");
     startNavBtn.style.display = "flex";

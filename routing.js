@@ -94,10 +94,41 @@ function specialEventToday(specialEvents) {
   return (specialEvents || []).find((e) => e.month === month && e.day === day) || null;
 }
 
-// details.road_class is [[fromIdx, toIdx, value], ...]; each segment's "length"
-// in point-index units is used as a proxy weight (good enough without per-segment
-// distances, which GraphHopper doesn't give per road_class entry directly).
-function scoreRoadClassBreakdown(roadClassDetail, peak, safetyMode) {
+const EARTH_RADIUS_M = 6371000;
+
+// Real great-circle distance between two [lon, lat] points, in meters.
+function haversineM(a, b) {
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(b[1] - a[1]);
+  const dLon = toRad(b[0] - a[0]);
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a[1])) * Math.cos(toRad(b[1])) * Math.sin(dLon / 2) ** 2;
+  return 2 * EARTH_RADIUS_M * Math.asin(Math.min(1, Math.sqrt(s)));
+}
+
+// Real distance in meters covered by route points [from..to] (inclusive),
+// summing consecutive-point haversine legs. Returns null if coordinates
+// aren't available for that range, so the caller can fall back cleanly.
+function segmentDistanceM(coordinates, from, to) {
+  if (!coordinates || !coordinates.length) return null;
+  const start = Math.max(0, Math.min(from, coordinates.length - 1));
+  const end = Math.max(0, Math.min(to, coordinates.length - 1));
+  if (end <= start) return null;
+  let dist = 0;
+  for (let i = start; i < end; i++) dist += haversineM(coordinates[i], coordinates[i + 1]);
+  return dist;
+}
+
+// details.road_class is [[fromIdx, toIdx, value], ...] over the route's point
+// array. Each segment is weighted by its REAL distance in meters (haversine
+// over `coordinates`, the same [lon,lat] array GraphHopper returns the route
+// geometry in) — not by point-index span. Point density along a GraphHopper
+// route isn't uniform (winding minor streets get more points per meter than
+// long straight arterials, since points follow OSM way vertices), so index
+// span was systematically over/under-weighting segments relative to how much
+// of the actual walk they represent. `coordinates` is optional so demo mode
+// and pre-existing unit tests (which pass synthetic [from,to] ranges with no
+// real geometry) still get a sane approximation via the old index-span math.
+function scoreRoadClassBreakdown(roadClassDetail, peak, safetyMode, coordinates) {
   if (!roadClassDetail || !roadClassDetail.length) return { score: 0, breakdown: {}, isolatedPct: 0 };
   let total = 0;
   let weightedSum = 0;
@@ -107,7 +138,8 @@ function scoreRoadClassBreakdown(roadClassDetail, peak, safetyMode) {
 
   roadClassDetail.forEach(([from, to, value]) => {
     const key = String(value || "other").toLowerCase();
-    const span = Math.max(1, to - from);
+    const realDistM = coordinates ? segmentDistanceM(coordinates, from, to) : null;
+    const span = realDistM != null ? realDistM : Math.max(1, to - from);
     let calm = table[key] !== undefined ? table[key] : table.other;
     // Peak-hour heuristic: penalize busy road types further when we're inside a
     // stated peak window, since we have no live crowd data to check directly.
@@ -134,6 +166,54 @@ function pctBreakdown(breakdown, total) {
   return out;
 }
 
+// Smallest bbox (in degrees, unpadded) covering every point across every
+// candidate path — so one green-space request covers the calm route, the
+// fastest route, and any alternates, instead of one request per path.
+// Returns null if there are no coordinates at all (shouldn't happen with a
+// real GraphHopper response, but keeps this honestly defensive).
+function unionBboxDeg(coordinatesList, paddingDeg) {
+  let minLat = Infinity, minLon = Infinity, maxLat = -Infinity, maxLon = -Infinity;
+  (coordinatesList || []).forEach((coords) => {
+    (coords || []).forEach(([lon, lat]) => {
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+      if (lon < minLon) minLon = lon;
+      if (lon > maxLon) maxLon = lon;
+    });
+  });
+  if (!Number.isFinite(minLat)) return null;
+  return {
+    minLat: minLat - paddingDeg, minLon: minLon - paddingDeg,
+    maxLat: maxLat + paddingDeg, maxLon: maxLon + paddingDeg,
+  };
+}
+
+// ~100m margin so a park just off the route's own edge still counts —
+// GraphHopper's route line runs along the path/sidewalk, not through the
+// green space next to it.
+const GREEN_BBOX_PADDING_DEG = 0.001;
+
+// Fetches real green-space geometry (park/wood/water/forest ways) covering
+// every candidate path, via the same-origin Overpass proxy
+// (functions/api/greenspace.js — same key-free, server-capped proxy pattern
+// as /api/pois). Fails toward an empty list on any error: a missing or
+// broken green-space signal must never invent a calm bonus, only skip it.
+async function fetchGreenWays(coordinatesList, endpointBase, requestTimeoutMs) {
+  const bbox = unionBboxDeg(coordinatesList, GREEN_BBOX_PADDING_DEG);
+  if (!bbox) return [];
+  const url = new URL((endpointBase || "") + "/api/greenspace", typeof location !== "undefined" ? location.origin : "http://localhost");
+  url.searchParams.set("bbox", `${bbox.minLat},${bbox.minLon},${bbox.maxLat},${bbox.maxLon}`);
+  try {
+    const resp = await fetchWithTimeout(url.toString(), requestTimeoutMs);
+    if (!resp.ok) return [];
+    const data = await resp.json();
+    return Array.isArray(data.ways) ? data.ways : [];
+  } catch (e) {
+    console.warn("Green-space request failed — routing without a measured green bonus.", e);
+    return [];
+  }
+}
+
 async function fetchCalmRoute({ start, end, peakWindows, safetyMode, specialEvents, ghProfile, requestTimeoutMs, endpointBase }) {
   const peak = isPeakNow(peakWindows);
   const night = isNightNow();
@@ -158,7 +238,6 @@ async function fetchCalmRoute({ start, end, peakWindows, safetyMode, specialEven
   url.searchParams.set("max_weight_factor", "2.0");
   url.searchParams.set("max_share_factor", "0.7");
   url.searchParams.append("details", "road_class");
-  url.searchParams.append("details", "road_environment");
   url.searchParams.set("points_encoded", "false");
   url.searchParams.set("locale", "en");
 
@@ -184,12 +263,19 @@ async function fetchCalmRoute({ start, end, peakWindows, safetyMode, specialEven
 
   const scored = data.paths.map((path) => {
     const rc = path.details && path.details.road_class;
-    const { score, breakdown, total, isolatedPct } = scoreRoadClassBreakdown(rc, peak, safetyMode);
+    const coordinates = path.points.coordinates; // [lon, lat] pairs
+    const { score, breakdown, total, isolatedPct } = scoreRoadClassBreakdown(rc, peak, safetyMode, coordinates);
     return {
-      coordinates: path.points.coordinates, // [lon, lat] pairs
+      coordinates, // [lon, lat] pairs
       distanceM: path.distance,
       timeMs: path.time,
+      // roadClassScore: the road-classification heuristic alone (path vs.
+      // motorway etc.) — unchanged meaning from before. calmScore starts
+      // equal to it and gets a real, measured green-space bonus blended in
+      // just below, once actual OSM park/wood/water data comes back.
+      roadClassScore: score,
       calmScore: score,
+      greenPct: null,
       breakdownPct: total ? pctBreakdown(breakdown, total) : {},
       isolatedPct,
       // Raw [fromIdx, toIdx, roadClass] segments, same index space as
@@ -206,6 +292,25 @@ async function fetchCalmRoute({ start, end, peakWindows, safetyMode, specialEven
       })),
     };
   });
+
+  // Real measured signal, not another heuristic: fetch actual OSM green-space
+  // geometry once for the whole search (all candidate paths share one bbox,
+  // one Overpass request) and blend a bounded bonus into each path's
+  // calmScore based on how much of it actually runs near mapped parks/woods/
+  // water. If GreenScore isn't loaded (shouldn't happen in the real app —
+  // only relevant to isolated unit tests that require routing.js on its own)
+  // or the fetch fails for any reason, every path just keeps its road-class
+  // score unchanged — this never invents a green bonus it can't measure.
+  if (typeof GreenScore !== "undefined") {
+    const greenWays = await fetchGreenWays(scored.map((p) => p.coordinates), endpointBase, requestTimeoutMs);
+    if (greenWays.length) {
+      scored.forEach((path) => {
+        const { greenPct } = GreenScore.computeGreenCoverage(path.coordinates, greenWays);
+        path.greenPct = greenPct;
+        path.calmScore = path.roadClassScore + GreenScore.greenBonus(greenPct);
+      });
+    }
+  }
 
   const fastest = scored.reduce((a, b) => (a.timeMs < b.timeMs ? a : b));
   const calmest = scored.reduce((a, b) => (a.calmScore > b.calmScore ? a : b));
@@ -266,7 +371,12 @@ function buildDemoRoute(start, end, peak, night, safetyMode, note, specialEvent)
       coordinates: coords,
       distanceM: 2100,
       timeMs: 26 * 60000,
+      roadClassScore: safetyMode ? 5.4 : 6.1,
       calmScore: safetyMode ? 5.4 : 6.1,
+      // Demo mode never calls the real Overpass-backed greenspace endpoint —
+      // null (not a fabricated percentage) so the UI's "measured" badge
+      // honestly hides itself instead of showing a number nothing measured.
+      greenPct: null,
       breakdownPct: demoBreakdownCalm,
       isolatedPct,
       steps: demoStepsCalm,
@@ -278,7 +388,9 @@ function buildDemoRoute(start, end, peak, night, safetyMode, note, specialEvent)
       coordinates: coords.map(([lon, lat], i) => [lon + (i % 3 === 0 ? 0.0006 : -0.0003), lat]),
       distanceM: 1750,
       timeMs: 21 * 60000,
+      roadClassScore: -0.8,
       calmScore: -0.8,
+      greenPct: null,
       breakdownPct: demoBreakdownFast,
       isolatedPct: 0,
       steps: demoStepsFast,
@@ -296,6 +408,7 @@ if (typeof module === "object" && module.exports) {
   module.exports = {
     fetchCalmRoute, geocode, specialEventToday, scoreRoadClassBreakdown,
     isPeakNow, isNightNow, CALM_SCORE, SAFETY_CALM_SCORE,
+    haversineM, segmentDistanceM, unionBboxDeg, fetchGreenWays, buildDemoRoute,
   };
 }
 

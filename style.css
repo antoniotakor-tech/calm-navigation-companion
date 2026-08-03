@@ -946,6 +946,11 @@ button:focus-visible, [tabindex]:focus-visible, input:focus-visible { outline: 2
 .route-card .rc-sub { font-size: 0.6875rem; color: var(--muted); margin-top: 2px; font-weight: 600; }
 .breakdown-bar { display: flex; height: 7px; border-radius: 6px; overflow: hidden; margin-top: 8px; }
 .breakdown-bar span { display: block; height: 100%; }
+/* Real measured green-space coverage (see routing.js/greenscore.js) — a
+   small leaf-tagged line, distinct from the road-class breakdown bar above
+   it, so it reads as "we checked" rather than another guess. */
+.rc-green { font-size: 0.6875rem; color: var(--calm); margin-top: 6px; font-weight: 600; display: flex; align-items: center; gap: 4px; }
+.rc-green svg { width: 12px; height: 12px; flex: none; }
 .mode-note { font-size: 0.71875rem; color: var(--muted); text-align: center; margin: 10px 0 4px; line-height: 1.4; font-weight: 600; }
 
 .safety-toggle-row {

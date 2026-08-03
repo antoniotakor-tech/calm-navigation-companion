@@ -51,3 +51,10 @@ test("SOUNDSCAPE_LABELS: has a label for every soundscape key prefs.js knows abo
     assert.ok(A.SOUNDSCAPE_LABELS[key], `missing a label for soundscape key "${key}"`);
   });
 });
+
+test("SOUNDSCAPE_LABELS: has no stale keys beyond what prefs.js/ambientengine.js actually offer", () => {
+  const Prefs = require("./prefs.js");
+  Object.keys(A.SOUNDSCAPE_LABELS).forEach((key) => {
+    assert.ok(Prefs.VALID_SOUNDSCAPES.includes(key), `"${key}" has a label but isn't a real, selectable soundscape`);
+  });
+});

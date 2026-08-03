@@ -70,26 +70,23 @@
     return mode === "concentrate" ? 1.08 : 0.95;
   }
 
-  // Central label map for the 12 soundscape options — keys match
+  // Central label map for the 5 soundscape options — keys match
   // ambientengine.js's own BUILDERS table + "off" exactly. Every one of
   // these is already a real, working synthesized sound (see that file's
   // header) — there is no missing-audio-asset case among them today. This
   // map exists so the UI has one place to render labels from, and so a
   // *future* soundscape key that's added to the UI without a matching
   // builder fails loudly (see ambientengine.js's setSoundscape) instead of
-  // silently doing nothing.
+  // silently doing nothing. Trimmed from 12 down to the 5 that survived the
+  // 2026-07-29 subtraction pass (pink/tone/rain/wind/piano/forest/birds are
+  // no longer independently selectable — wind/birds live on inside "nature"
+  // instead, see ambientengine.js) — the old entries had gone stale and
+  // unused since that trim.
   const SOUNDSCAPE_LABELS = {
     off: "Off",
     white: "White noise",
-    pink: "Pink noise",
     brown: "Brown noise",
-    tone: "Low hum",
-    rain: "Rain",
-    wind: "Wind",
     ocean: "Ocean",
-    piano: "Soft piano",
-    birds: "Birds",
-    forest: "Forest",
     nature: "Nature",
   };
 

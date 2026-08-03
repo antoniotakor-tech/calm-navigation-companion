@@ -231,6 +231,12 @@
               <div class="rc-time" id="calmTime">—</div>
               <div class="rc-sub" id="calmDist">—</div>
               <div class="breakdown-bar" id="calmBar"></div>
+              <!-- Real measured signal, not another road-class guess: % of
+                   sampled route points actually near mapped OSM green space
+                   (functions/api/greenspace.js + greenscore.js). Hidden via
+                   JS when null (demo mode, or the Overpass fetch failed) —
+                   see renderGreenMeasurement() in app.js. -->
+              <div class="rc-green" id="calmGreen" style="display:none;"></div>
             </div>
           </div>
           <details class="route-alternatives" id="routeAlternatives">
@@ -241,6 +247,7 @@
                 <div class="rc-time" id="fastTime">—</div>
                 <div class="rc-sub" id="fastDist">—</div>
                 <div class="breakdown-bar" id="fastBar"></div>
+                <div class="rc-green" id="fastGreen" style="display:none;"></div>
               </div>
             </div>
           </details>
@@ -597,6 +604,7 @@
 <script src="navlogic.js"></script>
 <script src="navsim.js"></script>
 <script src="routing.js"></script>
+<script src="greenscore.js"></script>
 <script src="searchranking.js"></script>
 <script src="geocodingservice.js"></script>
 <script src="autocompletecontroller.js"></script>

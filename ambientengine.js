@@ -44,37 +44,86 @@
   AmbientEngine.prototype._bus = function () { return this.am.getBus("ambient"); };
 
   // ---- noise buffer generators (white/pink/brown — same math as the
-  // original Peil/Calm-Companion synthesis, unchanged) ----
+  // original Peil/Calm-Companion synthesis, now generated per-channel
+  // instead of mono) ----
+  //
+  // Real 2-channel noise, each channel its own independent random draw —
+  // not a mono signal duplicated to both ears. Two truly decorrelated noise
+  // sources is the standard technique for perceived stereo "width" (the
+  // same reason real recorded nature audio uses spaced/stereo mics rather
+  // than a single mono capsule); a duplicated-mono signal collapses to a
+  // single point dead-center no matter how loud it is. This alone is what
+  // makes white/brown/wind/ocean stop sounding like they're playing from
+  // one spot inside the listener's head.
   AmbientEngine.prototype._noiseBuffer = function (type) {
     const ctx = this._ctx();
     const size = 2 * ctx.sampleRate;
-    const buffer = ctx.createBuffer(1, size, ctx.sampleRate);
-    const data = buffer.getChannelData(0);
-    if (type === "white") {
-      for (let i = 0; i < size; i++) data[i] = Math.random() * 2 - 1;
-    } else if (type === "pink") {
-      let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
-      for (let i = 0; i < size; i++) {
-        const w = Math.random() * 2 - 1;
-        b0 = 0.99886 * b0 + w * 0.0555179;
-        b1 = 0.99332 * b1 + w * 0.0750759;
-        b2 = 0.96900 * b2 + w * 0.1538520;
-        b3 = 0.86650 * b3 + w * 0.3104856;
-        b4 = 0.55000 * b4 + w * 0.5329522;
-        b5 = -0.7616 * b5 - w * 0.0168980;
-        const out = b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362;
-        b6 = w * 0.115926;
-        data[i] = out * 0.11;
-      }
-    } else if (type === "brown") {
-      let last = 0;
-      for (let i = 0; i < size; i++) {
-        const wn = Math.random() * 2 - 1;
-        last = (last + 0.02 * wn) / 1.02;
-        data[i] = last * 3.5;
+    const buffer = ctx.createBuffer(2, size, ctx.sampleRate);
+    for (let ch = 0; ch < 2; ch++) {
+      const data = buffer.getChannelData(ch);
+      if (type === "white") {
+        for (let i = 0; i < size; i++) data[i] = Math.random() * 2 - 1;
+      } else if (type === "pink") {
+        let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+        for (let i = 0; i < size; i++) {
+          const w = Math.random() * 2 - 1;
+          b0 = 0.99886 * b0 + w * 0.0555179;
+          b1 = 0.99332 * b1 + w * 0.0750759;
+          b2 = 0.96900 * b2 + w * 0.1538520;
+          b3 = 0.86650 * b3 + w * 0.3104856;
+          b4 = 0.55000 * b4 + w * 0.5329522;
+          b5 = -0.7616 * b5 - w * 0.0168980;
+          const out = b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362;
+          b6 = w * 0.115926;
+          data[i] = out * 0.11;
+        }
+      } else if (type === "brown") {
+        let last = 0;
+        for (let i = 0; i < size; i++) {
+          const wn = Math.random() * 2 - 1;
+          last = (last + 0.02 * wn) / 1.02;
+          data[i] = last * 3.5;
+        }
       }
     }
     return buffer;
+  };
+
+  // Short (1.1s), procedurally-generated exponentially-decaying noise
+  // impulse response — no external audio files, same synthesis-only
+  // convention as every sound in this file. Gives the ambient bed a sense
+  // of open space (reflections, not a dead-center point source) instead of
+  // sounding like it's playing right at the eardrum. Built once per engine
+  // instance and reused across every soundscape switch.
+  AmbientEngine.prototype._reverbImpulse = function (seconds, decay) {
+    const ctx = this._ctx();
+    const length = Math.max(1, Math.floor(ctx.sampleRate * seconds));
+    const impulse = ctx.createBuffer(2, length, ctx.sampleRate);
+    for (let ch = 0; ch < 2; ch++) {
+      const data = impulse.getChannelData(ch);
+      for (let i = 0; i < length; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
+      }
+    }
+    return impulse;
+  };
+
+  // Lazily-created shared reverb send every layer's gain also feeds,
+  // alongside its normal dry connection to the ambient bus (see
+  // makeLayerGain below). Kept deliberately subtle (low wet gain) — this is
+  // meant to read as "outdoors", not as a cave or a plugin demo.
+  AmbientEngine.prototype._reverbSend = function () {
+    if (this._reverbWetGain) return this._reverbWetGain;
+    const ctx = this._ctx();
+    const convolver = ctx.createConvolver();
+    convolver.buffer = this._reverbImpulse(1.1, 2.2);
+    const wetGain = ctx.createGain();
+    wetGain.gain.value = 0.22;
+    convolver.connect(wetGain);
+    wetGain.connect(this._bus());
+    this._reverbWetGain = wetGain;
+    this._reverbConvolver = convolver;
+    return wetGain;
   };
 
   function makeLayerGain(engine, target) {
@@ -82,6 +131,12 @@
     const g = ctx.createGain();
     g.gain.value = 0;
     g.connect(engine._bus());
+    // Every layer feeds the shared reverb send too, in parallel with its dry
+    // path to the bus above — same source, two destinations, standard
+    // wet/dry mix wiring. _reverbSend() lazily builds the convolver -> wet
+    // gain -> bus chain on first call and just returns it on every later one.
+    engine._reverbSend();
+    g.connect(engine._reverbConvolver);
     const now = ctx.currentTime;
     g.gain.linearRampToValueAtTime(target, now + crossfadeMs(engine) / 1000);
     return g;
@@ -182,7 +237,18 @@
           env.gain.linearRampToValueAtTime(0.22, ctx.currentTime + 0.015);
           env.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.14);
           osc.connect(env);
-          env.connect(gain);
+          // A slight randomized stereo position per chirp — real birdsong
+          // doesn't come from dead center, and a fixed position on every
+          // single chirp would read as one robotic bird on a loop rather
+          // than an ambient flock scattered around the listener.
+          if (ctx.createStereoPanner) {
+            const panner = ctx.createStereoPanner();
+            panner.pan.value = Math.random() * 1.2 - 0.6;
+            env.connect(panner);
+            panner.connect(gain);
+          } else {
+            env.connect(gain);
+          }
           osc.start();
           osc.stop(ctx.currentTime + 0.16);
         }, i * 140);
