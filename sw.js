@@ -39,7 +39,11 @@
 // greenscore.js + functions/api/greenspace.js measuring actual OSM green-
 // space coverage and blending it into calmScore, stereo-decorrelated +
 // reverb soundscapes instead of dead-center mono, stale SOUNDSCAPE_LABELS
-// entries removed): bumping
+// entries removed) -> v35 (2026-08-03: curated CalmSpots map layer (10 real
+// quiet bars/hidden gardens), localStorage recent-routes + pinned places
+// (placesstore.js) with a save-pin destination-field control, 48h Echo
+// visibility window (hide, not delete), 4 selectable kalimba key presets
+// that never affect saved-Echo playback): bumping
 // this is what actually forces already-installed/previously-visited clients
 // onto the new app shell. The fetch handler below is cache-first ("cached
 // || network" always prefers a cached hit if one exists), which means a
@@ -49,7 +53,7 @@
 // cleanup + a fresh `cache.addAll`) actually surfaces new content. Bump
 // this on every future deploy that changes any file in APP_SHELL, not just
 // this one.
-const CACHE_NAME = "calm-companion-v34";
+const CACHE_NAME = "calm-companion-v35";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -67,8 +71,10 @@ const APP_SHELL = [
   "/navsim.js",
   "/patternlibrary.js",
   "/prefs.js",
+  "/placesstore.js",
   "/routing.js",
   "/greenscore.js",
+  "/calmspots.js",
   "/voiceengine.js",
   "/voicequeue.js",
   "/config.js",
