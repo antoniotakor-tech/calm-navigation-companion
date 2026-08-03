@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<!-- maximum-scale=1/user-scalable=no deliberately absent (WCAG 1.4.4 —
+     Resize Text; Apple's own accessibility guidance flags disabling pinch-
+     zoom as an anti-pattern): a low-vision user must be able to zoom this
+     page like any other, on top of the rem-based type scale below. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Calm Navigation Companion</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#12141F">
