@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -54,9 +54,9 @@
   </header>
 
   <nav class="page-dots" id="pageDots" role="tablist" aria-label="Pages">
-    <button class="dot-btn active" data-page="0" role="tab" aria-selected="true" aria-label="Calm routing"></button>
-    <button class="dot-btn" data-page="1" role="tab" aria-selected="false" aria-label="Auditory regulation"></button>
-    <button class="dot-btn" data-page="2" role="tab" aria-selected="false" aria-label="Kalimba"></button>
+    <button class="dot-btn active" id="dot-0" data-page="0" role="tab" aria-selected="true" aria-controls="page-0" aria-label="Calm routing">Route</button>
+    <button class="dot-btn" id="dot-1" data-page="1" role="tab" aria-selected="false" aria-controls="page-1" aria-label="Auditory regulation">Sound</button>
+    <button class="dot-btn" id="dot-2" data-page="2" role="tab" aria-selected="false" aria-controls="page-2" aria-label="Kalimba">Kalimba</button>
   </nav>
 
   <div class="pages-wrap" id="pagesWrap">
@@ -68,11 +68,17 @@
          button float on top of it in two glass cards rather than stacking
          below it in a scrolling form. Nothing here changed functionally,
          only where each piece visually sits. -->
-    <section class="page" id="page-0" aria-label="Calm routing">
+    <section class="page" id="page-0" role="tabpanel" aria-labelledby="dot-0" aria-label="Calm routing">
       <div class="page-inner">
         <div class="map-wrap" id="mapWrap">
           <div id="map"></div>
           <div class="sim-badge" id="simBadge" style="display:none;">SIMULATED GPS — not real location</div>
+          <!-- "Show my location", like the arrow button in Google/Apple Maps
+               (2026-10-09). Planning screen only — navigation has its own
+               Recenter control. Floats just above the route results card. -->
+          <button class="locate-btn" id="locateBtn" type="button" aria-label="Show my location" title="Show my location">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linejoin="round"><path d="M20 4 4 11l7 2 2 7z"/></svg>
+          </button>
 
           <!-- Top card: next manoeuvre, distance, street name, ETA/arrival
                time — nothing else, per the "keep it compact" requirement.
@@ -159,7 +165,13 @@
             <div class="route-input-wrap">
               <div class="route-input-row end">
                 <span class="dot"></span>
-                <input id="endInput" type="text" placeholder="Where to?" aria-label="Destination" />
+                <input id="endInput" type="text" placeholder="Where to? Or hold a spot on the map" aria-label="Destination" />
+                <!-- Clear/change the destination without reloading the app
+                     (2026-08-03) — shown whenever the field has any text,
+                     typed or resolved. Clears stale route results too, not
+                     just the text, so a mistaken destination never leaves a
+                     dangling old route on screen. -->
+                <button type="button" class="clear-dest-btn" id="clearDestinationBtn" aria-label="Clear destination" style="display:none;">✕</button>
                 <!-- Pin the current destination as a saved place (2026-08-03).
                      Only meaningful once a destination is actually resolved —
                      see app.js's pinDestinationBtn wiring, which hides this
@@ -216,13 +228,19 @@
           <div class="mode-note" id="backgroundNavNote" style="display:none;"></div>
 
           <div class="mode-note" id="modeNote"></div>
-          <div class="safety-note" id="safetyNote" style="display:none;"></div>
         </div>
 
         <!-- Floating results card — hidden until a route exists (app.js
              toggles `.visible`); the Start button lives here, floating on
              the map, rather than in the old below-the-map row. -->
         <div class="route-results-card" id="routeResultsCard">
+          <!-- Bottom-sheet handle (2026-10-09): the card opens compact — time,
+               distance, Start — like Google/Apple Maps, so the route stays
+               visible; this expands it to the full comparison + steps. -->
+          <button type="button" class="sheet-handle" id="sheetHandle" aria-expanded="false" aria-controls="routeResultsCard" aria-label="Show route details">
+            <span class="sheet-grabber" aria-hidden="true"></span>
+            <span class="sheet-handle-label" id="sheetHandleLabel">Details</span>
+          </button>
           <!-- Public transport options (Transitous/MOTIS via /api/transit).
                Shown instead of the calm/fastest cards when the Transit
                travel mode is selected; turn-by-turn Start stays a
@@ -256,6 +274,10 @@
               <div class="rc-green" id="calmGreen" style="display:none;"></div>
             </div>
           </div>
+          <!-- Night/isolation heads-up lives with the route it describes
+               (moved from the search card 2026-10-09 so the top card stays
+               compact and the route stays visible). -->
+          <div class="safety-note" id="safetyNote" style="display:none;"></div>
           <details class="route-alternatives" id="routeAlternatives">
             <summary>Other routes</summary>
             <div class="route-compare">
@@ -277,16 +299,19 @@
             <button class="sim-btn" id="simBtn" style="display:none;">DEV: Simulate GPS</button>
           </div>
 
-          <div class="steps-panel" id="stepsPanel">
-            <div class="steps-label">Turn by turn</div>
+          <!-- Folded by default (2026-10-09): the full list pushed the
+               results card up over most of the map. Like Google/Apple Maps,
+               the summary + Start come first; steps are one tap away. -->
+          <details class="steps-panel" id="stepsPanel">
+            <summary class="steps-label">Turn by turn</summary>
             <div class="steps-list" id="stepsList"></div>
-          </div>
+          </details>
         </div>
       </div>
     </section>
 
     <!-- PAGE 2 / PILLAR 2: Auditory Regulation -->
-    <section class="page" id="page-1" aria-label="Auditory regulation">
+    <section class="page" id="page-1" role="tabpanel" aria-labelledby="dot-1" aria-label="Auditory regulation">
       <div class="page-inner page-inner-centered">
         <div class="pillar-icon" id="auditoryMasterBtn" role="button" tabindex="0"
              aria-pressed="true" aria-label="Turn auditory regulation off">
@@ -394,7 +419,7 @@
          hidden, not deleted — safer than surgically unwiring a
          deeply cross-referenced subsystem, easy to resurface later if
          needed. -->
-    <section class="page" id="page-2" aria-label="Kalimba">
+    <section class="page" id="page-2" role="tabpanel" aria-labelledby="dot-2" aria-label="Kalimba">
       <div class="page-inner page-inner-centered">
         <div class="pillar-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
@@ -507,9 +532,6 @@
 
   </div>
 
-  <footer class="foot">
-    Calm Navigation Companion — a working prototype. Routing runs live via GraphHopper once an API key is set in config.js; otherwise it runs in demo mode. Your last 5 routes and any pinned places are saved only on this device (localStorage) — nothing about them is ever sent anywhere, including to this app's own servers.
-  </footer>
 </div>
 
 <!-- Settings sheet -->
@@ -594,6 +616,11 @@
     <p class="desc" style="margin:-6px 0 8px;">Pin a place from the "📌" button next to the destination field. Stored only on this device.</p>
     <ul class="pinned-places-list" id="pinnedPlacesList"></ul>
     <div class="desc" id="pinnedPlacesEmpty">No pinned places yet.</div>
+
+    <!-- Moved here from a footer under the map (2026-10-09) so the map can
+         use the full screen height, like Google/Apple Maps. -->
+    <h2>About &amp; privacy</h2>
+    <p class="desc" style="margin:-6px 0 8px;">Calm Navigation Companion is a working prototype. Your last 5 routes and any pinned places are saved only on this device — nothing about them is ever sent anywhere, including to this app's own servers.</p>
 
     <button class="close-sheet" id="resetAudioDefaultsBtn" style="background:var(--surface); border:1px solid var(--line); margin-top:10px;">Reset auditory settings to defaults</button>
     <button class="close-sheet" id="closeSettings">Done</button>

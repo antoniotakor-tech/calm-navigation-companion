@@ -68,8 +68,7 @@ function fetchWithTimeout(url, ms) {
   return fetch(url, { signal: controller.signal }).finally(() => clearTimeout(timer));
 }
 
-function isPeakNow(peakWindows) {
-  const now = new Date();
+function isPeakNow(peakWindows, now = new Date()) {
   const hourFloat = now.getHours() + now.getMinutes() / 60;
   return peakWindows.some((w) => hourFloat >= w.startHour && hourFloat <= w.endHour);
 }

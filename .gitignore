@@ -34,3 +34,6 @@ android/.idea/
 # commit it. Copy .dev.vars.example to .dev.vars and fill in your own key.
 # In production the key is a Cloudflare Pages secret, not a file at all.
 .dev.vars
+
+# Local Claude Code tooling config — never commit or deploy
+.claude/

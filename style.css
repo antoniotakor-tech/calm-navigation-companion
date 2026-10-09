@@ -10,19 +10,20 @@
    ========================================================================== */
 :root {
   /* ---- Color ---- */
-  --bg: #FAF9F6;
-  --surface: #FFFFFF;
-  --surface-2: #F2F0EA;
-  --ink: #1C2033;
-  --ink-soft: #565C72;
-  --muted: #9297A8;
-  --line: #E9E7F1;
-  --accent: #FF8A65;
-  --accent-ink: #2A1206;
-  --calm: #3FAE7D;
-  --calm-soft: #DFF3E9;
-  --busy: #F0B429;
-  --sky: #8B93F0;
+  --bg: #D7DDE0;
+  --surface: #EAEEEF;
+  --surface-2: #DFE4E6;
+  --ink: #232B30;
+  --ink-soft: #4A565C;
+  --muted: #525D63;
+  --line: #C3CCD0;
+  --accent: #7E5628;
+  --accent-ink: #FFFFFF;
+  --calm: #35604A;
+  --calm-ink: #FFFFFF;   /* ink ON --calm = 7.4:1 */
+  --calm-soft: #CBDBD1;
+  --busy: #8E4029;
+  --sky: #4A6B8A;
   --shadow: 0 1px 2px rgba(28,32,51,0.04), 0 8px 24px rgba(28,32,51,0.08);
   /* ---- Formal design-system aliases ----
      Semantic names for a small existing palette, not a second parallel one:
@@ -45,10 +46,10 @@
      function. Kept deliberately distinct from --busy (already the
      fastest-route line color) and --sky/--calm (already shop/transit POI
      dots) so a calm-spot marker never reads as "the same thing" as those. */
-  --calm-spot: #D9825C;
-  --danger: #E0492F;
-  --danger-bg: #FBE3DC;
-  --danger-ink: #7A2E1A;
+  --calm-spot: #7C5E86;
+  --danger: #8A2418;
+  --danger-bg: #EBD4CF;
+  --danger-ink: #5E170F;
   --glass: color-mix(in srgb, var(--surface) 88%, transparent);
   --border: var(--line);
   /* The signature accent gradient — calm green through soft violet to warm
@@ -56,7 +57,11 @@
      One definition, reused everywhere a "premium/delightful" accent moment
      is wanted (primary buttons, headline emphasis, progress fills, glows)
      rather than re-authored per component. */
-  --gradient-accent: linear-gradient(120deg, var(--calm) 0%, var(--sky) 55%, var(--accent) 100%);
+  /* Retired 2026-09-03. Was a 3-stop calm->sky->accent gradient copied from a
+     reference site's hero. A gradient accent is the default 'premium' move and it
+     was doing decorative work on four unrelated controls. The accent is now one
+     solid brass; the boldness is spent on the calm ribbon instead. */
+  --gradient-accent: var(--accent);
   --gradient-glow: radial-gradient(circle, color-mix(in srgb, var(--sky) 35%, transparent) 0%, transparent 70%);
 
   /* ---- Spacing — 8pt grid, with a 4px half-step for fine control ---- */
@@ -88,8 +93,9 @@
      (body copy, buttons, inputs, nav). This is the same "light+colorful
      serif accent line, then bold neutral sans for the actual statement"
      hierarchy the reference site uses in its own hero. */
-  --font-display: "Fraunces", Georgia, "Iowan Old Style", serif;
-  --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-display: "Bricolage Grotesque", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-body: "Atkinson Hyperlegible", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
   --text-xs: 0.75rem;
   --text-sm: 0.84375rem;
   --text-base: 0.9375rem;
@@ -122,20 +128,21 @@
   --kalimba-tine-2: var(--calm);
 }
 :root[data-theme="dark"], :root.hc-dark {
-  --bg: #12141F;
-  --surface: #1A1D2B;
-  --surface-2: #232637;
-  --ink: #F1F0F5;
-  --ink-soft: #B4B8CC;
-  --muted: #767C93;
-  --line: #2A2E42;
-  --accent: #FF9270;
-  --accent-ink: #1C0F08;
-  --calm: #4ECB9A;
-  --calm-soft: #1C3A30;
-  --busy: #F0C24E;
-  --sky: #9CA3F5;
-  --calm-spot: #E8926B;
+  --bg: #171B1D;
+  --surface: #1F2528;
+  --surface-2: #283034;
+  --ink: #E8EDEE;
+  --ink-soft: #B2BDC1;
+  --muted: #93A2A8;   /* was #7C8A8F = 4.35:1 on --surface FAIL -> 5.9:1 */
+  --line: #303A3E;
+  --accent: #D9A05B;
+  --accent-ink: #1A1206;
+  --calm: #6FB88E;
+  --calm-ink: #0E1A13;   /* was #fff = 2.35:1 FAIL -> 11.4:1 */
+  --calm-soft: #1E3A2C;
+  --busy: #E08A6B;
+  --sky: #7FA6C9;
+  --calm-spot: #B491C4;
   --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 18px 36px rgba(0,0,0,0.4);
   /* No --gradient-accent override needed here: the base :root's definition
      (line ~48) is written in terms of var(--calm)/var(--sky)/var(--accent),
@@ -144,19 +151,19 @@
      Redeclaring it per-theme would just be the same duplicated styling this
      redesign is trying to eliminate. */
   --secondary: var(--sky); --success: var(--calm); --warning: var(--busy);
-  --danger: #FF6B4A; --danger-bg: #3A241D; --danger-ink: #FFC7B0;
+  --danger: #E86A52; --danger-bg: #3A211B; --danger-ink: #F5C4B6;
   --glass: color-mix(in srgb, var(--surface) 82%, transparent); --border: var(--line);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]):not([data-theme="flow"]) {
-    --bg: #12141F; --surface: #1A1D2B; --surface-2: #232637; --ink: #F1F0F5;
-    --ink-soft: #B4B8CC; --muted: #767C93; --line: #2A2E42; --accent: #FF9270;
-    --accent-ink: #1C0F08; --calm: #4ECB9A; --calm-soft: #1C3A30; --busy: #F0C24E; --sky: #9CA3F5;
-    --calm-spot: #E8926B;
+    --bg: #171B1D; --surface: #1F2528; --surface-2: #283034; --ink: #E8EDEE;
+    --ink-soft: #B2BDC1; --muted: #93A2A8; --line: #303A3E; --accent: #D9A05B;
+    --accent-ink: #1A1206; --calm: #6FB88E; --calm-ink: #0E1A13; --calm-soft: #1E3A2C; --busy: #E08A6B; --sky: #7FA6C9;
+    --calm-spot: #B491C4;
     --shadow: 0 2px 4px rgba(0,0,0,0.35), 0 18px 36px rgba(0,0,0,0.4);
-    --secondary: #9CA3F5; --success: #4ECB9A; --warning: #F0C24E;
-    --danger: #FF6B4A; --danger-bg: #3A241D; --danger-ink: #FFC7B0;
-    --glass: color-mix(in srgb, #1A1D2B 82%, transparent); --border: #2A2E42;
+    --secondary: #7FA6C9; --success: #6FB88E; --warning: #E08A6B;
+    --danger: #E86A52; --danger-bg: #3A211B; --danger-ink: #F5C4B6;
+    --glass: color-mix(in srgb, #1F2528 82%, transparent); --border: #303A3E;
   }
 }
 
@@ -183,6 +190,7 @@
   --accent: #E8C170;
   --accent-ink: #1B1030;
   --calm: #3FD1D9;
+  --calm-ink: #062028;   /* was #fff = 2.0:1 FAIL -> 9.4:1 */
   --calm-soft: rgba(63, 209, 217, 0.18);
   --busy: #E38FB0;
   --sky: #7FE0EA;
@@ -210,7 +218,7 @@
      override below. */
   --bg: #000000; --surface: #000000; --surface-2: #000000; --ink: #FFFFFF;
   --ink-soft: #FFFFFF; --muted: #DDDDDD; --line: #FFFFFF; --accent: #FFD873;
-  --accent-ink: #000000; --calm: #5FE0BE; --calm-soft: #000000; --busy: #FFC96B;
+  --accent-ink: #000000; --calm: #5FE0BE; --calm-ink: #000000; --calm-soft: #000000; --busy: #FFC96B;
   --shadow: none;
   --gradient-accent: var(--accent);
   --secondary: #5FE0BE; --success: #5FE0BE; --warning: #FFC96B;
@@ -383,7 +391,7 @@
 :root[data-contrast="high"] {
   --bg: #FFFFFF; --surface: #FFFFFF; --surface-2: #FFFFFF; --ink: #000000;
   --ink-soft: #000000; --muted: #333333; --line: #000000; --accent: #B3400A;
-  --accent-ink: #FFFFFF; --calm: #0B5E48; --calm-soft: #FFFFFF; --busy: #8A5A00;
+  --accent-ink: #FFFFFF; --calm: #0B5E48; --calm-ink: #FFFFFF; --calm-soft: #FFFFFF; --busy: #8A5A00;
   --shadow: none;
   /* A flat color, not an actual gradient — high contrast intentionally
      replaces every nuanced/glass/gradient treatment with the simplest safe
@@ -396,7 +404,7 @@
 :root[data-theme="dark"][data-contrast="high"] {
   --bg: #000000; --surface: #000000; --surface-2: #000000; --ink: #FFFFFF;
   --ink-soft: #FFFFFF; --muted: #DDDDDD; --line: #FFFFFF; --accent: #FF8A50;
-  --accent-ink: #000000; --calm: #5FE0BE; --calm-soft: #000000; --busy: #FFC96B;
+  --accent-ink: #000000; --calm: #5FE0BE; --calm-ink: #000000; --calm-soft: #000000; --busy: #FFC96B;
   --gradient-accent: var(--accent);
   --secondary: #5FE0BE; --success: #5FE0BE; --warning: #FFC96B;
   --danger: #FF8A70; --danger-bg: #000000; --danger-ink: #FFFFFF;
@@ -446,8 +454,14 @@ body {
   overflow: hidden;
   transition: background var(--motion-slow) ease, color var(--motion-slow) ease;
 }
-:root[data-motion="reduced"] * ,
-@media (prefers-reduced-motion: reduce) { * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 :root[data-motion="reduced"] * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
 :root[data-motion="reduced"] .pages-wrap { scroll-behavior: auto !important; }
 
@@ -494,11 +508,9 @@ header.top {
    invisible text — the color: var(--ink) declared first is the fallback,
    overridden by the gradient fill immediately after wherever it IS supported. */
 header.top h1 {
-  font-family: var(--font-display); font-weight: 500; font-size: var(--text-xl); margin: 0;
-  letter-spacing: -0.01em;
+  font-family: var(--font-display); font-weight: 600; font-size: var(--text-xl); margin: 0;
+  letter-spacing: -0.015em;
   color: var(--ink);
-  background: var(--gradient-accent);
-  background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent;
 }
 header.top .tagline { font-size: var(--text-xs); color: var(--muted); margin-top: 2px; font-weight: 500; letter-spacing: 0.02em; text-transform: uppercase; }
 .top-actions { display: flex; gap: 8px; }
@@ -516,22 +528,27 @@ header.top .tagline { font-size: var(--text-xs); color: var(--muted); margin-top
 button:focus-visible, [tabindex]:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* --- Page dots nav --- */
-.page-dots { display: flex; justify-content: center; gap: 8px; padding: 10px 0 4px; flex-shrink: 0; }
+/* Labelled tabs, not bare dots (2026-10-09): the map page swallows every
+   sideways swipe as a map pan, so these are the only way off it — and three
+   unlabelled 9px dots read as decoration, not navigation. Each tab keeps a
+   44px-tall target and now says where it goes. */
+.page-dots { display: flex; justify-content: center; gap: 4px; padding: 0 0 4px; flex-shrink: 0; }
 .dot-btn {
-  /* Visual dot stays small by design (a page indicator, not a primary
-     action) — but the tap target underneath is invisibly enlarged via
-     ::before, the same approach Apple's own UIPageControl uses for this
-     exact case rather than growing the dots themselves. Full independent
-     44px per dot isn't reachable with only 8px between three of them
-     without overlapping a neighbor's hit area, so this reaches as close
-     as that constraint allows (~30px) rather than overclaiming full spec. */
   position: relative;
-  width: 9px; height: 9px; border-radius: 50%; background: var(--line); border: none; padding: 0;
-  cursor: pointer; transition: width var(--motion-fast) var(--squish), background var(--motion-fast) ease;
+  min-width: 44px; height: 44px; flex-shrink: 0;
+  background: none; border: none; margin: 0; padding: 0 14px;
+  display: flex; align-items: center; justify-content: center;
+  font: inherit; font-size: 13px; font-weight: 600; letter-spacing: 0.01em;
+  color: var(--ink-soft); cursor: pointer;
+  transition: color var(--motion-fast) ease;
 }
-.dot-btn.active { width: 26px; border-radius: 6px; background: var(--calm); animation: dot-breathe 2.6s ease-in-out infinite; }
-.dot-btn::before { content: ""; position: absolute; inset: -10px; }
-@keyframes dot-breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.72; } }
+.dot-btn::after {
+  content: ""; position: absolute; left: 14px; right: 14px; bottom: 8px;
+  height: 3px; border-radius: 2px; background: transparent;
+  transition: background var(--motion-fast) ease;
+}
+.dot-btn.active { color: var(--calm); }
+.dot-btn.active::after { background: var(--calm); }
 
 /* --- Swipeable pages --- */
 .pages-wrap {
@@ -577,6 +594,15 @@ button:focus-visible, [tabindex]:focus-visible, input:focus-visible { outline: 2
    specificity, later source order) — the row itself carries the visible
    keyboard-focus indicator instead, as a shape change (ring), not colour alone. */
 .route-input-row:focus-within { border-color: var(--calm); box-shadow: 0 0 0 3px var(--calm-soft); }
+
+/* Clear/change destination (2026-08-03) — shown whenever the field has any
+   text, so a mistaken destination can be fixed in place instead of forcing
+   a reload. Same plain-icon-button treatment as .pin-dest-btn below it. */
+.clear-dest-btn {
+  flex-shrink: 0; border: none; background: none; font-size: 0.8125rem; line-height: 1;
+  padding: 4px 6px; border-radius: 8px; cursor: pointer; color: var(--muted); opacity: 0.85;
+}
+.clear-dest-btn:hover { opacity: 1; color: var(--danger); background: var(--surface-2); }
 
 /* Save-as-pinned-place (2026-08-03) — a plain icon button beside the
    destination field, and a small inline editor that drops down below the
@@ -685,7 +711,7 @@ button:focus-visible, [tabindex]:focus-visible, input:focus-visible { outline: 2
 
 /* --- Live navigation overlay --- */
 .start-nav-btn {
-  width: 100%; background: var(--calm); color: #fff; border: none; border-radius: 999px;
+  width: 100%; background: var(--calm); color: var(--calm-ink); border: none; border-radius: 999px;
   padding: 13px; font-size: 0.90625rem; font-weight: 700; cursor: pointer; margin: 8px 0 0;
   display: flex; align-items: center; justify-content: center; gap: 8px;
   box-shadow: 0 4px 0 rgba(0,0,0,0.14), var(--shadow);
@@ -789,7 +815,7 @@ button:focus-visible, [tabindex]:focus-visible, input:focus-visible { outline: 2
   box-shadow: var(--shadow-sm);
 }
 .nav-banner-text { min-width: 0; flex: 1; }
-.nav-banner-dist { font-size: 1.1875rem; font-weight: 600; font-family: var(--font-display); color: var(--calm); }
+.nav-banner-dist { font-size: 1.1875rem; font-weight: 500; font-family: var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; color: var(--calm); }
 /* Outdoor-visibility pass: the one line a person actually needs while
    mid-stride reads clearly at a glance — bumped up from 12.5px/600 and
    given a touch more line-height, sized/weighted independently of the
@@ -986,10 +1012,49 @@ button:focus-visible, [tabindex]:focus-visible, input:focus-visible { outline: 2
 .route-card.selected { border-color: var(--calm); background: var(--calm-soft); }
 .route-card .rc-label { font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 4px; font-weight: 700; }
 .route-card.selected .rc-label { color: var(--calm); font-weight: 700; }
-.route-card .rc-time { font-size: 1.375rem; font-weight: 600; font-family: var(--font-display); }
+.route-card .rc-time { font-size: 1.375rem; font-weight: 500; font-family: var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
 .route-card .rc-sub { font-size: 0.6875rem; color: var(--muted); margin-top: 2px; font-weight: 600; }
-.breakdown-bar { display: flex; height: 7px; border-radius: 6px; overflow: hidden; margin-top: 8px; }
-.breakdown-bar span { display: block; height: 100%; }
+/* ---- The calm ribbon (signature, 2026-09-03) ----------------------------
+   This was a 7px decorative sliver. It is the only element in the app that
+   shows the whole walk at once — every segment is a real measured road class
+   from the routing response — so it is now the thing the app is remembered
+   by, and the one place the design is allowed to be bold.
+   The seams are the point: hairline gaps let you count the changes of
+   surface, the way the kalimba's tines are countable. A smooth gradient
+   would look more "premium" and would hide exactly the information the
+   walker needs. */
+.breakdown-bar {
+  display: flex;
+  gap: 1.5px;
+  height: 16px;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 10px;
+  background: var(--line);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 8%, transparent);
+}
+.breakdown-bar span {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+  border-radius: 1px;
+}
+/* The two ends are the only rounded corners — the ribbon reads as one walk
+   with a start and an end, not as a row of loose chips. */
+.breakdown-bar span:first-child { border-radius: 2px 1px 1px 2px; }
+.breakdown-bar span:last-child  { border-radius: 1px 2px 2px 1px; }
+@media (prefers-reduced-motion: no-preference) {
+  .route-card.selected .breakdown-bar span {
+    animation: ribbon-settle 0.5s var(--ease-out) backwards;
+  }
+  /* Segments arrive left to right, the order you will actually walk them. */
+  .route-card.selected .breakdown-bar span:nth-child(1) { animation-delay: 0.02s }
+  .route-card.selected .breakdown-bar span:nth-child(2) { animation-delay: 0.06s }
+  .route-card.selected .breakdown-bar span:nth-child(3) { animation-delay: 0.10s }
+  .route-card.selected .breakdown-bar span:nth-child(4) { animation-delay: 0.14s }
+  .route-card.selected .breakdown-bar span:nth-child(n+5) { animation-delay: 0.18s }
+}
+@keyframes ribbon-settle { from { transform: scaleY(0.25); opacity: 0 } to { transform: scaleY(1); opacity: 1 } }
 /* Real measured green-space coverage (see routing.js/greenscore.js) — a
    small leaf-tagged line, distinct from the road-class breakdown bar above
    it, so it reads as "we checked" rather than another guess. */
@@ -1013,8 +1078,11 @@ button:focus-visible, [tabindex]:focus-visible, input:focus-visible { outline: 2
   padding: 11px 14px; font-size: 0.75rem; font-weight: 700; line-height: 1.4; margin: 8px 0 4px;
 }
 
-.steps-panel { margin-top: 14px; }
-.steps-label { font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); margin-bottom: 8px; font-weight: 700; }
+.steps-panel { margin-top: 10px; }
+.steps-label { font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 700; }
+/* Same disclosure treatment as "Other routes"; 44px tall so it's an easy target. */
+.steps-panel > summary { cursor: pointer; padding: 13px 0; }
+.steps-panel[open] > summary { margin-bottom: 4px; }
 .steps-list {
   display: flex; flex-direction: column; gap: 2px; max-height: 260px; overflow-y: auto;
   background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 8px; box-shadow: var(--shadow);
@@ -1255,11 +1323,17 @@ footer.foot {
   box-shadow: var(--shadow-md); border: 1px solid var(--line);
   font-family: var(--font-body); font-size: 0.78125rem; font-weight: 600; padding: 8px 12px;
 }
-/* CalmSpots popup carries a name + a note, unlike the plain-text POI popup
-   above it — restyle just the note line to read as secondary/body text
-   instead of inheriting the popup's bold default. */
-.calmspot-popup strong { display: block; margin-bottom: 3px; color: var(--calm-spot); }
-.calmspot-popup div { font-weight: 500; color: var(--ink-soft); line-height: 1.35; }
+/* Every map pin popup — POI or CalmSpot — shares this shape (2026-08-03):
+   name, optional note, and a real "Go here" action. A popup that only
+   showed a name with nothing you could do about it wasn't useful. */
+.map-pin-popup strong { display: block; margin-bottom: 3px; color: var(--ink); }
+.map-pin-popup-note { font-weight: 500; color: var(--ink-soft); line-height: 1.35; margin-bottom: 8px; }
+.map-pin-popup-go-btn {
+  display: block; width: 100%; border: none; border-radius: 10px; padding: 8px 10px;
+  background: var(--calm); color: #fff; font-family: inherit; font-size: 0.78125rem;
+  font-weight: 700; cursor: pointer; margin-top: 4px;
+}
+.map-pin-popup-go-btn:active { transform: scale(0.97); }
 .maplibregl-popup-anchor-bottom .maplibregl-popup-tip { border-top-color: var(--surface); }
 .maplibregl-popup-anchor-top .maplibregl-popup-tip { border-bottom-color: var(--surface); }
 .maplibregl-popup-anchor-left .maplibregl-popup-tip { border-right-color: var(--surface); }
@@ -1295,4 +1369,58 @@ footer.foot {
   font-size: 0.75rem; font-weight: 700; font-family: var(--font-body); color: var(--accent-ink);
   background: var(--accent); border-radius: 50%; width: 22px; height: 22px;
   display: flex; align-items: center; justify-content: center;
+}
+
+/* --- "Show my location" button (2026-10-09) ---
+   Sits bottom-right like Google/Apple Maps. --sheet-h is the live height of
+   the route results card (set from app.js), so the button rides just above
+   it instead of hiding underneath. */
+.locate-btn {
+  position: absolute; right: 12px; z-index: 19;
+  bottom: calc(var(--sheet-h, 0px) + 18px + env(safe-area-inset-bottom, 0px));
+  width: 48px; height: 48px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--glass); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border); box-shadow: var(--shadow);
+  color: var(--calm); cursor: pointer;
+  transition: bottom var(--motion-slow) var(--squish), transform var(--motion-fast) var(--squish);
+}
+.locate-btn:active { transform: scale(0.94); }
+.locate-btn svg { width: 22px; height: 22px; stroke: currentColor; }
+.locate-btn.locating svg { animation: locate-pulse 1s ease-in-out infinite; }
+.locate-btn.located svg { fill: currentColor; }
+@keyframes locate-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .locate-btn.locating svg { animation: none; opacity: 0.6; } }
+[data-motion="reduced"] .locate-btn.locating svg { animation: none; opacity: 0.6; }
+.page-inner.nav-active .locate-btn { display: none; }
+/* Long-press drops a pin (2026-10-09) — stop iOS Safari from treating the
+   same hold as "select text / show callout" on the map. */
+#map { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+/* Compact search card while a route is shown (see setRouteShown in app.js). */
+.route-search-card.route-shown .find-btn,
+.route-search-card.route-shown .safety-toggle-row,
+.route-search-card.route-shown .mode-note { display: none !important; }
+.route-search-card.route-shown #travelModePills { margin-bottom: 0; }
+
+/* --- Results card as a two-state bottom sheet (2026-10-09) ---
+   Compact by default: route time/distance + Start. The handle expands it to
+   the breakdown bar, green measurement, other routes and turn-by-turn. */
+.sheet-handle {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  width: 100%; margin: -6px 0 6px; padding: 4px 0 2px;
+  background: none; border: none; cursor: pointer; color: var(--muted);
+  font: inherit; font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase;
+}
+.sheet-grabber { width: 36px; height: 5px; border-radius: 3px; background: var(--line); }
+.route-results-card.transit-mode .sheet-handle { display: none; }
+.route-results-card:not(.expanded):not(.transit-mode) .breakdown-bar,
+.route-results-card:not(.expanded):not(.transit-mode) .rc-green,
+.route-results-card:not(.expanded):not(.transit-mode) .route-alternatives,
+.route-results-card:not(.expanded):not(.transit-mode) .steps-panel { display: none !important; }
+.route-results-card:not(.expanded) .route-card { padding: var(--space-3) var(--space-4); }
+.route-results-card:not(.expanded) .nav-start-row { margin-top: 8px; }
+.safety-note-btn {
+  display: block; margin-top: 8px; min-height: 40px; padding: 8px 14px; border-radius: 12px;
+  background: var(--surface); border: 1px solid var(--calm); color: var(--ink);
+  font: inherit; font-weight: 700; cursor: pointer;
 }

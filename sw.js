@@ -43,7 +43,11 @@
 // quiet bars/hidden gardens), localStorage recent-routes + pinned places
 // (placesstore.js) with a save-pin destination-field control, 48h Echo
 // visibility window (hide, not delete), 4 selectable kalimba key presets
-// that never affect saved-Echo playback): bumping
+// that never affect saved-Echo playback) -> v36 (2026-08-03: map pin popups
+// — POI and CalmSpot — get a real "Go here" action instead of just showing
+// a name with nothing to do about it; a clear/change-destination "✕"
+// button so a mistaken destination can be fixed in place instead of
+// reloading the app): bumping
 // this is what actually forces already-installed/previously-visited clients
 // onto the new app shell. The fetch handler below is cache-first ("cached
 // || network" always prefers a cached hit if one exists), which means a
@@ -53,7 +57,12 @@
 // cleanup + a fresh `cache.addAll`) actually surfaces new content. Bump
 // this on every future deploy that changes any file in APP_SHELL, not just
 // this one.
-const CACHE_NAME = "calm-companion-v35";
+// v41 (2026-10-09): empty destination on open, Stop resets to a clean
+// planning screen, no auto-resuming soundscape, labelled page tabs.
+// v42 (2026-10-09): maps-app pass — long-press to drop a pin, Show-my-location
+// button + blue dot on the planning map, route framed in the visible map area,
+// folded turn-by-turn list, full-height map (privacy note moved to Settings).
+const CACHE_NAME = "calm-companion-v42";
 const APP_SHELL = [
   "/",
   "/index.html",

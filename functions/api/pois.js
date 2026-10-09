@@ -24,12 +24,14 @@ const UPSTREAMS = [
   "https://overpass.kumi.systems/api/interpreter",
   "https://overpass.private.coffee/api/interpreter",
 ];
-const UPSTREAM_TIMEOUT_MS = 9000;
-// Per-kind caps instead of one global slice: the global cap silently
-// favored whatever Overpass returned first (shops, per the query's clause
-// order), which is exactly backwards for a "show me all the bars and
-// restaurants" request. Food/drink places get the deepest cap and are
-// never crowded out by shops or transit stops.
+const UPSTREAM_TIMEOUT_MS = 6000;
+// Deliberately BELOW the query's own [timeout:8] server budget: verified
+// 2026-09-09 that all three public Overpass mirrors refuse this Worker
+// outright (Overpass rate-limits per IP; Workers egress from Cloudflare's
+// shared pool). The same query returns 200 in 2.2-6.3s from a home IP.
+// Since upstream failure is currently the norm, failing fast beats waiting
+// longer for the same 502. Raise this above 8000 only once POIs are served
+// from a source that actually answers us — see PROJECT_STATUS.md.
 const MAX_FOOD = 400;
 const MAX_SHOPS = 400;
 const MAX_TRANSIT = 150;
@@ -108,8 +110,16 @@ export async function onRequestGet(context) {
   // mapped as a building outline) come back with a usable single point.
   const query = `[out:json][timeout:8];(node["shop"]["name"](${bboxQL});way["shop"]["name"](${bboxQL});node["amenity"~"^(${FOOD_AMENITIES})$"]["name"](${bboxQL});way["amenity"~"^(${FOOD_AMENITIES})$"]["name"](${bboxQL});node["amenity"="ferry_terminal"](${bboxQL});way["amenity"="ferry_terminal"](${bboxQL});node["railway"~"^(${TRANSIT_RAILWAY})$"](${bboxQL});node["highway"="bus_stop"](${bboxQL}););out center ${MAX_RESULTS * 2};`;
 
-  let resp = null;
-  for (const upstream of UPSTREAMS) {
+  // Mirrors are raced in PARALLEL, not tried one after another.
+  //
+  // Changed 2026-09-03 after the app was reported as laggy. The sequential
+  // loop cost (mirrors x per-request timeout) in the worst case — measured
+  // 19-21s in production, every time, because Overpass was refusing all
+  // three. The client waits on this, so the whole app felt frozen.
+  // Racing bounds the wait at ONE timeout regardless of how many mirrors
+  // there are, and the fastest healthy mirror wins instead of whichever
+  // happens to be first in the list.
+  const raceOne = async (upstream) => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
     try {
@@ -117,23 +127,29 @@ export async function onRequestGet(context) {
         method: "POST",
         body: "data=" + encodeURIComponent(query),
         headers: {
-          "content-type": "application/x-www-form-urlencoded",
           // Overpass's usage policy asks every client to identify itself, and
           // their servers reject anonymous/UA-less requests (workerd sends no
           // default User-Agent — this header is load-bearing, not courtesy).
+          "content-type": "application/x-www-form-urlencoded",
           "user-agent": "CalmNavigationCompanion/1.0 (https://calm-navigation-companion.pages.dev)",
         },
         signal: controller.signal,
       });
-      if (attempt.ok) { resp = attempt; break; }
-      // Status-level logging only, same convention as route.js/geocode.js —
-      // no coordinates, no user data.
-      console.warn("POIs upstream non-ok status, trying next mirror:", attempt.status);
-    } catch (e) {
-      console.warn("POIs upstream fetch failed, trying next mirror:", e && e.message);
+      // Promise.any resolves on the first NON-rejecting promise, so a non-ok
+      // response has to reject or a 429 would beat a healthy mirror's 200.
+      if (!attempt.ok) throw new Error("upstream status " + attempt.status);
+      return attempt;
     } finally {
       clearTimeout(timer); // also on the error path — a leaked timer pins the runtime alive
     }
+  };
+
+  let resp = null;
+  try {
+    resp = await Promise.any(UPSTREAMS.map(raceOne));
+  } catch (e) {
+    // AggregateError: every mirror failed or timed out.
+    console.warn("All %s upstream mirrors failed or timed out.", UPSTREAMS.length);
   }
   if (!resp) return jsonError("POI service is busy right now.", 502);
 

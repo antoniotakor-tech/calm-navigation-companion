@@ -16,7 +16,13 @@ async function withMockedFetch(impl, fn) {
 }
 
 test("isPeakNow: true inside a window, false outside all windows", () => {
-  assert.equal(isPeakNow([{ startHour: 7, endHour: 9.5 }]), false, "this assumes the test doesn't run at 7-9:30am — see next test for a robust version");
+  // Clock injected, not read from the wall: the previous version of this test
+  // asserted false against a hardcoded 7-9:30 window and therefore failed on
+  // every run between 07:00 and 09:30 local.
+  const windows = [{ startHour: 7, endHour: 9.5 }];
+  assert.equal(isPeakNow(windows, new Date(2026, 0, 15, 8, 15)), true, "08:15 is inside 7-9:30");
+  assert.equal(isPeakNow(windows, new Date(2026, 0, 15, 14, 0)), false, "14:00 is outside every window");
+  assert.equal(isPeakNow([], new Date(2026, 0, 15, 8, 15)), false, "no windows means never peak");
 });
 
 test("isPeakNow: robust — construct windows around the current time", () => {

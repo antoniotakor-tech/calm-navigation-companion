@@ -484,8 +484,31 @@
       endMarker = new maplibregl.Marker({ element: makePinElement(getVar("--accent")), anchor: "bottom" })
         .setLngLat(all[all.length - 1]).addTo(map);
       map.resize();
-      map.fitBounds(boundsOfCoords(all), { padding: 32, animate: false });
+      fitToVisibleMap(all);
     }
+  }
+
+  // Frame a route inside the part of the map you can actually SEE — between
+  // the search card on top and the results card at the bottom — the way
+  // Google/Apple Maps fit a route above their bottom sheet. A flat 32px
+  // padding used to put most of the route underneath the two cards.
+  // Measured live (both cards change height), deferred one frame so the
+  // results card that runSearch() shows right after this has laid out.
+  // Falls back to the flat padding if the cards would leave too little map.
+  function fitToVisibleMap(coords) {
+    requestAnimationFrame(() => {
+      const mapRect = map.getContainer().getBoundingClientRect();
+      const pad = { top: 32, bottom: 32, left: 32, right: 32 };
+      const search = document.getElementById("routeSearchCard");
+      if (search && search.offsetParent) {
+        pad.top = Math.max(pad.top, search.getBoundingClientRect().bottom - mapRect.top + 24);
+      }
+      if (routeResultsCard.classList.contains("visible")) {
+        pad.bottom = Math.max(pad.bottom, mapRect.bottom - routeResultsCard.getBoundingClientRect().top + 24);
+      }
+      if (pad.top + pad.bottom > mapRect.height - 80) { pad.top = 32; pad.bottom = 32; }
+      map.fitBounds(boundsOfCoords(coords), { padding: pad, animate: false, maxZoom: 17 });
+    });
   }
 
   function drawRoute(result, start, end, options) {
@@ -509,7 +532,7 @@
       // measured it (banners toggling above the map) — resize() before
       // fitBounds so the fit is computed against the real box.
       map.resize();
-      map.fitBounds(boundsOfCoords(calmRouteCoords), { padding: 32, animate: false });
+      if (!isReroute) fitToVisibleMap(calmRouteCoords);
     };
     // First search can land before the style finishes loading (fast typer,
     // slow network) — defer once rather than crash on addSource.
@@ -615,7 +638,12 @@
   const travelModePills = document.querySelectorAll("#travelModePills .pill");
 
   startInput.value = CONFIG.DEFAULT_START.label;
-  endInput.value = CONFIG.DEFAULT_END.label;
+  // Destination opens empty (2026-10-09): pre-filling a demo destination
+  // ("Vondelpark") read as "the app thinks I'm going there" and had to be
+  // cleared before every real trip. resolvedEnd keeps the config default
+  // only as an internal placeholder; runSearch refuses an empty field, so
+  // it can never be routed to without being chosen.
+  endInput.value = "";
   let resolvedStart = CONFIG.DEFAULT_START;
   let resolvedEnd = CONFIG.DEFAULT_END;
   let travelMode = "walk";
@@ -728,6 +756,27 @@
   function expandSearchCard() {
     routeSearchCard.classList.remove("collapsed");
   }
+  // Compact top card while a route is on screen (2026-10-09), like Google
+  // Maps' from/to header: the Find button, safety checkbox and status line
+  // fold away so the route itself is visible between the two cards. Tapping
+  // either field brings the full form back.
+  function setRouteShown(on) {
+    routeSearchCard.classList.toggle("route-shown", !!on);
+  }
+  endInput.addEventListener("focus", () => setRouteShown(false));
+  startInput.addEventListener("focus", () => setRouteShown(false));
+
+  // Bottom-sheet expand/collapse for the results card (2026-10-09).
+  const sheetHandle = document.getElementById("sheetHandle");
+  const sheetHandleLabel = document.getElementById("sheetHandleLabel");
+  function setSheetExpanded(on) {
+    routeResultsCard.classList.toggle("expanded", !!on);
+    sheetHandle.setAttribute("aria-expanded", on ? "true" : "false");
+    sheetHandle.setAttribute("aria-label", on ? "Hide route details" : "Show route details");
+    sheetHandleLabel.textContent = on ? "Less" : "Details";
+    if (on) routeResultsCard.scrollTop = 0;
+  }
+  sheetHandle.addEventListener("click", () => setSheetExpanded(!routeResultsCard.classList.contains("expanded")));
   const endAutocomplete = new AutocompleteController({
     input: endInput,
     listEl: document.getElementById("endAcList"),
@@ -865,9 +914,83 @@
   endInput.addEventListener("focus", showNearbySuggestions);
   endInput.addEventListener("input", () => {
     if (!endInput.value.trim()) showNearbySuggestions();
+    updateClearDestinationVisibility();
   });
   startInput.addEventListener("focus", ensureUserLocation);
   endInput.addEventListener("focus", ensureUserLocation);
+
+  // ---- Start from where you actually are (2026-09-03) ------------------
+  // The start field used to open hardcoded to Amsterdam Centraal, so anyone
+  // who wasn't standing at Centraal had to clear it before every single
+  // route. Now it resolves to your real location on load and Centraal is
+  // only the fallback.
+  //
+  // Deliberately non-blocking and silent on failure: if location is denied,
+  // unavailable, or slow, the field simply keeps the fallback and the app
+  // stays usable. It also never overwrites something you already typed —
+  // the guard re-checks at resolve time, because the fix can take seconds
+  // and you may have started typing in the meantime.
+  (async function defaultStartToCurrentLocation() {
+    const untouched = () =>
+      !startSelectedResult && startInput.value === CONFIG.DEFAULT_START.label;
+    if (!untouched()) return;
+    startInput.placeholder = "Finding your location…";
+    let here = null;
+    try {
+      here = await useCurrentLocationForStart();
+    } catch (e) {
+      here = null;
+    }
+    startInput.placeholder = "";
+    if (!here || !untouched()) return;   // denied, failed, or you typed meanwhile
+    resolvedStart = here;
+    startInput.value = here.label;
+    startSelectedResult = here;
+    showUserDotAt(here); // your blue dot, like any maps app, once we know it
+  })();
+
+  // ---- Clear/change destination (2026-08-03) ----
+  // "I make a mistake with the destination and have to close and reopen" —
+  // there was genuinely no way to back out of a chosen destination short of
+  // reloading the page. Clears the text + resolved selection + any stale
+  // route already drawn for the old destination, but deliberately leaves
+  // the rest of the expanded form alone (start point, travel mode, safety
+  // toggle) — the mistake was the destination, not those.
+  const clearDestinationBtn = document.getElementById("clearDestinationBtn");
+  function updateClearDestinationVisibility() {
+    clearDestinationBtn.style.display = endInput.value.trim() ? "inline-flex" : "none";
+  }
+  updateClearDestinationVisibility(); // syncs against the pre-filled default destination (see endInput.value above)
+  // `refocus: false` is for programmatic resets (after Stop/arrival), where
+  // popping the keyboard and the suggestion list open uninvited is unwanted.
+  function clearDestination({ refocus = true } = {}) {
+    endInput.value = "";
+    endSelectedResult = null;
+    lastResult = null;
+    clearRouteLayers();
+    if (travelMode === "transit") clearTransitRoute();
+    routeResultsCard.classList.remove("visible");
+    setRouteShown(false);
+    routeCompare.style.display = "none";
+    startNavBtn.style.display = "none";
+    document.getElementById("routeAlternatives").open = false;
+    // Status text belongs to the search that was just discarded — leaving
+    // it up ("routing service returned an error", a night-safety heads-up)
+    // reads as a live problem with the NEXT search before one has even run.
+    modeNote.textContent = "";
+    safetyNote.style.display = "none";
+    errorBanner.style.display = "none";
+    // Same for the autocomplete's own status line ("couldn't load
+    // suggestions for …") — it described the text that was just cleared.
+    const endAcStatusEl = document.getElementById("endAcStatus");
+    if (endAcStatusEl) endAcStatusEl.innerHTML = "";
+    updatePinButtonVisibility();
+    updateClearDestinationVisibility();
+    if (!refocus) return;
+    endInput.focus();
+    showNearbySuggestions();
+  }
+  clearDestinationBtn.addEventListener("click", () => clearDestination());
 
   // ---- Save-as-pinned-place (2026-08-03) ----
   const pinDestinationBtn = document.getElementById("pinDestinationBtn");
@@ -879,6 +1002,7 @@
   // coordinates — a raw, unresolved text field has nothing to pin.
   function updatePinButtonVisibility() {
     pinDestinationBtn.style.display = endSelectedResult ? "inline-flex" : "none";
+    updateClearDestinationVisibility();
   }
   pinDestinationBtn.addEventListener("click", () => {
     if (!endSelectedResult) return;
@@ -961,22 +1085,55 @@
     });
   });
 
+  // The calm ribbon's ramp. Retuned 2026-09-03 with the rest of the palette:
+  // these were picked against the old cream ground and read as a stock
+  // green->amber->red "risk" scale. The ramp now walks the app's own hues —
+  // moss (--calm) through brass (--accent) to brick (--busy) — so a segment's
+  // colour is recognisably the same language as the route line and the calm
+  // badge, not a second, unrelated scale the reader has to learn.
   const CLASS_COLORS = {
-    path: "#4F7A6E", track: "#6B9C8C", pedestrian: "#7FADA0", living_street: "#96C2B3",
-    footway: "#5C8F80", cycleway: "#8FB8AC", residential: "#B7CDBE", unclassified: "#CBB98A",
-    service: "#D8C9A0", tertiary: "#D6A254", secondary: "#C1592E", primary: "#A8391B",
-    trunk: "#7E2A13", motorway: "#5C1D0C", other: "#AAAAAA",
+    path: "#35604A", footway: "#3E6B52", track: "#4A7860", pedestrian: "#57856D",
+    cycleway: "#66927B", living_street: "#77A08A", residential: "#8CAE9B",
+    unclassified: "#A0A78C", service: "#B09E78", tertiary: "#B98A57",
+    secondary: "#A86A3E", primary: "#96512F", trunk: "#8E4029", motorway: "#6E2E1C",
+    other: "#8A9296",
+  };
+
+  // Quiet-to-busy order, so the ribbon reads as one scale rather than as
+  // whatever order the routing response happened to list the classes in.
+  const CLASS_ORDER = ["path","footway","track","pedestrian","cycleway","living_street",
+    "residential","unclassified","service","tertiary","secondary","primary","trunk","motorway","other"];
+  const CLASS_LABELS = {
+    path: "path", footway: "footpath", track: "track", pedestrian: "pedestrian street",
+    cycleway: "cycle path", living_street: "living street", residential: "residential street",
+    unclassified: "minor road", service: "service road", tertiary: "small through-road",
+    secondary: "through-road", primary: "main road", trunk: "major road",
+    motorway: "motorway", other: "unclassified",
   };
 
   function renderBar(el, breakdownPct) {
     el.innerHTML = "";
-    Object.keys(breakdownPct).forEach((k) => {
+    const keys = Object.keys(breakdownPct)
+      .sort((a, b) => CLASS_ORDER.indexOf(a) - CLASS_ORDER.indexOf(b));
+    keys.forEach((k) => {
       const seg = document.createElement("span");
       seg.style.width = breakdownPct[k] + "%";
       seg.style.background = CLASS_COLORS[k] || CLASS_COLORS.other;
-      seg.title = `${k}: ${breakdownPct[k]}%`;
+      seg.title = `${CLASS_LABELS[k] || k}: ${breakdownPct[k]}%`;
       el.appendChild(seg);
     });
+    // The ribbon is the only place the whole walk is shown at once. Sighted
+    // users read it as a strip; without this a screen-reader user got a bare
+    // row of empty spans. Named largest-first — the surfaces you will spend
+    // most of the walk on are the ones worth hearing first.
+    const spoken = keys
+      .slice()
+      .sort((a, b) => breakdownPct[b] - breakdownPct[a])
+      .slice(0, 4)
+      .map((k) => `${breakdownPct[k]}% ${CLASS_LABELS[k] || k}`)
+      .join(", ");
+    el.setAttribute("role", "img");
+    el.setAttribute("aria-label", `Route surfaces, quietest first: ${spoken}.`);
   }
 
   // greenPct is real, measured OSM data (see routing.js's fetchGreenWays +
@@ -1129,6 +1286,12 @@
     // in flight — two concurrent fetchCalmRoute calls could otherwise race
     // and let the earlier (stale) response's drawRoute() overwrite the later one.
     if (isSearching) return;
+    // Nothing to route to yet — the destination now opens empty, and an
+    // empty field must not silently fall back to a stale/default endpoint.
+    if (!endInput.value.trim()) {
+      endInput.focus();
+      return;
+    }
     isSearching = true;
     findBtn.disabled = true;
     findBtn.classList.add("loading");
@@ -1204,6 +1367,7 @@
       transitItineraries = await fetchTransitPlan(resolvedStart, resolvedEnd);
       setTransitModeUI(true);
       routeResultsCard.classList.add("visible");
+      setRouteShown(true);
       startNavBtn.style.display = "none";
       if (!transitItineraries.length) {
         transitResultsEl.innerHTML = '<div class="mode-note">No public-transport options found for this trip right now.</div>';
@@ -1259,6 +1423,8 @@
     renderGreenMeasurement(document.getElementById("fastGreen"), result.fastest.greenPct);
     routeCompare.style.display = "flex";
     routeResultsCard.classList.add("visible");
+    setRouteShown(true);
+    setSheetExpanded(false); // every new route opens compact
     startNavBtn.style.display = "flex";
     // Every fresh search resets to the zero-decision default: calm route
     // selected, alternatives disclosure collapsed — a leftover open state
@@ -1281,7 +1447,19 @@
     // Surface it explicitly, especially at night, rather than silently picking
     // "calm" for someone without telling them what that traded off.
     if (result.night && result.calm.isolatedPct >= 25 && !result.safetyMode) {
-      safetyNote.textContent = `Heads up: this calm route is ${result.calm.isolatedPct}% quiet paths/parks — calmer, but also less populated, and it's currently night hours. If personal safety is a concern, try "prefer well-lit, busier streets" above.`;
+      // The safety checkbox is folded away while a route is shown (compact
+      // top card), so the note carries its own one-tap switch instead of
+      // pointing at a control the user can't see. (2026-10-09)
+      safetyNote.textContent = `Heads up: this calm route is ${result.calm.isolatedPct}% quiet paths/parks — calmer, but also less populated, and it's currently night hours.`;
+      const safer = document.createElement("button");
+      safer.type = "button";
+      safer.className = "safety-note-btn";
+      safer.textContent = "Use well-lit, busier streets";
+      safer.addEventListener("click", () => {
+        safetyToggle.checked = true;
+        safetyToggle.dispatchEvent(new Event("change"));
+      });
+      safetyNote.appendChild(safer);
       safetyNote.style.display = "block";
     } else {
       safetyNote.style.display = "none";
@@ -1348,11 +1526,59 @@
   // Unlike Leaflet, MapLibre does NOT cancel the pending single-click when
   // a double-click zoom lands — without the 300ms hold below, every
   // double-tap zoom would also pin a destination and fire a route search.
-  let pendingMapTap = null;
-  map.on("dblclick", () => { clearTimeout(pendingMapTap); pendingMapTap = null; });
-  map.on("click", (e) => {
-    clearTimeout(pendingMapTap);
-    pendingMapTap = setTimeout(() => handleMapTap(e), 300);
+  //
+  // Long-press, not tap (2026-10-09), the way Google/Apple Maps drop a pin:
+  // a plain tap fired a route search, so every slightly-off pan, a tap meant
+  // to dismiss the keyboard, or a tap aimed at a marker that missed sent the
+  // user off routing somewhere random. A single finger held still for
+  // LONG_PRESS_MS drops the pin; any movement or a second finger (pinch)
+  // cancels. Right-click (desktop, and Android's own long-press) does the same.
+  const LONG_PRESS_MS = 500;
+  const LONG_PRESS_SLOP_PX = 10;
+  let longPressTimer = null;
+  let longPressOrigin = null;
+  let lastPinDropAt = 0;
+  function dropPin(e) {
+    // A touch long-press can ALSO surface as contextmenu on some engines —
+    // whichever arrives first wins, the other is ignored.
+    if (Date.now() - lastPinDropAt < 1000) return;
+    lastPinDropAt = Date.now();
+    if (navigator.vibrate) navigator.vibrate(12);
+    handleMapTap(e);
+  }
+  function cancelLongPress() {
+    clearTimeout(longPressTimer);
+    longPressTimer = null;
+    longPressOrigin = null;
+  }
+  map.on("touchstart", (e) => {
+    cancelLongPress();
+    if (!e.originalEvent.touches || e.originalEvent.touches.length !== 1) return;
+    longPressOrigin = e.point;
+    const pressed = { point: e.point, lngLat: e.lngLat };
+    longPressTimer = setTimeout(() => {
+      longPressTimer = null;
+      dropPin(pressed);
+    }, LONG_PRESS_MS);
+  });
+  map.on("touchmove", (e) => {
+    if (!longPressOrigin) return;
+    const moved = Math.hypot(e.point.x - longPressOrigin.x, e.point.y - longPressOrigin.y);
+    if (moved > LONG_PRESS_SLOP_PX || (e.originalEvent.touches && e.originalEvent.touches.length > 1)) cancelLongPress();
+  });
+  map.on("touchend", cancelLongPress);
+  map.on("touchcancel", cancelLongPress);
+  map.on("movestart", (e) => { if (e.originalEvent) cancelLongPress(); });
+  map.on("contextmenu", (e) => {
+    cancelLongPress();
+    dropPin(e);
+  });
+  // A plain tap on the map now means "I'm done typing": put the keyboard
+  // and the suggestion list away so the map is actually visible.
+  map.on("click", () => {
+    const active = document.activeElement;
+    if (active === endInput || active === startInput) active.blur();
+    endAutocomplete.close();
   });
   async function handleMapTap(e) {
     if (pageInner0.classList.contains("nav-active")) return;
@@ -1386,6 +1612,49 @@
       // Best-effort only — the coordinate label above already works.
     }
   }
+
+  // ---- "Show my location" (2026-10-09) --------------------------------
+  // Google/Apple Maps' arrow button: one tap shows the blue dot (with its
+  // accuracy ring) and flies the map there. Planning screen only.
+  const locateBtn = document.getElementById("locateBtn");
+  const mapWrapEl = document.getElementById("mapWrap");
+  // Keep the button riding just above the results card, whatever its height.
+  if (typeof ResizeObserver !== "undefined") {
+    new ResizeObserver(() => {
+      const h = routeResultsCard.classList.contains("visible") ? routeResultsCard.offsetHeight : 0;
+      mapWrapEl.style.setProperty("--sheet-h", h + "px");
+    }).observe(routeResultsCard);
+  }
+  function showUserDotAt(point, accuracyM) {
+    if (pageInner0.classList.contains("nav-active")) return; // navigation owns the dot then
+    updateUserMarker(point.lat, point.lon, accuracyM || 25, null);
+  }
+  async function locateMe() {
+    if (locateBtn.classList.contains("locating")) return;
+    locateBtn.classList.add("locating");
+    try {
+      if (NavBridge.isNative) {
+        const status = await Capacitor.Plugins.CalmNavBackground.getPermissionStatus();
+        if (status.foreground !== "granted") {
+          const req = await Capacitor.Plugins.CalmNavBackground.requestForegroundLocationPermission();
+          if (!req.granted) throw new Error("denied");
+        }
+      }
+      const fix = await NavBridge.location.getCurrentPosition();
+      userPoint = { lat: fix.lat, lon: fix.lon };
+      showUserDotAt(userPoint, fix.accuracyM);
+      map.flyTo({ center: [fix.lon, fix.lat], zoom: Math.max(map.getZoom(), 16), duration: 900 });
+      locateBtn.classList.add("located");
+    } catch (e) {
+      showError("Couldn't find your location. Check that location access is turned on for this app.");
+    } finally {
+      locateBtn.classList.remove("locating");
+    }
+  }
+  locateBtn.addEventListener("click", locateMe);
+  // Panning away means the map is no longer centred on you — same cue as
+  // Google/Apple Maps (filled arrow = following you, outline = not).
+  map.on("dragstart", () => locateBtn.classList.remove("located"));
 
   const recenterBtn = document.getElementById("recenterBtn");
   const navMuteBtn = document.getElementById("navMuteBtn");
@@ -1779,6 +2048,10 @@
     backgroundNavActive = false;
   }
 
+  // The carousel page navigation was launched from, so ending a route
+  // early can put you back exactly where you were.
+  let pageBeforeNavigation = 0;
+
   function endNavigation(message) {
     stopActiveLocationSource();
     backgroundNavNote.style.display = "none";
@@ -1801,6 +2074,13 @@
     releaseWakeLock();
     if (typeof ambient !== "undefined") ambient.setLevel(1);
     if (message) modeNote.textContent = message;
+    // Ending a route early used to tear down navigation state but leave you
+    // wherever the carousel happened to be scrolled, so the app looked like
+    // it hadn't closed. Go back to the page navigation was started from.
+    // goToPage is a hoisted function declaration in this same scope.
+    if (typeof goToPage === "function") {
+      goToPage(pageBeforeNavigation, false);
+    }
   }
 
   async function reroute(lat, lon) {
@@ -2007,6 +2287,7 @@
       document.activeElement.blur();
     }
     appShellEl.classList.add("nav-fullscreen");
+    pageBeforeNavigation = currentPage;
     pageInner0.classList.add("nav-active");
     navArrived.style.display = "none";
     navArrived.classList.remove("visible");
@@ -2117,8 +2398,19 @@
 
   startNavBtn.addEventListener("click", () => { usingSimulatedGps = false; startNavigation(); });
   simBtn.addEventListener("click", () => { usingSimulatedGps = true; startNavigation(); });
-  navEndBtn.addEventListener("click", () => endNavigation());
-  document.getElementById("arrivedDoneBtn").addEventListener("click", () => endNavigation());
+  // A user-initiated Stop/Done means "this trip is over": return to a clean
+  // planning screen. Previously the finished route's results card (time,
+  // Start, turn-by-turn list) stayed up and covered the map, and the old
+  // destination stayed in the field, so there was no obvious way to go
+  // anywhere new short of closing the app. (2026-10-09) Error-triggered
+  // endNavigation() calls deliberately keep the route so it can be retried.
+  function finishTrip() {
+    endNavigation();
+    clearDestination({ refocus: false });
+    if (userPoint) showUserDotAt(userPoint); // endNavigation removed the nav dot
+  }
+  navEndBtn.addEventListener("click", finishTrip);
+  document.getElementById("arrivedDoneBtn").addEventListener("click", finishTrip);
 
   // ---------------------------------------------------------------------
   // PILLAR 2 — Auditory regulation
@@ -2157,15 +2449,12 @@
 
   // iOS Safari only allows the audio context to unlock inside a direct user
   // gesture — do it on the very first tap anywhere, not just a sound chip, so
-  // it's unlocked as early as possible. Respects the master enabled switch:
-  // if the user had auditory regulation OFF last session, don't start
-  // playing anything just because they tapped elsewhere in the app.
+  // it's unlocked as early as possible. Unlock ONLY: this used to also
+  // resume last session's soundscape, so the first tap anywhere (even on the
+  // map) started noise the user never asked for. Sound now only ever starts
+  // from picking a soundscape or preset. (2026-10-09)
   const unlockAudioOnce = () => {
     audioManager.ensureCtx();
-    const a = prefs.get().audio;
-    if (a.enabled && ambient.soundscape && ambient.soundscape !== "off" && !ambient.layers.length) {
-      ambient.setSoundscape(ambient.soundscape, a.ambientVolume);
-    }
     window.removeEventListener("touchend", unlockAudioOnce);
     window.removeEventListener("click", unlockAudioOnce);
   };
@@ -2386,6 +2675,12 @@
   // records which one is selected and drives the UI/bus volumes, since
   // mobile browsers block audio autoplay before a valid user gesture.
   (function initAudioFromPrefs() {
+    // Every launch starts silent (2026-10-09): last session's soundscape is
+    // not carried over as "selected", so the UI shows Off and nothing can
+    // resume it behind the user's back — e.g. the master toggle or a nav
+    // start, which both play whatever ambient.soundscape holds. Volumes,
+    // mode and night mode are still restored.
+    if (prefs.get().audio.soundscape !== "off") prefs.set({ audio: { soundscape: "off" } });
     const a = prefs.get().audio;
     renderAuditoryUI(a);
     applyModeToEngines(a.mode);
@@ -2853,11 +3148,40 @@
       const f = e.features && e.features[0];
       if (!f) return;
       if (poiPopup) poiPopup.remove();
-      poiPopup = new maplibregl.Popup({ closeButton: false, offset: 8 })
-        .setLngLat(f.geometry.coordinates)
-        .setText(f.properties.name)
+      poiPopup = buildGoHerePopup(f.geometry.coordinates, f.properties.name, null)
         .addTo(map);
     });
+  }
+
+  // Every map pin popup (POI, CalmSpot) shares this: a name, an optional
+  // note, and a "Go here" button — added 2026-08-03 because a popup that
+  // only shows a name with no way to act on it isn't useful ("I have to
+  // click and see what it is, then I have no way to decide to go there").
+  // Reuses selectDestinationSuggestion, the exact same set-destination-and-
+  // search path the empty-state suggestions dropdown already uses.
+  function buildGoHerePopup(lngLat, name, note) {
+    const wrap = document.createElement("div");
+    wrap.className = "map-pin-popup";
+    const title = document.createElement("strong");
+    title.textContent = name;
+    wrap.appendChild(title);
+    if (note) {
+      const noteEl = document.createElement("div");
+      noteEl.className = "map-pin-popup-note";
+      noteEl.textContent = note;
+      wrap.appendChild(noteEl);
+    }
+    const goBtn = document.createElement("button");
+    goBtn.type = "button";
+    goBtn.className = "map-pin-popup-go-btn";
+    goBtn.textContent = "Go here";
+    goBtn.addEventListener("click", () => {
+      selectDestinationSuggestion(name, lngLat[1], lngLat[0]);
+      if (poiPopup) { poiPopup.remove(); poiPopup = null; }
+      if (calmSpotPopup) { calmSpotPopup.remove(); calmSpotPopup = null; }
+    });
+    wrap.appendChild(goBtn);
+    return new maplibregl.Popup({ closeButton: false, offset: 8, maxWidth: "220px" }).setLngLat(lngLat).setDOMContent(wrap);
   }
 
   // CalmSpots (2026-08-03): a small, static, hand-curated layer (see
@@ -2897,23 +3221,7 @@
       const f = e.features && e.features[0];
       if (!f) return;
       if (calmSpotPopup) calmSpotPopup.remove();
-      // Built as real DOM nodes (textContent, not innerHTML/setHTML) — this
-      // data is static/developer-authored today, but building it the same
-      // safe way as any user-generated content in this app costs nothing
-      // and never becomes a problem if this list grows a user-submission
-      // path later.
-      const wrap = document.createElement("div");
-      wrap.className = "calmspot-popup";
-      const title = document.createElement("strong");
-      title.textContent = f.properties.name;
-      const note = document.createElement("div");
-      note.textContent = f.properties.note;
-      wrap.appendChild(title);
-      wrap.appendChild(note);
-      calmSpotPopup = new maplibregl.Popup({ closeButton: false, offset: 8, maxWidth: "220px" })
-        .setLngLat(f.geometry.coordinates)
-        .setDOMContent(wrap)
-        .addTo(map);
+      calmSpotPopup = buildGoHerePopup(f.geometry.coordinates, f.properties.name, f.properties.note).addTo(map);
     });
   }
   function clearPoiMarkers() {
@@ -2923,6 +3231,12 @@
   const POI_MIN_ZOOM = 14;
   const POI_CACHE_MS = 10 * 60 * 1000;
   const POI_MIN_FETCH_GAP_MS = 2500;
+  // How long a FAILED lookup is remembered. Added 2026-09-03: only successes
+  // were cached, so while Overpass was down every pan started another
+  // multi-second request that was going to fail anyway — several in flight at
+  // once, forever. Shorter than the success TTL so the map recovers on its own
+  // once the upstream is healthy again, without the user reloading.
+  const POI_FAIL_CACHE_MS = 90 * 1000;
   const poiCache = new Map(); // gridKey -> { at, pois }
   let poiDebounce = null;
   let lastPoiFetchAt = 0;
@@ -2960,24 +3274,30 @@
     });
   }
 
+  function rememberPoiFailure(key) {
+    poiCache.set(key, { at: Date.now(), pois: [], failed: true });
+  }
+
   async function refreshPois() {
     if (pageInner0.classList.contains("nav-active")) return;
     if (map.getZoom() < POI_MIN_ZOOM) { clearPoiMarkers(); return; }
     const bbox = poiGridBbox();
     const key = `${bbox.minLat},${bbox.minLon},${bbox.maxLat},${bbox.maxLon}`;
     const cached = poiCache.get(key);
-    if (cached && Date.now() - cached.at < POI_CACHE_MS) { whenStyleReady(() => renderPois(cached.pois)); return; }
+    const ttl = cached && cached.failed ? POI_FAIL_CACHE_MS : POI_CACHE_MS;
+    if (cached && Date.now() - cached.at < ttl) { whenStyleReady(() => renderPois(cached.pois)); return; }
     if (Date.now() - lastPoiFetchAt < POI_MIN_FETCH_GAP_MS) return; // grid cache misses can't stampede Overpass
     lastPoiFetchAt = Date.now();
     try {
       const resp = await fetch(`${apiBaseUrl}/api/pois?bbox=${key}`);
-      if (!resp.ok) return;
+      if (!resp.ok) { rememberPoiFailure(key); return; }
       const data = await resp.json();
       const pois = data.pois || [];
       poiCache.set(key, { at: Date.now(), pois });
       whenStyleReady(() => renderPois(pois));
     } catch (e) {
       // Best-effort decoration — the map is complete without POI markers.
+      rememberPoiFailure(key);
     }
   }
 
@@ -3328,13 +3648,45 @@
     pagesWrap.scrollTo({ left: pages[i].offsetLeft, behavior: smooth === false ? "auto" : "smooth" });
   }
 
+  // The two off-screen pages stay in the DOM (scroll-snap needs them there),
+  // so without this they keep every control tabbable and keep announcing
+  // themselves to a screen reader: 22 of 50 focusable elements sat off-screen
+  // but reachable, and Tab from the routing form landed on the kalimba tines
+  // with the focus ring somewhere the user could not see. `inert` removes
+  // them from focus order, hit-testing and the a11y tree in one attribute;
+  // aria-hidden is belt-and-braces for older engines. (2026-09-09)
+  function applyPageIsolation(i) {
+    // Clamp first. A non-finite or out-of-range index would make `idx !== i`
+    // true for every page and mark ALL of them inert — which freezes the
+    // whole app, not just one page. Before pages were inert-gated this was
+    // merely cosmetic (blank dots), so the old code could afford to trust
+    // the caller. It can't any more. (2026-09-09)
+    if (!Number.isFinite(i)) i = currentPageOr0();
+    i = Math.max(0, Math.min(pages.length - 1, i));
+    pages.forEach((p, idx) => {
+      const inactive = idx !== i;
+      p.toggleAttribute("inert", inactive);
+      p.setAttribute("aria-hidden", inactive ? "true" : "false");
+    });
+  }
+
+  function currentPageOr0() {
+    return Number.isFinite(currentPage) ? currentPage : 0;
+  }
+
   function setActivePage(i) {
+    // A NaN index must never reach the isolation logic, and must never be
+    // stored: `NaN === NaN` is false, so a stored NaN would also defeat the
+    // early-return below and re-run this on every scroll frame.
+    if (!Number.isFinite(i)) return;
+    i = Math.max(0, Math.min(pages.length - 1, i));
     if (i === currentPage) return;
     // Leaving the Kalimba page mid-recording cancels it — recording is tied
     // to being on that page, same guarantee closing the old kalimba modal
     // used to give for free.
     if (currentPage === 2) cancelKalimbaRecording();
     currentPage = i;
+    applyPageIsolation(i);
     dots.forEach((d, idx) => {
       d.classList.toggle("active", idx === i);
       d.setAttribute("aria-selected", idx === i ? "true" : "false");
@@ -3344,17 +3696,29 @@
     if (i === 2) refreshEchoRecordGate();
   }
 
+  applyPageIsolation(currentPage);
+
   dots.forEach((dot) => {
     dot.addEventListener("click", () => goToPage(parseInt(dot.dataset.page, 10)));
   });
 
+  function syncActivePageToScroll() {
+    // clientWidth is 0 whenever the pager is display:none or mid-layout —
+    // a backgrounded PWA tab does this on resume. Dividing by it yields
+    // NaN (0/0) or Infinity, which is where the freeze above came from.
+    const width = pagesWrap.clientWidth;
+    if (!width) return;
+    setActivePage(Math.round(pagesWrap.scrollLeft / width));
+  }
   pagesWrap.addEventListener("scroll", () => {
     if (scrollRAF) cancelAnimationFrame(scrollRAF);
-    scrollRAF = requestAnimationFrame(() => {
-      const idx = Math.round(pagesWrap.scrollLeft / pagesWrap.clientWidth);
-      setActivePage(idx);
-    });
+    scrollRAF = requestAnimationFrame(syncActivePageToScroll);
   });
+  // Belt-and-braces for the page you land on after a swipe: every page but
+  // the active one is `inert` (untappable), so if the last scroll frame of a
+  // momentum swipe is ever missed, the page you can SEE would ignore taps.
+  // scrollend fires once the snap has actually settled. (2026-10-09)
+  pagesWrap.addEventListener("scrollend", syncActivePageToScroll);
 
   // Basic swipe support is native via scroll-snap; keyboard left/right as a
   // non-touch fallback for accessibility.
