@@ -1427,3 +1427,18 @@ footer.foot {
   background: var(--surface); border: 1px solid var(--calm); color: var(--ink);
   font: inherit; font-weight: 700; cursor: pointer;
 }
+
+/* --- Kalimba during navigation (2026-10-10) --- */
+.nav-back-btn {
+  display: none; position: fixed; z-index: 60;
+  top: calc(10px + env(safe-area-inset-top, 0px)); left: 10px;
+  min-height: 44px; padding: 0 16px; border-radius: 22px;
+  background: var(--calm); color: #fff; border: none; font: inherit; font-weight: 700; cursor: pointer;
+  box-shadow: var(--shadow);
+}
+.app-shell.nav-fullscreen.nav-away ~ .nav-back-btn,
+body.nav-away .nav-back-btn { display: flex; align-items: center; }
+/* Off-map pages must scroll and clear the back button while navigating. */
+.app-shell.nav-fullscreen .page:not(#page-0) .page-inner {
+  overflow-y: auto; padding-top: calc(64px + env(safe-area-inset-top, 0px));
+}

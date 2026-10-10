@@ -2170,6 +2170,7 @@
     navRerouting = false;
     appShellEl.classList.remove("nav-fullscreen");
     pageInner0.classList.remove("nav-active");
+    document.body.classList.remove("nav-away");
     navBottom.classList.remove("nav-controls-hidden");
     clearSmartControlsTimer();
     navArrived.style.display = "none";
@@ -2517,6 +2518,9 @@
     clearDestination({ refocus: false });
     if (userPoint) showUserDotAt(userPoint); // endNavigation removed the nav dot
   }
+  // Kalimba mid-walk: navigation (GPS, voice) keeps running under the page.
+  document.getElementById("navKalimbaBtn").addEventListener("click", () => goToPage(2, false));
+  document.getElementById("navBackBtn").addEventListener("click", () => goToPage(0, false));
   navEndBtn.addEventListener("click", finishTrip);
   document.getElementById("arrivedDoneBtn").addEventListener("click", finishTrip);
 
@@ -3753,6 +3757,21 @@
 
   function goToPage(i, smooth) {
     i = Math.max(0, Math.min(pages.length - 1, i));
+    if (appShellEl.classList.contains("nav-fullscreen")) {
+      // In full-screen navigation the pager is overflow:hidden, and
+      // mandatory scroll-snap pulls a scripted jump straight back to the map
+      // (found 2026-10-10 adding Kalimba-while-walking). Jump with snapping
+      // off. Snapping must STAY off for the rest of the trip (turning it back
+      // on re-snaps to the map); it is restored by the normal path below,
+      // which endNavigation() always goes through.
+      pagesWrap.style.scrollSnapType = "none";
+      pagesWrap.style.scrollBehavior = "auto";
+      pagesWrap.scrollLeft = pages[i].offsetLeft;
+      requestAnimationFrame(syncActivePageToScroll);
+      return;
+    }
+    pagesWrap.style.scrollSnapType = "";
+    pagesWrap.style.scrollBehavior = "";
     pagesWrap.scrollTo({ left: pages[i].offsetLeft, behavior: smooth === false ? "auto" : "smooth" });
   }
 
@@ -3795,6 +3814,8 @@
     if (currentPage === 2) cancelKalimbaRecording();
     currentPage = i;
     applyPageIsolation(i);
+    // While navigating, any page other than the map gets a way back.
+    document.body.classList.toggle("nav-away", appShellEl.classList.contains("nav-fullscreen") && i !== 0);
     dots.forEach((d, idx) => {
       d.classList.toggle("active", idx === i);
       d.setAttribute("aria-selected", idx === i ? "true" : "false");

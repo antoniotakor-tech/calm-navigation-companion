@@ -59,6 +59,11 @@
     <button class="dot-btn" id="dot-2" data-page="2" role="tab" aria-selected="false" aria-controls="page-2" aria-label="Kalimba">Kalimba</button>
   </nav>
 
+  <!-- Shown only while navigating and away from the map (e.g. playing the
+       kalimba mid-walk): navigation keeps running underneath; this is the
+       one obvious way back. -->
+  <button type="button" class="nav-back-btn" id="navBackBtn" aria-label="Back to navigation">← Back to navigation</button>
+
   <div class="pages-wrap" id="pagesWrap">
 
     <!-- PAGE 1 / PILLAR 1: Calm Routing -->
@@ -125,6 +130,10 @@
             <button class="nav-control-btn" id="navHapticBtn" aria-label="Toggle haptic feedback" title="Haptic feedback">
               <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M9 12a3 3 0 1 1 6 0v3a3 3 0 0 1-6 0z"/><path d="M9 12V7a3 3 0 0 1 6 0v5"/></svg>
               <span class="nav-control-label">Haptics</span>
+            </button>
+            <button class="nav-control-btn" id="navKalimbaBtn" aria-label="Open the kalimba" title="Kalimba">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M6 20V8M10 20V4M14 20V4M18 20V8"/></svg>
+              <span class="nav-control-label">Kalimba</span>
             </button>
             <button class="nav-control-btn" id="recenterBtn" aria-label="Recenter map on my location" title="Recenter">
               <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
