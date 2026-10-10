@@ -360,6 +360,21 @@ class AutocompleteController {
     this.open_ = true;
     this.listEl.style.display = "block";
     this.input.setAttribute("aria-expanded", "true");
+    this.fitToViewport();
+  }
+
+  // Keep the list above the on-screen keyboard: size it to the visible
+  // viewport instead of a fixed 300px (on an iPhone SE the keyboard hid most
+  // of it). Re-fits as the keyboard opens/closes.
+  fitToViewport() {
+    const vv = typeof window !== "undefined" && window.visualViewport;
+    if (!vv || this.listEl.style.display === "none") return;
+    if (!this._vvBound) {
+      this._vvBound = true;
+      vv.addEventListener("resize", () => this.fitToViewport());
+    }
+    const top = this.listEl.getBoundingClientRect().top;
+    this.listEl.style.maxHeight = Math.max(110, Math.min(300, vv.offsetTop + vv.height - top - 10)) + "px";
   }
 
   close() {

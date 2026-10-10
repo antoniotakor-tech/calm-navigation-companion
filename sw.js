@@ -68,7 +68,8 @@
 // v45 (2026-10-10): search loads nearby places on demand + category words.
 // v46 (2026-10-10): nearby search results deduplicated by name.
 // v47 (2026-10-10): iPhone fit — 16px inputs (no auto-zoom), no double safe-area, compact header.
-const CACHE_NAME = "calm-companion-v47";
+// v48 (2026-10-10): remaining iPhone fit items (title, kalimba height, keyboard-aware suggestions, toast).
+const CACHE_NAME = "calm-companion-v48";
 const APP_SHELL = [
   "/",
   "/index.html",

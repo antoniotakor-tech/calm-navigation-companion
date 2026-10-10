@@ -849,6 +849,9 @@
   }
   endInput.addEventListener("focus", () => setRouteShown(false));
   startInput.addEventListener("focus", () => setRouteShown(false));
+  [endInput, startInput].forEach((el) => el.addEventListener("blur", () => setTimeout(() => {
+    if (routeResultsCard.classList.contains("visible") && !routeSearchCard.contains(document.activeElement)) setRouteShown(true);
+  }, 250)));
 
   // Bottom-sheet expand/collapse for the results card (2026-10-09).
   const sheetHandle = document.getElementById("sheetHandle");
