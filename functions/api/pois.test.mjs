@@ -124,3 +124,61 @@ test("expanded food kinds: biergarten and nightclub classify as food", () => {
   assert.equal(normalizePoi({ type: "node", id: 1, lat: 52, lon: 4, tags: { amenity: "biergarten", name: "Garten" } }).kind, "food");
   assert.equal(normalizePoi({ type: "node", id: 2, lat: 52, lon: 4, tags: { amenity: "nightclub", name: "Club" } }).kind, "food");
 });
+
+// ---- D1 area cache (2026-10-10) -----------------------------------------
+// Minimal in-memory stand-in for the D1 binding: just the prepare/bind/
+// first/run surface pois.js uses.
+function fakeDb(rows = new Map()) {
+  return {
+    rows,
+    prepare(sql) {
+      let args = [];
+      const stmt = {
+        bind(...a) { args = a; return stmt; },
+        async first() { return rows.get(args[0]) || null; },
+        async run() {
+          if (/^INSERT/.test(sql)) rows.set(args[0], { body: args[1], fetched_at: args[2] });
+          return {};
+        },
+      };
+      return stmt;
+    },
+  };
+}
+const BBOX_URL = "https://x/api/pois?bbox=52.36,4.88,52.37,4.89";
+const KEY = "52.3600,4.8800,52.3700,4.8900";
+const cachedBody = JSON.stringify({ pois: [{ id: "node/9", lat: 52.365, lon: 4.885, name: "Cached Café", kind: "food" }] });
+
+test("D1 cache: a fresh cached area is served without calling Overpass", async () => {
+  const db = fakeDb(new Map([[KEY, { body: cachedBody, fetched_at: Date.now() - 60 * 1000 }]]));
+  let called = false;
+  await withMockedFetch(async () => { called = true; throw new Error("should not be called"); }, async () => {
+    const resp = await onRequestGet({ request: { url: BBOX_URL }, env: { DB: db } });
+    assert.equal(resp.status, 200);
+    assert.equal(resp.headers.get("x-poi-cache"), "hit");
+    assert.equal((await resp.json()).pois[0].name, "Cached Café");
+  });
+  assert.equal(called, false);
+});
+
+test("D1 cache: when every mirror fails, an old cached copy is served instead of a 502", async () => {
+  const db = fakeDb(new Map([[KEY, { body: cachedBody, fetched_at: Date.now() - 3 * 24 * 60 * 60 * 1000 }]]));
+  await withMockedFetch(async () => ({ ok: false, status: 429 }), async () => {
+    const resp = await onRequestGet({ request: { url: BBOX_URL }, env: { DB: db } });
+    assert.equal(resp.status, 200);
+    assert.equal(resp.headers.get("x-poi-cache"), "stale");
+  });
+});
+
+test("D1 cache: a successful Overpass answer is stored for next time", async () => {
+  const db = fakeDb();
+  await withMockedFetch(
+    async () => ({ ok: true, status: 200, json: async () => ({ elements: [{ type: "node", id: 5, lat: 52.365, lon: 4.885, tags: { amenity: "cafe", name: "Fresh" } }] }) }),
+    async () => {
+      const resp = await onRequestGet({ request: { url: BBOX_URL }, env: { DB: db } });
+      assert.equal(resp.headers.get("x-poi-cache"), "miss");
+    }
+  );
+  assert.ok(db.rows.get(KEY), "row written");
+  assert.match(db.rows.get(KEY).body, /Fresh/);
+});

@@ -17,7 +17,7 @@
 // text match outrank a stronger one — this is what makes "exact or strong
 // text match near the user" the dominant sort key required by the spec,
 // with city/metro/country/distance acting only as tie-breakers within a tier
-// (max possible combined location+type bonus is 40+15=55, and 55 << 350).
+// (max possible combined location+type bonus is 40+15+120=175, still << 350).
 const WEIGHTS = {
   EXACT_TEXT_MATCH: 1000,        // normalized primary label equals the query exactly
   PREFIX_TEXT_MATCH: 500,        // primary label starts with the query
@@ -34,6 +34,15 @@ const WEIGHTS = {
   DISTANCE_DECAY_CAP_KM: 100,   // distance penalty stops growing past this many km (max -80)
   ADDRESS_TYPE_BOOST: 15,       // query looks like a full address (has a house number)
   PLACE_TYPE_BOOST: 10,         // query has no house number: prefer places/streets/etc. over bare addresses
+  // "I typed a street name in Amsterdam, show me Amsterdam's" (2026-10-10).
+  // The distance decay alone (max -80) was too gentle to reliably beat a
+  // same-tier hit with a city/type bonus elsewhere. Kept well under the 350
+  // gap between text tiers (max combined bonus now 40+15+120=175), so a
+  // stronger text match still always wins — this only reorders within a tier.
+  NEARBY_BOOST_KM: 15,
+  NEARBY_BOOST: 120,
+  REGION_BOOST_KM: 40,
+  REGION_BOOST: 50,
 };
 
 const TYPE_LABELS = {
@@ -176,6 +185,8 @@ function scoreHit(hit, context) {
   if (context.userPoint && Number.isFinite(hit.lat) && Number.isFinite(hit.lon)) {
     const km = haversineDistanceKm(context.userPoint, hit);
     score += Math.min(km, WEIGHTS.DISTANCE_DECAY_CAP_KM) * WEIGHTS.DISTANCE_DECAY_PER_KM;
+    if (km <= WEIGHTS.NEARBY_BOOST_KM) score += WEIGHTS.NEARBY_BOOST;
+    else if (km <= WEIGHTS.REGION_BOOST_KM) score += WEIGHTS.REGION_BOOST;
   }
 
   const wantsAddress = looksLikeAddressQuery(context.queryText);

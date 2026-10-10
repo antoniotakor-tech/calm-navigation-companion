@@ -679,8 +679,18 @@
     }
   }
   function getUserContext() {
+    // No GPS fix (desktop, location not granted yet)? Bias toward wherever
+    // the map is showing instead of nowhere (2026-10-10): otherwise a street
+    // typed in Amsterdam ranked an identically named street in another town
+    // just as high. The map opens on the user's city and follows them, so
+    // its centre is the best available stand-in.
+    let point = userPoint;
+    if (!point && typeof map !== "undefined" && map.getCenter) {
+      const c = map.getCenter();
+      point = { lat: c.lat, lon: c.lng };
+    }
     return {
-      point: userPoint,
+      point,
       city: cityContext && cityContext.city,
       state: cityContext && cityContext.state,
       countryCode: cityContext && cityContext.countryCode,
@@ -726,6 +736,40 @@
 
   let startSelectedResult = null;
   let endSelectedResult = null;
+
+  // Cafés, shops and stops already loaded on the map whose name matches what
+  // you're typing, nearest first (2026-10-10) — "Albert Heijn" should offer
+  // the one round the corner before any geocoder result. Word-start match
+  // only (typing "ah" shouldn't match every name with "ah" inside it).
+  function nearbyPlaceMatches(query) {
+    const q = String(query || "").trim().toLowerCase();
+    if (q.length < 2 || typeof poiCache === "undefined") return [];
+    const here = getUserContext().point;
+    if (!here) return [];
+    const seen = new Set();
+    const hits = [];
+    for (const entry of poiCache.values()) {
+      for (const p of entry.pois || []) {
+        if (seen.has(p.id)) continue;
+        seen.add(p.id);
+        const name = String(p.name || "").toLowerCase();
+        if (!name.split(/[\s\-'’.,&]+/).some((w) => w.startsWith(q)) && !name.startsWith(q)) continue;
+        const d = NavLogic.haversineM(here.lat, here.lon, p.lat, p.lon);
+        if (d > 3000) continue;
+        hits.push({ p, d });
+      }
+    }
+    hits.sort((a, b) => a.d - b.d);
+    const KIND = { food: "Café / food", shop: "Shop", transit: "Stop" };
+    return hits.slice(0, 3).map(({ p, d }) => ({
+      type: p.kind,
+      primary: p.name,
+      secondary: `${KIND[p.kind] || "Place"} · ${d < 1000 ? Math.round(d / 10) * 10 + " m" : (d / 1000).toFixed(1) + " km"} away`,
+      lat: p.lat,
+      lon: p.lon,
+      label: p.name,
+    }));
+  }
 
   const startAutocomplete = new AutocompleteController({
     input: startInput,
@@ -786,6 +830,7 @@
     endpointBase: apiBaseUrl,
     ranking: { rankHits },
     getUserContext,
+    getLocalMatches: nearbyPlaceMatches,
     onSelect: (result) => {
       endSelectedResult = result;
       resolvedEnd = { label: result.label, lat: result.lat, lon: result.lon };
@@ -3742,6 +3787,14 @@
   // Basic swipe support is native via scroll-snap; keyboard left/right as a
   // non-touch fallback for accessibility.
   pagesWrap.addEventListener("keydown", (e) => {
+    // Arrow keys belong to whatever has focus first (2026-10-10). The map
+    // pans with arrows and those keydowns bubble up here — so on desktop,
+    // nudging the map during navigation flipped to the Sound page with the
+    // tabs hidden and no way back. Same for moving the caret in a text field.
+    // And while navigating, nothing may change page at all.
+    if (appShellEl.classList.contains("nav-fullscreen")) return;
+    const t = e.target;
+    if (t && t.closest && (t.closest("#map") || t.closest("input, textarea, select, [contenteditable='true']"))) return;
     if (e.key === "ArrowRight") { goToPage(currentPage + 1); e.preventDefault(); }
     if (e.key === "ArrowLeft") { goToPage(currentPage - 1); e.preventDefault(); }
   });

@@ -63,7 +63,9 @@
 // button + blue dot on the planning map, route framed in the visible map area,
 // folded turn-by-turn list, full-height map (privacy note moved to Settings).
 // v43 (2026-10-10): one delayed retry for the flaky places (/api/pois) layer.
-const CACHE_NAME = "calm-companion-v43";
+// v44 (2026-10-10): arrow keys no longer flip pages from the map or during
+// navigation; nearby places in search; map-centre search bias; D1 places cache.
+const CACHE_NAME = "calm-companion-v44";
 const APP_SHELL = [
   "/",
   "/index.html",

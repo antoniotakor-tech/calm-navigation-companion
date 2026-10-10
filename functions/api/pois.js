@@ -53,6 +53,64 @@ const TRANSIT_RAILWAY = "station|tram_stop|halt|subway_entrance";
 
 const CORS_HEADERS = { "access-control-allow-origin": "*" };
 
+// ---- Persistent area cache in D1 (2026-10-10) ----------------------------
+// The public Overpass mirrors refuse or time out on roughly half of all
+// requests (measured: 3 of 6, some refused in ~0.1s), which left the map
+// with no cafés/shops half the time. Every good answer is now stored per
+// area in the app's existing D1 database (binding DB, also used by Calm
+// Echoes), so:
+//   - a fresh copy (< POI_FRESH_MS) is served straight from D1, never
+//     touching Overpass at all;
+//   - when Overpass fails, the last good copy (< POI_STALE_MAX_MS) is served
+//     instead of an error.
+// Shops and cafés change on a scale of weeks, so a day-old answer is fine.
+// Every DB step is best-effort: if D1 is missing or errors, this endpoint
+// behaves exactly as it did before the cache existed.
+const POI_FRESH_MS = 24 * 60 * 60 * 1000;
+const POI_STALE_MAX_MS = 30 * 24 * 60 * 60 * 1000;
+let poiTableReady = false;
+
+async function ensurePoiTable(db) {
+  if (poiTableReady) return;
+  await db.prepare(
+    "CREATE TABLE IF NOT EXISTS poi_cache (k TEXT PRIMARY KEY, body TEXT NOT NULL, fetched_at INTEGER NOT NULL)"
+  ).run();
+  poiTableReady = true;
+}
+
+async function readPoiCache(db, key) {
+  if (!db) return null;
+  try {
+    await ensurePoiTable(db);
+    return await db.prepare("SELECT body, fetched_at FROM poi_cache WHERE k = ?").bind(key).first();
+  } catch (e) {
+    console.warn("poi_cache read failed:", e && e.message);
+    return null;
+  }
+}
+
+async function writePoiCache(db, key, body) {
+  if (!db) return;
+  try {
+    await ensurePoiTable(db);
+    await db.prepare("INSERT OR REPLACE INTO poi_cache (k, body, fetched_at) VALUES (?, ?, ?)")
+      .bind(key, body, Date.now()).run();
+  } catch (e) {
+    console.warn("poi_cache write failed:", e && e.message);
+  }
+}
+
+function poiResponse(body, cacheState) {
+  return new Response(body, {
+    headers: {
+      "content-type": "application/json",
+      "cache-control": "public, max-age=600",
+      "x-poi-cache": cacheState,
+      ...CORS_HEADERS,
+    },
+  });
+}
+
 function jsonError(message, status) {
   return new Response(JSON.stringify({ error: message }), {
     status,
@@ -106,6 +164,11 @@ export async function onRequestGet(context) {
   }
 
   const bboxQL = `${bbox.minLat},${bbox.minLon},${bbox.maxLat},${bbox.maxLon}`;
+  const db = context.env && context.env.DB;
+  const cacheKey = [bbox.minLat, bbox.minLon, bbox.maxLat, bbox.maxLon].map((v) => Number(v).toFixed(4)).join(",");
+  const cached = await readPoiCache(db, cacheKey);
+  const cacheAge = cached ? Date.now() - Number(cached.fetched_at) : Infinity;
+  if (cached && cacheAge < POI_FRESH_MS) return poiResponse(cached.body, "hit");
   // Fixed query, bbox-only interpolation. `out center` makes ways (a shop
   // mapped as a building outline) come back with a usable single point.
   const query = `[out:json][timeout:8];(node["shop"]["name"](${bboxQL});way["shop"]["name"](${bboxQL});node["amenity"~"^(${FOOD_AMENITIES})$"]["name"](${bboxQL});way["amenity"~"^(${FOOD_AMENITIES})$"]["name"](${bboxQL});node["amenity"="ferry_terminal"](${bboxQL});way["amenity"="ferry_terminal"](${bboxQL});node["railway"~"^(${TRANSIT_RAILWAY})$"](${bboxQL});node["highway"="bus_stop"](${bboxQL}););out center ${MAX_RESULTS * 2};`;
@@ -151,12 +214,16 @@ export async function onRequestGet(context) {
     // AggregateError: every mirror failed or timed out.
     console.warn("All %s upstream mirrors failed or timed out.", UPSTREAMS.length);
   }
-  if (!resp) return jsonError("POI service is busy right now.", 502);
+  if (!resp) {
+    if (cached && cacheAge < POI_STALE_MAX_MS) return poiResponse(cached.body, "stale");
+    return jsonError("POI service is busy right now.", 502);
+  }
 
   let data;
   try {
     data = await resp.json();
   } catch (e) {
+    if (cached && cacheAge < POI_STALE_MAX_MS) return poiResponse(cached.body, "stale");
     return jsonError("POI service returned an unreadable response.", 502);
   }
 
@@ -171,13 +238,9 @@ export async function onRequestGet(context) {
     ...byKind.transit.slice(0, MAX_TRANSIT),
   ];
 
-  return new Response(JSON.stringify({ pois }), {
-    headers: {
-      "content-type": "application/json",
-      // Shops don't move minute-to-minute: let the edge and the browser
-      // reuse an area's answer for 10 minutes instead of re-asking Overpass.
-      "cache-control": "public, max-age=600",
-      ...CORS_HEADERS,
-    },
-  });
+  const body = JSON.stringify({ pois });
+  // Don't make the user wait on the DB write.
+  const write = writePoiCache(db, cacheKey, body);
+  if (context.waitUntil) context.waitUntil(write); else await write;
+  return poiResponse(body, "miss");
 }

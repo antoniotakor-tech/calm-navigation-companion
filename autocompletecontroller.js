@@ -15,6 +15,7 @@
 const TYPE_ICONS = {
   address: "📍", street: "🛣️", place: "📌",
   station: "🚉", park: "🌳", landmark: "🏛️", "current-location": "🧭",
+  food: "☕", shop: "🛍️", transit: "🚏",
 };
 
 // ---- Pure helpers ----------------------------------------------------------
@@ -78,6 +79,9 @@ function stillMatchesSelection(inputValue, selectedValue) {
 }
 
 function labelForItem(item) {
+  // An explicit label wins — local place matches carry a display-only
+  // secondary line ("Shop · 120 m away") that doesn't belong in the field.
+  if (item.label) return item.label;
   return item.secondary ? `${item.primary}, ${item.secondary}` : item.primary;
 }
 
@@ -95,6 +99,10 @@ class AutocompleteController {
   //   onSelect(result): called with { lat, lon, label } when a real place is chosen.
   //   onUseCurrentLocation(): async () => { lat, lon, label } | null, only used
   //     when isStartField is true.
+  //   getLocalMatches(query): optional () => [{type, primary, secondary, lat, lon}]
+  //     — nearby places the app already knows about (e.g. cafés/shops loaded
+  //     on the map), shown first because "near me" beats "matches the name
+  //     somewhere else". Also shown on their own if the geocoder fails.
   //   minChars (default 2), debounceMs (default 300), limit (default 6).
   constructor(options) {
     this.input = options.input;
@@ -107,6 +115,7 @@ class AutocompleteController {
     this.getUserContext = options.getUserContext || (() => ({}));
     this.onSelect = options.onSelect || (() => {});
     this.onUseCurrentLocation = options.onUseCurrentLocation || (async () => null);
+    this.getLocalMatches = options.getLocalMatches || (() => []);
     this.minChars = options.minChars || 2;
     this.limit = options.limit || 6;
     this.endpointBase = options.endpointBase || "";
@@ -199,18 +208,40 @@ class AutocompleteController {
         })
         .slice(0, this.limit);
 
-      if (!ranked.length) {
+      const local = this.safeLocalMatches(query);
+      // Drop geocoder hits that are the same place as a local match (same
+      // name within ~150 m) so nothing appears twice.
+      const merged = [
+        ...local,
+        ...ranked.filter((r) => !local.some((l) =>
+          l.primary.toLowerCase() === String(r.primary || "").toLowerCase() &&
+          Math.abs(l.lat - r.lat) < 0.0015 && Math.abs(l.lon - r.lon) < 0.0015)),
+      ].slice(0, this.limit);
+
+      if (!merged.length) {
         this.setEmpty(query);
         return;
       }
       const items = this.isStartField
-        ? [{ type: "current-location", primary: "Use my current location", secondary: "", isAction: true }, ...ranked]
-        : ranked;
+        ? [{ type: "current-location", primary: "Use my current location", secondary: "", isAction: true }, ...merged]
+        : merged;
       this.setItems(items);
     } catch (e) {
       if (!this.sequencer.isCurrent(token)) return;
       if (e && e.kind === "cancelled") return; // superseded request, not a user-facing error
+      // The address service failed, but nearby places we already know about
+      // are still worth offering instead of only an error.
+      const local = this.safeLocalMatches(query);
+      if (local.length) { this.setItems(local); return; }
       this.setError(e, query);
+    }
+  }
+
+  safeLocalMatches(query) {
+    try {
+      return (this.getLocalMatches(query) || []).slice(0, 3);
+    } catch (e) {
+      return []; // a local lookup bug must never break address search
     }
   }
 

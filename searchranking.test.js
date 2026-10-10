@@ -105,3 +105,19 @@ test("rankHits: silently drops invalid raw hits instead of throwing", () => {
   const ranked = S.rankHits([null, {}, hit()], { queryText: "vondelpark" });
   assert.equal(ranked.length, 1);
 });
+
+test("scoreHit: same street name — the one within 15 km beats an identical one in another city (Amsterdam case)", () => {
+  const amsterdamUser = { lat: 52.3676, lon: 4.9041 };
+  const near = { primary: "Vondelstraat", secondary: "Amsterdam", type: "street", city: "Amsterdam", countrycode: "NL", lat: 52.3615, lon: 4.8728 };
+  const far = { primary: "Vondelstraat", secondary: "Utrecht", type: "street", city: "Utrecht", countrycode: "NL", lat: 52.0907, lon: 5.1214 };
+  const ctx = { queryText: "Vondelstraat", userPoint: amsterdamUser, userCountryCode: "NL" };
+  assert.ok(S.scoreHit(near, ctx) > S.scoreHit(far, ctx) + 50);
+});
+
+test("scoreHit: the nearby boost never lets a weaker text match beat a stronger one", () => {
+  const user = { lat: 52.3676, lon: 4.9041 };
+  const nearWeak = { primary: "Grote Vondelstraat", secondary: "Amsterdam", type: "street", city: "Amsterdam", lat: 52.3676, lon: 4.9041 };
+  const farExact = { primary: "Vondel", secondary: "Elsewhere", type: "street", city: "Elsewhere", lat: 40, lon: 0 };
+  const ctx = { queryText: "Vondel", userPoint: user, userCity: "Amsterdam" };
+  assert.ok(S.scoreHit(farExact, ctx) > S.scoreHit(nearWeak, ctx));
+});
