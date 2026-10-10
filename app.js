@@ -807,13 +807,32 @@
   // pipeline (and therefore its caching/mirror discipline); typing anything
   // hands the list back to the normal address autocomplete.
   const endAcListEl = document.getElementById("endAcList");
+  // The free public Overpass mirrors behind /api/pois reject or time out
+  // roughly half the time (measured 2026-10-10: 3 of 6 requests 502'd, some
+  // instantly), and back-to-back requests usually land on a healthy one —
+  // so one short, delayed retry turns most "no cafés on the map" into a
+  // working layer. Returns the final Response either way.
+  async function fetchPoisWithRetry(url) {
+    let resp;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        resp = await fetch(url);
+        if (resp.ok || (resp.status !== 502 && resp.status !== 503 && resp.status !== 504)) return resp;
+      } catch (e) {
+        if (attempt === 1) throw e;
+      }
+      await new Promise((r) => setTimeout(r, 1200));
+    }
+    return resp;
+  }
+
   let nearbySuggest = { at: 0, key: null, items: [] };
   async function fetchNearbyFood(center) {
     const key = `${center.lat.toFixed(3)},${center.lon.toFixed(3)}`;
     if (nearbySuggest.key === key && Date.now() - nearbySuggest.at < 5 * 60 * 1000) return nearbySuggest.items;
     const d = 0.006; // ~600m box — walkable "around here"
     const bbox = `${(center.lat - d).toFixed(4)},${(center.lon - d).toFixed(4)},${(center.lat + d).toFixed(4)},${(center.lon + d).toFixed(4)}`;
-    const resp = await fetch(`${apiBaseUrl}/api/pois?bbox=${bbox}`);
+    const resp = await fetchPoisWithRetry(`${apiBaseUrl}/api/pois?bbox=${bbox}`);
     if (!resp.ok) return [];
     const data = await resp.json();
     const items = (data.pois || [])
@@ -3289,7 +3308,7 @@
     if (Date.now() - lastPoiFetchAt < POI_MIN_FETCH_GAP_MS) return; // grid cache misses can't stampede Overpass
     lastPoiFetchAt = Date.now();
     try {
-      const resp = await fetch(`${apiBaseUrl}/api/pois?bbox=${key}`);
+      const resp = await fetchPoisWithRetry(`${apiBaseUrl}/api/pois?bbox=${key}`);
       if (!resp.ok) { rememberPoiFailure(key); return; }
       const data = await resp.json();
       const pois = data.pois || [];

@@ -62,7 +62,8 @@
 // v42 (2026-10-09): maps-app pass — long-press to drop a pin, Show-my-location
 // button + blue dot on the planning map, route framed in the visible map area,
 // folded turn-by-turn list, full-height map (privacy note moved to Settings).
-const CACHE_NAME = "calm-companion-v42";
+// v43 (2026-10-10): one delayed retry for the flaky places (/api/pois) layer.
+const CACHE_NAME = "calm-companion-v43";
 const APP_SHELL = [
   "/",
   "/index.html",
