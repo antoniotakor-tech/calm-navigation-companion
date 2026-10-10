@@ -788,8 +788,17 @@
     }
     // A name match beats a category match; then nearest first.
     hits.sort((a, b) => (b.nameMatch - a.nameMatch) || (a.d - b.d));
+    // One entry per name, the nearest: map data often holds several points
+    // for one place (a station's tram/bus/metro stops, a shop mapped twice).
+    const names = new Set();
+    const distinct = hits.filter(({ p }) => {
+      const n = foldText(p.name).trim();
+      if (names.has(n)) return false;
+      names.add(n);
+      return true;
+    });
     const KIND = { food: "Café / food", shop: "Shop", transit: "Stop" };
-    return hits.slice(0, 3).map(({ p, d }) => ({
+    return distinct.slice(0, 3).map(({ p, d }) => ({
       type: p.kind,
       primary: p.name,
       secondary: `${KIND[p.kind] || "Place"} · ${d < 1000 ? Math.round(d / 10) * 10 + " m" : (d / 1000).toFixed(1) + " km"} away`,
