@@ -188,6 +188,8 @@ class AutocompleteController {
     this.abortController = new AbortController();
 
     const ctx = this.getUserContext() || {};
+    // Started alongside the geocoder so nearby places never add latency.
+    const localPromise = this.safeLocalMatches(query);
     try {
       const { hits } = await this.geocodingService.forwardGeocode({
         query,
@@ -208,7 +210,8 @@ class AutocompleteController {
         })
         .slice(0, this.limit);
 
-      const local = this.safeLocalMatches(query);
+      const local = await localPromise;
+      if (!this.sequencer.isCurrent(token)) return;
       // Drop geocoder hits that are the same place as a local match (same
       // name within ~150 m) so nothing appears twice.
       const merged = [
@@ -231,15 +234,16 @@ class AutocompleteController {
       if (e && e.kind === "cancelled") return; // superseded request, not a user-facing error
       // The address service failed, but nearby places we already know about
       // are still worth offering instead of only an error.
-      const local = this.safeLocalMatches(query);
+      const local = await localPromise;
+      if (!this.sequencer.isCurrent(token)) return;
       if (local.length) { this.setItems(local); return; }
       this.setError(e, query);
     }
   }
 
-  safeLocalMatches(query) {
+  async safeLocalMatches(query) {
     try {
-      return (this.getLocalMatches(query) || []).slice(0, 3);
+      return ((await this.getLocalMatches(query)) || []).slice(0, 3);
     } catch (e) {
       return []; // a local lookup bug must never break address search
     }

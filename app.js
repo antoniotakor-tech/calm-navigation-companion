@@ -737,29 +737,57 @@
   let startSelectedResult = null;
   let endSelectedResult = null;
 
-  // Cafés, shops and stops already loaded on the map whose name matches what
-  // you're typing, nearest first (2026-10-10) — "Albert Heijn" should offer
-  // the one round the corner before any geocoder result. Word-start match
-  // only (typing "ah" shouldn't match every name with "ah" inside it).
-  function nearbyPlaceMatches(query) {
-    const q = String(query || "").trim().toLowerCase();
-    if (q.length < 2 || typeof poiCache === "undefined") return [];
+  // Nearby cafés, shops and stops for the search box (2026-10-10), nearest
+  // first — "Albert Heijn" should offer the one round the corner before any
+  // geocoder result in another town, and a category word ("cafe",
+  // "supermarket", "station") should list the closest ones.
+  // Uses the map's places data for ~1.3 km around you (or the map centre),
+  // loading that area on demand if the map hasn't shown it yet — the
+  // server keeps a per-area copy, so this is normally a fast cache hit.
+  const PLACE_CATEGORY_WORDS = {
+    food: ["cafe", "coffee", "koffie", "restaurant", "food", "eten", "bar", "lunch", "breakfast", "ontbijt", "pub", "eetcafe"],
+    shop: ["shop", "store", "winkel", "supermarket", "supermarkt", "groceries", "boodschappen"],
+    transit: ["stop", "halte", "station", "tram", "bus", "metro", "ferry", "pont"],
+  };
+  const foldText = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  async function placesAround(point) {
+    const G = 0.005, HALF = 0.0125;
+    const snap = (v, up) => ((up ? Math.ceil(v / G) : Math.floor(v / G)) * G).toFixed(3);
+    const key = `${snap(point.lat - HALF, false)},${snap(point.lon - HALF, false)},${snap(point.lat + HALF, true)},${snap(point.lon + HALF, true)}`;
+    const hit = poiCache.get(key);
+    if (hit && !hit.failed) return hit.pois;
+    const resp = await fetchPoisWithRetry(`${apiBaseUrl}/api/pois?bbox=${key}`);
+    if (!resp || !resp.ok) return [];
+    const data = await resp.json();
+    const pois = data.pois || [];
+    poiCache.set(key, { at: Date.now(), pois });
+    return pois;
+  }
+  async function nearbyPlaceMatches(query) {
+    const q = foldText(query).trim();
+    if (q.length < 2) return [];
     const here = getUserContext().point;
     if (!here) return [];
+    const categoryKinds = Object.keys(PLACE_CATEGORY_WORDS)
+      .filter((k) => q.length >= 3 && PLACE_CATEGORY_WORDS[k].some((w) => w.startsWith(q) || q.startsWith(w)));
+    const pools = [await placesAround(here)];
+    for (const entry of poiCache.values()) pools.push(entry.pois || []);
     const seen = new Set();
     const hits = [];
-    for (const entry of poiCache.values()) {
-      for (const p of entry.pois || []) {
+    for (const pool of pools) {
+      for (const p of pool) {
         if (seen.has(p.id)) continue;
         seen.add(p.id);
-        const name = String(p.name || "").toLowerCase();
-        if (!name.split(/[\s\-'’.,&]+/).some((w) => w.startsWith(q)) && !name.startsWith(q)) continue;
+        const name = foldText(p.name);
+        const nameMatch = name.startsWith(q) || name.split(/[\s\-'’.,&()]+/).some((w) => w.startsWith(q));
+        if (!nameMatch && !categoryKinds.includes(p.kind)) continue;
         const d = NavLogic.haversineM(here.lat, here.lon, p.lat, p.lon);
         if (d > 3000) continue;
-        hits.push({ p, d });
+        hits.push({ p, d, nameMatch });
       }
     }
-    hits.sort((a, b) => a.d - b.d);
+    // A name match beats a category match; then nearest first.
+    hits.sort((a, b) => (b.nameMatch - a.nameMatch) || (a.d - b.d));
     const KIND = { food: "Café / food", shop: "Shop", transit: "Stop" };
     return hits.slice(0, 3).map(({ p, d }) => ({
       type: p.kind,

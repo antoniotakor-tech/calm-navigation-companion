@@ -65,7 +65,8 @@
 // v43 (2026-10-10): one delayed retry for the flaky places (/api/pois) layer.
 // v44 (2026-10-10): arrow keys no longer flip pages from the map or during
 // navigation; nearby places in search; map-centre search bias; D1 places cache.
-const CACHE_NAME = "calm-companion-v44";
+// v45 (2026-10-10): search loads nearby places on demand + category words.
+const CACHE_NAME = "calm-companion-v45";
 const APP_SHELL = [
   "/",
   "/index.html",
