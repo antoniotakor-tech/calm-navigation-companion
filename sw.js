@@ -67,7 +67,8 @@
 // navigation; nearby places in search; map-centre search bias; D1 places cache.
 // v45 (2026-10-10): search loads nearby places on demand + category words.
 // v46 (2026-10-10): nearby search results deduplicated by name.
-const CACHE_NAME = "calm-companion-v46";
+// v47 (2026-10-10): iPhone fit — 16px inputs (no auto-zoom), no double safe-area, compact header.
+const CACHE_NAME = "calm-companion-v47";
 const APP_SHELL = [
   "/",
   "/index.html",

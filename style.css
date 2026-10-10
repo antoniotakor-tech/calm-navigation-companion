@@ -441,7 +441,9 @@
 }
 
 * { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; height: 100%; overscroll-behavior: none; }
+html, body { margin: 0; padding: 0; height: 100%; overscroll-behavior: none; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+/* Quick repeated taps (kalimba, tabs, pills) must not trigger iOS double-tap zoom; pinch-zoom stays. */
+button, .pill, .dot-btn, [role="button"], input, textarea, select { touch-action: manipulation; }
 body {
   background: var(--bg);
   color: var(--ink);
@@ -495,8 +497,8 @@ body {
 
 header.top {
   display: flex; align-items: flex-start; justify-content: space-between; flex-shrink: 0;
-  padding: 18px 18px 4px;
-  padding-top: calc(18px + env(safe-area-inset-top, 0px));
+  padding: 8px 18px 4px;
+  padding-top: calc(8px + env(safe-area-inset-top, 0px));
   padding-left: calc(18px + env(safe-area-inset-left, 0px));
   padding-right: calc(18px + env(safe-area-inset-right, 0px));
 }
@@ -589,7 +591,8 @@ button:focus-visible, [tabindex]:focus-visible, input:focus-visible { outline: 2
 .route-input-row .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
 .route-input-row.start .dot { background: var(--calm); }
 .route-input-row.end .dot { background: var(--accent); }
-.route-input-row input { border: none; background: none; color: var(--ink); font-size: 0.84375rem; font-weight: 600; flex: 1; outline: none; font-family: inherit; }
+.route-input-row input { border: none; background: none; color: var(--ink); font-size: max(16px, 1rem); font-weight: 600; flex: 1; min-width: 0; text-overflow: ellipsis; outline: none; font-family: inherit; }
+.route-input-row input::placeholder { font-size: 0.84375rem; }
 /* input:focus-visible below is neutralized by outline:none above (equal
    specificity, later source order) — the row itself carries the visible
    keyboard-focus indicator instead, as a shape change (ring), not colour alone. */
@@ -618,7 +621,7 @@ button:focus-visible, [tabindex]:focus-visible, input:focus-visible { outline: 2
   border: 1px solid var(--line); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 8px;
 }
 .pin-editor-label {
-  border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font-size: 0.8125rem;
+  border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font-size: max(16px, 1rem);
   font-family: inherit; color: var(--ink); background: var(--surface-2);
 }
 .pin-editor-actions { display: flex; gap: 7px; justify-content: flex-end; }
@@ -752,9 +755,9 @@ button:focus-visible, [tabindex]:focus-visible, input:focus-visible { outline: 2
    screens/landscape rather than ever pushing content off past the bottom
    edge, since nothing below it is reachable any other way. */
 .route-search-card {
-  top: calc(10px + env(safe-area-inset-top, 0px));
+  top: 10px;
   padding: var(--space-4);
-  max-height: calc(100% - 20px - env(safe-area-inset-top, 0px));
+  max-height: calc(100% - 20px);
   overflow-y: auto; -webkit-overflow-scrolling: touch;
 }
 /* Collapsed = just the "Where to?" bar; everything else appears once a
@@ -1149,7 +1152,7 @@ canvas.fidget-canvas { width: 100%; height: 84px; border-radius: 16px; backgroun
 .settings-overlay.open { display: flex; }
 .settings-sheet {
   background: var(--surface); width: 100%; max-width: 480px; margin: 0 auto; border-radius: 28px 28px 0 0;
-  padding: 20px 20px 26px; box-shadow: var(--shadow);
+  padding: 20px 20px calc(26px + env(safe-area-inset-bottom, 0px)); box-shadow: var(--shadow);
   max-height: 82vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
 }
 .settings-sheet h2 { font-size: 1.1875rem; margin: 0 0 14px; font-family: var(--font-display); font-weight: 600; }
@@ -1208,7 +1211,7 @@ footer.foot {
 .echo-overlay.open { display: flex; }
 .echo-sheet {
   background: var(--surface); width: 100%; max-width: 480px; margin: 0 auto; border-radius: 28px 28px 0 0;
-  padding: 20px 20px 26px; box-shadow: var(--shadow);
+  padding: 20px 20px calc(26px + env(safe-area-inset-bottom, 0px)); box-shadow: var(--shadow);
   max-height: 88vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
 }
 .echo-sheet h2 { font-size: 1.1875rem; margin: 0 0 6px; font-family: var(--font-display); font-weight: 600; }
@@ -1291,7 +1294,7 @@ footer.foot {
 .echo-message-field label { display: block; font-size: 0.6875rem; color: var(--muted); font-weight: 600; margin-bottom: 6px; }
 .echo-message-field textarea {
   width: 100%; min-height: 64px; resize: none; border-radius: 14px; border: 1px solid var(--line);
-  background: var(--surface-2); color: var(--ink); font-family: inherit; font-size: 0.8125rem; font-weight: 600;
+  background: var(--surface-2); color: var(--ink); font-family: inherit; font-size: max(16px, 1rem); font-weight: 600;
   padding: 10px 12px; box-sizing: border-box;
 }
 .echo-char-count { text-align: right; font-size: 0.65625rem; color: var(--muted); margin-top: 4px; font-weight: 600; }

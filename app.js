@@ -78,7 +78,9 @@
   function closeSettingsSheet() {
     if (!settingsOverlay.classList.contains("open")) return;
     settingsOverlay.classList.remove("open");
-    if (settingsReturnFocusEl && typeof settingsReturnFocusEl.focus === "function") settingsReturnFocusEl.focus();
+    // Don't hand focus back to a text box: on iPhone that opens the keyboard
+    // and zooms the page just from closing Settings.
+    if (settingsReturnFocusEl && typeof settingsReturnFocusEl.focus === "function" && !settingsReturnFocusEl.matches("input, textarea")) settingsReturnFocusEl.focus();
     settingsReturnFocusEl = null;
   }
   settingsBtn.addEventListener("click", openSettings);
@@ -819,6 +821,7 @@
     getUserContext,
     onSelect: (result) => {
       startSelectedResult = result;
+      startInput.blur();
       resolvedStart = { label: result.label, lat: result.lat, lon: result.lon };
       // Only re-search when the form is already expanded (i.e. a destination
       // exists) — changing the start before any destination has been chosen
@@ -870,6 +873,7 @@
     getLocalMatches: nearbyPlaceMatches,
     onSelect: (result) => {
       endSelectedResult = result;
+      endInput.blur();
       resolvedEnd = { label: result.label, lat: result.lat, lon: result.lon };
       expandSearchCard();
       runSearch();
@@ -3848,8 +3852,12 @@
     // demo placeholder instead of requiring a manual clear first. Placed
     // last in the load handler, not its own earlier rAF — goToPage's
     // scrollTo above was winning that race and blurring it.
-    endInput.focus();
-    endInput.select();
+    // Touch devices: never focus on load — iOS would raise the keyboard (and
+    // the page with it) before the user has done anything.
+    if (!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches)) {
+      endInput.focus();
+      endInput.select();
+    }
   });
 
   // Applies the persisted (or system-default) appearance now that every
