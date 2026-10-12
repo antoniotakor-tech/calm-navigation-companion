@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy — Calm Navigation Companion</title>
+<meta name="description" content="What Calm Navigation Companion does with your location and data.">
+<style>
+  :root { color-scheme: light dark; --ink:#1b2428; --muted:#55636a; --bg:#f6f7f7; --card:#fff; --line:#dde3e5; --calm:#2f7a5a; }
+  @media (prefers-color-scheme: dark) { :root { --ink:#e6ecee; --muted:#a3b0b5; --bg:#14181b; --card:#1c2226; --line:#2c353a; --calm:#6fbf97; } }
+  body { margin:0; background:var(--bg); color:var(--ink); font:17px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 44rem; margin: 0 auto; padding: 28px 20px 64px; }
+  h1 { font-size: 1.9rem; line-height: 1.2; margin: 0 0 6px; }
+  h2 { font-size: 1.15rem; margin: 30px 0 6px; }
+  p, li { color: var(--ink); }
+  .meta { color: var(--muted); font-size: .9rem; margin-bottom: 24px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 4px 18px 14px; }
+  a { color: var(--calm); }
+  table { width:100%; border-collapse: collapse; font-size: .95rem; }
+  th, td { text-align:left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+</style>
+</head>
+<body>
+<main>
+  <p><a href="/">← Back to the app</a></p>
+  <h1>Privacy</h1>
+  <p class="meta">Calm Navigation Companion · last updated 12 October 2026</p>
+
+  <div class="card">
+  <h2>The short version</h2>
+  <ul>
+    <li>There are <strong>no accounts</strong>, <strong>no ads</strong>, <strong>no analytics</strong> and <strong>no trackers</strong> in this app.</li>
+    <li>Your location is used to show you on the map and to guide you. It is <strong>not stored on our servers</strong> and not sold or shared for advertising.</li>
+    <li>Your recent routes and saved places stay <strong>on your device only</strong>.</li>
+    <li>The one thing that is stored on a server is a <strong>Calm Echo</strong>, and only if you choose to leave one (details below).</li>
+  </ul>
+
+  <h2>Location</h2>
+  <p>With your permission, the app uses your device's location to show your position, bias search results towards where you are, and give turn-by-turn directions.</p>
+  <table>
+    <tr><th>When</th><th>What happens</th></tr>
+    <tr><td>You focus a search box, or tap "show my location"</td><td>One location fix is used to find your city for better search results and to centre the map.</td></tr>
+    <tr><td>You search for a place or route</td><td>The coordinates needed for that request are sent to our routing provider (GraphHopper) through this app's own server so the key stays private. Search text and map areas are also looked up through free open-data services (OpenStreetMap-based).</td></tr>
+    <tr><td>You are navigating</td><td>Location fixes are processed on your device. Only if the app needs to find a new route (you went off-route) is one current point sent to the routing provider.</td></tr>
+    <tr><td>Navigating with the screen locked (iPhone/Android app only)</td><td>Only if you turn on "keep navigating when locked" and allow location "Always". Your phone shows its own indicator while this is active. You can stop at any time with Stop, or revoke permission in your phone's Settings.</td></tr>
+  </table>
+
+  <h2>What stays on your device</h2>
+  <p>Your last 5 routes, places you pin, and your sound and display settings are saved in your device's own storage. They are never sent to our servers. Clear them in Settings → Saved places, or by clearing the app's data.</p>
+
+  <h2>Calm Echoes (optional)</h2>
+  <p>A Calm Echo is a short melody and an optional short message that you can leave at a place for other people to find. If you save one, the following is stored on our server (Cloudflare):</p>
+  <ul>
+    <li>an <strong>approximate</strong> location (deliberately blurred, not your exact position),</li>
+    <li>the melody, your optional message and optional nickname,</li>
+    <li>the time it was left, and a random anonymous code stored on your device so you can recognise your own Echoes. This is not linked to your name or any account.</li>
+  </ul>
+  <p>Echoes are shown to people nearby for 48 hours. Don't put personal information in a message — other people can read it.</p>
+
+  <h2>Who else sees data</h2>
+  <ul>
+    <li><strong>GraphHopper</strong> receives coordinates only as part of a search or routing request, to answer it. Its own privacy policy applies.</li>
+    <li><strong>OpenFreeMap / OpenStreetMap services</strong> supply map tiles and place data.</li>
+    <li><strong>Cloudflare</strong> hosts the app and, like any web host, sees requests in transit. We don't add analytics or log your coordinates.</li>
+    <li>We do not sell your data and we do not use it for advertising or tracking.</li>
+  </ul>
+
+  <h2>Your choices</h2>
+  <ul>
+    <li>Deny or revoke location permission at any time in your device settings. Search still works without it, just without nearby ranking.</li>
+    <li>Delete saved places and recents inside the app, or clear the app's data.</li>
+    <li>To remove an Echo you left, or to report one you found, email the address below with where it is and we will remove it.</li>
+  </ul>
+
+  <h2>Children</h2>
+  <p>The app is not directed at children under 13 and does not knowingly collect personal information from them.</p>
+
+  <h2>Contact</h2>
+  <p>Questions, reports or removal requests: <a href="mailto:antoniotakor@icloud.com">antoniotakor@icloud.com</a></p>
+  <p class="meta">If this policy changes, the date at the top will change.</p>
+  </div>
+</main>
+</body>
+</html>

@@ -70,7 +70,8 @@
 // v47 (2026-10-10): iPhone fit — 16px inputs (no auto-zoom), no double safe-area, compact header.
 // v48 (2026-10-10): remaining iPhone fit items (title, kalimba height, keyboard-aware suggestions, toast).
 // v49 (2026-10-10): Kalimba button during navigation + Back to navigation.
-const CACHE_NAME = "calm-companion-v49";
+// v50 (2026-10-12): privacy policy page + Settings link.
+const CACHE_NAME = "calm-companion-v50";
 const APP_SHELL = [
   "/",
   "/index.html",
