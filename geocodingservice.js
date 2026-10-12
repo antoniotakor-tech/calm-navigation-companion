@@ -80,9 +80,45 @@ function fetchJSON(url, { signal, timeoutMs } = {}) {
 
 // point: {lat, lon} | null — when present, biases (does not restrict) results
 // toward that location, per GraphHopper's documented `point` bias parameter.
+// "Street 12, City": find the city first, then search the street around it,
+// so "Via San Francesco 5, Assisi" doesn't become "Via San Francesco
+// d'Assisi 5" in another town (2026-10-12). City points are cached.
+const cityPointCache = new Map();
+const PLACE_VALUES = ["city", "town", "village", "hamlet", "suburb", "municipality", "borough"];
+async function cityPoint(city, opts) {
+  const key = city.toLowerCase();
+  if (cityPointCache.has(key)) return cityPointCache.get(key);
+  const url = buildUrl("/api/geocode", { q: city, limit: 5, locale: opts.locale }, opts.endpointBase);
+  const data = await fetchJSON(url, { signal: opts.signal, timeoutMs: opts.timeoutMs });
+  const hits = Array.isArray(data.hits) ? data.hits : [];
+  const best = hits.find((h) => h.osm_key === "place" && PLACE_VALUES.includes(h.osm_value)) || hits.find((h) => h.osm_key === "boundary") || null;
+  const p = best && best.point ? { lat: best.point.lat, lon: best.point.lng } : null;
+  cityPointCache.set(key, p);
+  return p;
+}
+
 async function forwardGeocode({ query, point, limit, locale, signal, timeoutMs, endpointBase }) {
   const q = (query || "").trim();
   if (!q) return { hits: [] };
+  const comma = q.lastIndexOf(",");
+  const cityPart = comma > 0 ? q.slice(comma + 1).trim() : "";
+  if (cityPart && !/\d/.test(cityPart) && cityPart.length >= 2) {
+    try {
+      const cp = await cityPoint(cityPart, { locale, signal, timeoutMs, endpointBase });
+      if (cp) {
+        const near = buildUrl("/api/geocode", { q: q.slice(0, comma).trim(), point: `${cp.lat},${cp.lon}`, limit: 10, locale }, endpointBase);
+        const all = buildUrl("/api/geocode", { q, point: point ? `${point.lat},${point.lon}` : undefined, limit, locale }, endpointBase);
+        const [a, b] = await Promise.all([fetchJSON(near, { signal, timeoutMs }), fetchJSON(all, { signal, timeoutMs }).catch(() => ({ hits: [] }))]);
+        // keep street results that really are near the named city (≤ 25 km)
+        const nearHits = (a.hits || []).filter((h) => h.point && Math.abs(h.point.lat - cp.lat) < 0.23 && Math.abs(h.point.lng - cp.lon) < 0.33)
+          .map((h) => ({ ...h, inNamedCity: true })); // "Napoli" typed, "Naples" returned: still the right city
+        return { hits: nearHits.concat(Array.isArray(b.hits) ? b.hits : []) };
+      }
+    } catch (e) {
+      if (e && e.name === "AbortError") throw e;
+      // fall through to the plain search
+    }
+  }
   const url = buildUrl(
     "/api/geocode",
     { q, point: point ? `${point.lat},${point.lon}` : undefined, limit, locale },

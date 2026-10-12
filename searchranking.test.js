@@ -86,7 +86,7 @@ test("scoreHit: an address-looking query prefers address results; a place-lookin
   const place = S.normalizeHit(hit({ name: "Damstraat area" }));
   const addressQueryCtx = { queryText: "damstraat 1" };
   const placeQueryCtx = { queryText: "damstraat" };
-  assert.ok(S.scoreHit(address, addressQueryCtx) - S.textMatchScore("damstraat 1", address) === S.WEIGHTS.ADDRESS_TYPE_BOOST);
+  assert.ok(S.scoreHit(address, addressQueryCtx) - S.textMatchScore("damstraat 1", address) === S.WEIGHTS.ADDRESS_TYPE_BOOST + S.WEIGHTS.HOUSENUMBER_EXACT);
   assert.ok(S.scoreHit(place, placeQueryCtx) - S.textMatchScore("damstraat", place) === S.WEIGHTS.PLACE_TYPE_BOOST);
 });
 
@@ -120,4 +120,33 @@ test("scoreHit: the nearby boost never lets a weaker text match beat a stronger 
   const farExact = { primary: "Vondel", secondary: "Elsewhere", type: "street", city: "Elsewhere", lat: 40, lon: 0 };
   const ctx = { queryText: "Vondel", userPoint: user, userCity: "Amsterdam" };
   assert.ok(S.scoreHit(farExact, ctx) > S.scoreHit(nearWeak, ctx));
+});
+
+test("address queries: street / number / city are understood", () => {
+  const { parseAddressQuery, numberMatches } = require("./searchranking.js");
+  assert.deepEqual(parseAddressQuery("Via Toledo 256, Napoli"), { street: "via toledo", number: "256", city: "napoli" });
+  assert.equal(parseAddressQuery("Damrak 1").number, "1");
+  assert.equal(numberMatches("3", "1-5"), true);
+  assert.equal(numberMatches("12a", "12A"), true);
+  assert.equal(numberMatches("1", "46-1"), false);
+});
+
+test("the exact house number beats the canal with the same name", () => {
+  const { rankHits } = require("./searchranking.js");
+  const hits = [
+    { name: "Damrak", city: "Amsterdam", osm_key: "waterway", osm_value: "canal", point: { lat: 52.3765, lng: 4.8970 } },
+    { name: "Damrak", street: "Damrak", housenumber: "46-1", city: "Amsterdam", osm_key: "place", osm_value: "house", point: { lat: 52.3740, lng: 4.8960 } },
+    { name: "Damrak", street: "Damrak", housenumber: "1", city: "Amsterdam", osm_key: "place", osm_value: "house", point: { lat: 52.3770, lng: 4.8980 } },
+  ];
+  const top = rankHits(hits, { queryText: "Damrak 1, Amsterdam" })[0];
+  assert.equal(top.housenumber, "1");
+});
+
+test("the city you typed wins over the same street elsewhere", () => {
+  const { rankHits } = require("./searchranking.js");
+  const hits = [
+    { name: "Kerkstraat", street: "Kerkstraat", housenumber: "12", city: "Wehe-den Hoorn", osm_key: "place", osm_value: "house", point: { lat: 53.36, lng: 6.39 } },
+    { name: "Lange Kerkstraat", street: "Lange Kerkstraat", housenumber: "12", city: "Hoorn", osm_key: "place", osm_value: "house", point: { lat: 52.64, lng: 5.06 } },
+  ];
+  assert.equal(rankHits(hits, { queryText: "Kerkstraat 12, Hoorn" })[0].city, "Hoorn");
 });

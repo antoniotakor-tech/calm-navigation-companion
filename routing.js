@@ -413,6 +413,15 @@ if (typeof module === "object" && module.exports) {
 
 async function geocode(query, endpointBase) {
   if (!query) return null;
+  // Same smart search + ranking as the suggestions list (exact house numbers,
+  // the city you typed), when those modules are loaded (browser).
+  if (typeof forwardGeocode === "function" && typeof rankHits === "function") {
+    try {
+      const { hits } = await forwardGeocode({ query, limit: 10, endpointBase });
+      const best = rankHits(hits, { queryText: query })[0];
+      if (best) return { label: best.primary + (best.secondary ? ", " + best.secondary : ""), lat: best.lat, lon: best.lon };
+    } catch (e) { /* fall back to the single-hit lookup below */ }
+  }
   const url = new URL((endpointBase || "") + "/api/geocode", typeof location !== "undefined" ? location.origin : "http://localhost");
   url.searchParams.set("q", query);
   url.searchParams.set("limit", "1");

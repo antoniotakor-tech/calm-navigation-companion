@@ -33,7 +33,13 @@ const WEIGHTS = {
   DISTANCE_DECAY_PER_KM: -0.8,  // subtracted per km of distance from the user
   DISTANCE_DECAY_CAP_KM: 100,   // distance penalty stops growing past this many km (max -80)
   ADDRESS_TYPE_BOOST: 15,       // query looks like a full address (has a house number)
-  PLACE_TYPE_BOOST: 10,         // query has no house number: prefer places/streets/etc. over bare addresses
+  PLACE_TYPE_BOOST: 10,
+  // 2026-10-12: exact addresses everywhere in Europe.
+  HOUSENUMBER_EXACT: 700,       // the number you typed is this result's number
+  HOUSENUMBER_OTHER: -120,      // an address on the street, but a different number
+  NO_NUMBER_PENALTY: -260,      // you typed a number; this result has none (a canal, a whole street)
+  QUERY_CITY_MATCH: 450,        // the city you typed ("…, Assisi") is this result's city
+  QUERY_CITY_MISMATCH: -380,    // you named a city; this result is somewhere else         // query has no house number: prefer places/streets/etc. over bare addresses
   // "I typed a street name in Amsterdam, show me Amsterdam's" (2026-10-10).
   // The distance decay alone (max -80) was too gentle to reliably beat a
   // same-tier hit with a city/type bonus elsewhere. Kept well under the 350
@@ -60,6 +66,37 @@ function stripDiacritics(s) {
 
 function normalizeText(s) {
   return stripDiacritics(String(s || "").trim().toLowerCase()).replace(/\s+/g, " ");
+}
+
+/**
+ * Splits what someone typed into street / house number / city.
+ * "Via Toledo 256, Napoli" -> { street: "via toledo", number: "256", city: "napoli" }
+ * "1012 AB Damrak 1" also works (postcodes are ignored for matching).
+ */
+function parseAddressQuery(query) {
+  const raw = String(query || "");
+  const parts = raw.split(",").map((p) => p.trim()).filter(Boolean);
+  let city = null;
+  if (parts.length > 1 && !/\d/.test(parts[parts.length - 1])) city = normalizeText(parts.pop());
+  const main = parts.join(" ");
+  const tokens = main.split(/\s+/);
+  let number = null;
+  const streetTokens = [];
+  tokens.forEach((t) => {
+    if (!number && /^\d+[a-z]?([-/]\d+[a-z]?)?$/i.test(t)) number = t.toLowerCase();
+    else if (!/^\d{4}$/.test(t) && !/^[a-z]{2}$/i.test(t) || streetTokens.length) streetTokens.push(t);
+  });
+  return { street: normalizeText(streetTokens.join(" ")), number, city };
+}
+/** "1-5" contains 3; "12a" equals "12a"; "17-1" (flat 1 of number 17) equals 17. */
+function numberMatches(wanted, have) {
+  if (!wanted || !have) return false;
+  const w = String(wanted).toLowerCase(), h = String(have).toLowerCase().replace(/\s+/g, "");
+  if (h === w) return true;
+  const range = /^(\d+)-(\d+)$/.exec(h);
+  if (range && /^\d+$/.test(w) && +range[2] > +range[1]) return +w >= +range[1] && +w <= +range[2];
+  const base = /^(\d+)/.exec(h);
+  return !!base && /^\d+$/.test(w) && base[1] === w && !/^\d+-\d{2,}$/.test(h);
 }
 
 function looksLikeAddressQuery(query) {
@@ -123,6 +160,9 @@ function normalizeHit(hit) {
     state: hit.state || null,
     countrycode: hit.countrycode ? String(hit.countrycode).toUpperCase() : null,
     country: hit.country || null,
+    housenumber: hit.housenumber || null,
+    street: hit.street || null,
+    inNamedCity: hit.inNamedCity === true,
   };
 }
 
@@ -189,6 +229,19 @@ function scoreHit(hit, context) {
     else if (km <= WEIGHTS.REGION_BOOST_KM) score += WEIGHTS.REGION_BOOST;
   }
 
+  const q = parseAddressQuery(context.queryText);
+  if (q.number) {
+    if (numberMatches(q.number, hit.housenumber)) score += WEIGHTS.HOUSENUMBER_EXACT;
+    else if (hit.housenumber) score += WEIGHTS.HOUSENUMBER_OTHER;
+    else if (hit.type !== "station") score += WEIGHTS.NO_NUMBER_PENALTY;
+  }
+  if (q.city) {
+    // Exact name only: "Hoorn" must not match "Wehe-den Hoorn".
+    const names = [hit.city, hit.district, hit.state].filter(Boolean).map(normalizeText);
+    if (hit.inNamedCity || names.includes(q.city)) score += WEIGHTS.QUERY_CITY_MATCH;
+    else score += WEIGHTS.QUERY_CITY_MISMATCH;
+  }
+
   const wantsAddress = looksLikeAddressQuery(context.queryText);
   if (wantsAddress && hit.type === "address") score += WEIGHTS.ADDRESS_TYPE_BOOST;
   else if (!wantsAddress && hit.type !== "address") score += WEIGHTS.PLACE_TYPE_BOOST;
@@ -207,7 +260,7 @@ function rankHits(rawHits, context) {
 
 if (typeof module === "object" && module.exports) {
   module.exports = {
-    WEIGHTS, TYPE_LABELS,
+    WEIGHTS, TYPE_LABELS, parseAddressQuery, numberMatches,
     normalizeText, looksLikeAddressQuery, classifyType, buildPrimary, buildSecondary,
     normalizeHit, haversineDistanceKm, dedupeHits, textMatchScore, scoreHit, rankHits,
   };
