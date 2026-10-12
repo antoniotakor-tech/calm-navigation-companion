@@ -881,10 +881,11 @@
     <div class="settings-block">
       <div class="settings-block-label">appearance</div>
       <div class="pill-row" id="appearanceChips" role="group" aria-label="Appearance">
+        <button class="pill" type="button" data-appearance="auto" aria-pressed="false"><i data-ci="sparkle"></i> Auto</button>
         <button class="pill" type="button" data-appearance="light" aria-pressed="false"><i data-ci="sun"></i> Light</button>
         <button class="pill" type="button" data-appearance="dark" aria-pressed="false"><i data-ci="moon"></i> Dark</button>
       </div>
-      <div class="desc" style="margin-top:6px;">Both looks are hand-drawn: Light is paper and crayons, Dark is a chalkboard.</div>
+      <div class="desc" style="margin-top:6px;">Auto follows the sun where you are: paper by day, chalkboard at night.</div>
     </div>
     <h2>Saved places</h2>
     <p class="desc" style="margin:-6px 0 8px;">Pin a place from the pin button next to the destination field. Stored only on this device.</p>
@@ -1053,6 +1054,7 @@
 <script src="exifgps.js"></script>
 <script src="socialvalidation.js"></script>
 <script src="scrolllock.js"></script>
+<script src="weathermood.js"></script>
 <script src="app.js"></script>
 <script src="account.js"></script>
 <script src="community.js"></script>
@@ -1061,6 +1063,7 @@
 <script src="studio.js"></script>
 <script src="sketch.js"></script>
 <script src="fidget.js"></script>
+<script src="weatherdoodles.js"></script>
 <script>
   // Skipped inside the native Capacitor shell: the app ships all assets
   // natively already, and WKWebView's service-worker support is unreliable —

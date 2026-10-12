@@ -2287,3 +2287,70 @@ input[type=range] { touch-action: pan-x; }
 .page-dots::-webkit-scrollbar { display: none; }
 .page-dots .dot-btn { flex: none; }
 @media (min-width: 520px) { .page-dots { justify-content: center; } }
+
+/* ======================================================================
+   WEATHER DOODLES (weatherdoodles.js) — data-time / data-sky /
+   data-precip / data-wind on .map-doodles
+   ====================================================================== */
+.dd-moon, .dd-nightstar, .dd-rain, .dd-snow, .dd-flash, .dd-bolt, .dd-swirl, .dd-fog { display: none; }
+.dd-moon { width: 74px; right: 16px; bottom: 140px; animation: dd-bob 7s ease-in-out infinite; }
+.dd-nightstar { width: 16px; animation: dd-twinkle 2.8s ease-in-out infinite; }
+
+/* Clear day: the sun shines (glowing, pulsing rays) */
+.map-doodles[data-time="day"][data-sky="clear"] .dd-sun { filter: drop-shadow(0 0 14px rgba(255,200,60,.85)); }
+.map-doodles[data-time="day"][data-sky="clear"] .dd-rays { animation: dd-spin 18s linear infinite, dd-shine 2.4s ease-in-out infinite; }
+@keyframes dd-shine { 50% { opacity: .55; } }
+/* Partly cloudy: a cloud drifts in front of the sun */
+.map-doodles[data-sky="partly"] .dd-cloud1 { top: auto; bottom: 125px; animation-duration: 160s; }
+/* Cloudy / rain / snow / storm / fog: no sun, more and greyer clouds */
+.map-doodles:is([data-sky="cloudy"], [data-sky="fog"]) .dd-sun,
+.map-doodles:not([data-precip="none"]) .dd-sun { display: none; }
+.map-doodles:is([data-sky="cloudy"]) .dd-cloud path,
+.map-doodles:not([data-precip="none"]) .dd-cloud path { fill: #D9DEE8; }
+.map-doodles:is([data-sky="cloudy"]):not([data-time="night"]) .dd-cloud { width: 140px; }
+/* Rain + drizzle: drops fall from the clouds' height */
+.map-doodles:is([data-precip="rain"], [data-precip="drizzle"], [data-precip="storm"]) .dd-rain { display: block; }
+.dd-rain { position: absolute; inset: 34% 0 0 0; overflow: hidden; }
+.dd-rain i { position: absolute; top: -10%; width: 3px; height: 16px; border-radius: 2px; background: #4DA8FF; opacity: .75; animation: dd-drop .9s linear infinite; }
+.map-doodles[data-precip="drizzle"] .dd-rain i:nth-child(2n) { display: none; }
+.map-doodles[data-precip="drizzle"] .dd-rain i { height: 9px; opacity: .55; }
+@keyframes dd-drop { to { transform: translateY(75vh); } }
+.map-doodles[data-wind="windy"] .dd-rain i { animation-name: dd-drop-wind; transform: rotate(18deg); }
+@keyframes dd-drop-wind { from { transform: translate(0, 0) rotate(18deg); } to { transform: translate(-22vw, 75vh) rotate(18deg); } }
+/* Snow */
+.map-doodles[data-precip="snow"] .dd-snow { display: block; }
+.dd-snow { position: absolute; inset: 0; overflow: hidden; }
+.dd-snow i { position: absolute; top: -20px; color: #fff; text-shadow: 0 0 2px #2D2A3E, 0 0 1px #2D2A3E; font-style: normal; animation: dd-flake 9s linear infinite; }
+@keyframes dd-flake { 0% { transform: translate(0, 0) rotate(0); } 50% { transform: translate(18px, 50vh) rotate(180deg); } 100% { transform: translate(-10px, 100vh) rotate(360deg); } }
+/* Storm: an occasional flash + bolt */
+.map-doodles[data-precip="storm"] .dd-flash, .map-doodles[data-precip="storm"] .dd-bolt { display: block; }
+.dd-flash { position: absolute; inset: 0; background: #FFFBEA; opacity: 0; animation: dd-flash 9s steps(1) infinite; }
+@keyframes dd-flash { 0%, 61%, 63%, 65%, 100% { opacity: 0; } 62%, 64% { opacity: .35; } }
+.dd-bolt { width: 34px; left: 58%; top: 30%; opacity: 0; animation: dd-bolt 9s steps(1) infinite; }
+@keyframes dd-bolt { 0%, 61%, 66%, 100% { opacity: 0; } 62% { opacity: 1; } }
+/* Wind: swirls blow across, clouds hurry, flowers lean */
+.map-doodles:is([data-wind="windy"], [data-wind="breezy"]) .dd-swirl { display: block; }
+.dd-swirl { width: 120px; animation: dd-gust 7s linear infinite; opacity: .9; }
+.dd-swirl1 { animation-delay: -2.5s; width: 90px; } .dd-swirl2 { animation-delay: -5s; width: 140px; }
+@keyframes dd-gust { from { transform: translateX(110vw); } to { transform: translateX(-160px); } }
+.map-doodles[data-wind="breezy"] .dd-swirl2 { display: none; }
+.map-doodles[data-wind="windy"] .dd-cloud1 { animation-duration: 22s; }
+.map-doodles[data-wind="windy"] .dd-cloud2 { animation-duration: 30s; }
+.map-doodles[data-wind="windy"] .dd-stem { animation-duration: 1.2s !important; }
+.map-doodles[data-wind="windy"] .dd-fly, .map-doodles[data-wind="windy"] .dd-bee-path { display: none; }
+/* Fog: a soft haze */
+.map-doodles[data-sky="fog"] .dd-fog { display: block; }
+.dd-fog { position: absolute; inset: 0; background: repeating-linear-gradient(0deg, rgba(255,255,255,0) 0 40px, rgba(255,255,255,.35) 40px 70px); animation: dd-fog 14s ease-in-out infinite alternate; }
+@keyframes dd-fog { to { transform: translateX(30px); } }
+/* Dawn / dusk: low, orange sun and a warm tint */
+.map-doodles:is([data-time="dusk"], [data-time="dawn"]) .dd-sun { bottom: 70px; filter: hue-rotate(-18deg) saturate(1.3); }
+.map-doodles:is([data-time="dusk"], [data-time="dawn"])::before { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(255,140,80,.18), transparent 60%); pointer-events: none; }
+/* Night: moon + stars; sun, bee, butterflies and rainbow sleep */
+.map-doodles[data-time="night"] .dd-sun, .map-doodles[data-time="night"] .dd-fly,
+.map-doodles[data-time="night"] .dd-bee-path, .map-doodles[data-time="night"] .dd-star { display: none; }
+.map-doodles[data-time="night"] .dd-moon { display: block; }
+.map-doodles[data-time="night"]:is([data-sky="clear"], [data-sky="partly"]) .dd-nightstar { display: block; }
+.map-doodles[data-time="night"]:not([data-precip="none"]) .dd-moon { opacity: .5; }
+.map-doodles[data-time="night"] .dd-cloud path { fill: #4A5370; }
+@media (prefers-reduced-motion: reduce) { .dd-rain, .dd-snow, .dd-flash, .dd-bolt, .dd-swirl, .dd-fog { display: none !important; } }
+.map-doodles:not([data-precip="none"]) .dd-star, .map-doodles[data-sky="cloudy"] .dd-star { display: none; }

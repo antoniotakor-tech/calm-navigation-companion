@@ -41,12 +41,44 @@
   const themeToggleBtn = document.getElementById("themeToggle");
   const appearanceChips = Array.from(document.querySelectorAll("#appearanceChips .pill"));
 
+  // Appearance mode (2026-10-12): "auto" follows the sun where you are (Light
+  // by day, Dark at night — weatherdoodles.js knows sunrise/sunset); choosing
+  // Light or Dark yourself switches to "manual" and sticks.
+  const THEME_MODE_KEY = "calmTheme.mode.v1";
+  function themeMode() { try { return localStorage.getItem(THEME_MODE_KEY) || "auto"; } catch (e) { return "auto"; } }
+  function setThemeMode(m) { try { localStorage.setItem(THEME_MODE_KEY, m); } catch (e) { /* storage off */ } }
+  function renderModeChips() {
+    if (themeMode() !== "auto") return;
+    appearanceChips.forEach((chip) => {
+      const on = chip.dataset.appearance === "auto";
+      chip.classList.toggle("active", on);
+      chip.setAttribute("aria-pressed", String(on));
+    });
+  }
+  let autoNight = null;
+  function applyAutoTheme(isNight) {
+    if (typeof isNight === "boolean") autoNight = isNight;
+    if (themeMode() !== "auto") return;
+    const h = new Date().getHours();
+    const night = autoNight != null ? autoNight : (h < 7 || h >= 20);
+    const want = night ? "dark" : "light";
+    if (root.getAttribute("data-theme") !== want) setTheme(want);
+    renderModeChips();
+  }
+  window.CalmTheme = { applyAuto: applyAutoTheme, mode: themeMode };
+  setInterval(() => applyAutoTheme(), 5 * 60 * 1000);
+
   themeToggleBtn.addEventListener("click", () => {
     const cur = root.getAttribute("data-theme") || FlowTheme.DEFAULT_THEME;
+    setThemeMode("manual");
     setTheme(FlowTheme.nextTheme(cur));
   });
   appearanceChips.forEach((chip) => {
-    chip.addEventListener("click", () => setTheme(chip.dataset.appearance));
+    chip.addEventListener("click", () => {
+      if (chip.dataset.appearance === "auto") { setThemeMode("auto"); applyAutoTheme(); return; }
+      setThemeMode("manual");
+      setTheme(chip.dataset.appearance);
+    });
   });
 
   const settingsBtn = document.getElementById("settingsBtn");
@@ -136,6 +168,7 @@
     // Light (paper) is the default; old Flow/Bloom/Doodle choices become Light.
     let raw = null;
     try { raw = localStorage.getItem("calmcompanion.theme.v1"); } catch (e) { /* storage off */ }
+    if (themeMode() === "auto") { applyAutoTheme(); return; }
     if (raw !== "dark") { setTheme("light"); return; }
     const stored = FlowTheme.loadStoredTheme();
     if (stored) {
