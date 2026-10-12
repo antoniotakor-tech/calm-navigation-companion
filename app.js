@@ -569,7 +569,10 @@
   // This is what makes the setting actually survive a refresh: previously it
   // only ever reflected the OS preference and was never saved at all.
   const prefersReducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (prefersReducedMotion || prefs.get().audio.reducedMotion) {
+  // 2026-10-12: the in-app switch was removed (animations are part of the
+  // app's identity); only the phone's own Reduce Motion setting still applies.
+  if (prefs.get().audio.reducedMotion) prefs.set({ audio: { reducedMotion: false } });
+  if (prefersReducedMotion) {
     reducedMotionToggle.checked = true;
     root.setAttribute("data-motion", "reduced");
     if (!prefs.get().audio.reducedMotion) prefs.set({ audio: { reducedMotion: true } });
