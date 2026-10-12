@@ -808,9 +808,21 @@
     const e = s && Object.entries(s.sources || {}).find(([, v]) => v.type === "vector");
     return e ? e[0] : null;
   }
+  // The map style doesn't draw the tiles' "poi" layer, and MapLibre throws
+  // away tile layers no style layer uses — so an invisible layer keeps the
+  // places loaded. Without this, querySourceFeatures returns nothing.
+  function ensureTilePoiProbe(src) {
+    if (map.getLayer("tile-poi-probe")) return;
+    try {
+      map.addLayer({ id: "tile-poi-probe", type: "circle", source: src, "source-layer": "poi", minzoom: 13,
+        paint: { "circle-opacity": 0, "circle-stroke-opacity": 0, "circle-radius": 1 } });
+    } catch (e) { /* style not ready yet; next call retries */ }
+  }
+  whenStyleReady(() => { const s = tileSourceId(); if (s) ensureTilePoiProbe(s); });
   function tilePois(bbox) {
     const src = tileSourceId();
     if (!src) return [];
+    ensureTilePoiProbe(src);
     let feats = [];
     try { feats = map.querySourceFeatures(src, { sourceLayer: "poi" }); } catch (e) { return []; }
     const seen = new Set(), out = [];
