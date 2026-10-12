@@ -795,18 +795,65 @@
     transit: ["stop", "halte", "station", "tram", "bus", "metro", "ferry", "pont"],
   };
   const foldText = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  // Places straight from the map's own vector tiles (OpenMapTiles "poi"
+  // layer, 2026-10-12). Works in every city in Europe, instantly and even
+  // when the Overpass-backed /api/pois is down — which is why restaurant
+  // dots used to appear almost only around Amsterdam (where the server had
+  // cached answers). Same shape as /api/pois results.
+  const TILE_FOOD = new Set(["cafe", "restaurant", "fast_food", "bar", "pub", "beer", "biergarten", "ice_cream", "bakery", "food_court", "tea", "coffee"]);
+  const TILE_CALM = new Set(["library", "books", "garden", "park", "place_of_worship", "tea", "museum"]);
+  const TILE_TRANSIT = new Set(["bus", "railway", "tram", "subway", "ferry_terminal", "station", "bus_stop", "tram_stop", "halt"]);
+  function tileSourceId() {
+    const s = map.getStyle && map.getStyle();
+    const e = s && Object.entries(s.sources || {}).find(([, v]) => v.type === "vector");
+    return e ? e[0] : null;
+  }
+  function tilePois(bbox) {
+    const src = tileSourceId();
+    if (!src) return [];
+    let feats = [];
+    try { feats = map.querySourceFeatures(src, { sourceLayer: "poi" }); } catch (e) { return []; }
+    const seen = new Set(), out = [];
+    feats.forEach((f) => {
+      if (!f.geometry || f.geometry.type !== "Point") return;
+      const p = f.properties || {};
+      const name = p["name:latin"] || p.name;
+      if (!name) return;
+      const [lon, lat] = f.geometry.coordinates;
+      if (bbox && (lat < bbox.minLat || lat > bbox.maxLat || lon < bbox.minLon || lon > bbox.maxLon)) return;
+      const cls = String(p.class || ""), sub = String(p.subclass || cls);
+      let kind = null;
+      if (TILE_CALM.has(sub) || TILE_CALM.has(cls)) kind = "calm";
+      else if (TILE_FOOD.has(sub) || TILE_FOOD.has(cls)) kind = "food";
+      else if (TILE_TRANSIT.has(sub) || TILE_TRANSIT.has(cls)) kind = "transit";
+      else if (cls === "shop" || cls === "grocery" || cls.endsWith("_store") || cls === "clothing_store") kind = "shop";
+      if (!kind) return;
+      const key = name + "|" + lon.toFixed(4) + "," + lat.toFixed(4);
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push({ id: "t/" + key, name, lat, lon, kind, type: sub === "beer" ? "pub" : sub });
+    });
+    return out;
+  }
+  function mergePois(a, b) {
+    const seen = new Set(a.map((p) => String(p.name).toLowerCase() + "|" + p.lat.toFixed(3) + "," + p.lon.toFixed(3)));
+    return a.concat(b.filter((p) => !seen.has(String(p.name).toLowerCase() + "|" + p.lat.toFixed(3) + "," + p.lon.toFixed(3))));
+  }
+
   async function placesAround(point) {
     const G = 0.005, HALF = 0.0125;
     const snap = (v, up) => ((up ? Math.ceil(v / G) : Math.floor(v / G)) * G).toFixed(3);
     const key = `${snap(point.lat - HALF, false)},${snap(point.lon - HALF, false)},${snap(point.lat + HALF, true)},${snap(point.lon + HALF, true)}`;
+    const [s, w, n, e] = key.split(",").map(Number);
+    const fromTiles = tilePois({ minLat: s, minLon: w, maxLat: n, maxLon: e });
     const hit = poiCache.get(key);
-    if (hit && !hit.failed) return hit.pois;
-    const resp = await fetchPoisWithRetry(`${apiBaseUrl}/api/pois?bbox=${key}`);
-    if (!resp || !resp.ok) return [];
-    const data = await resp.json();
-    const pois = data.pois || [];
-    poiCache.set(key, { at: Date.now(), pois });
-    return pois;
+    if (hit && !hit.failed) return mergePois(hit.pois, fromTiles);
+    let pois = [];
+    try {
+      const resp = await fetchPoisWithRetry(`${apiBaseUrl}/api/pois?bbox=${key}`);
+      if (resp && resp.ok) { pois = (await resp.json()).pois || []; poiCache.set(key, { at: Date.now(), pois }); }
+    } catch (err) { /* tiles still answer */ }
+    return mergePois(pois, fromTiles);
   }
   const nameSearchCache = new Map(); // "q|lat2|lon2" -> places
   async function searchPlacesByName(query, here) {
@@ -3604,9 +3651,11 @@
     if (map.getZoom() < POI_MIN_ZOOM) { clearPoiMarkers(); return; }
     const bbox = poiGridBbox();
     const key = `${bbox.minLat},${bbox.minLon},${bbox.maxLat},${bbox.maxLon}`;
+    const fromTiles = tilePois(bbox);
+    whenStyleReady(() => renderPois(fromTiles)); // instant, everywhere in Europe
     const cached = poiCache.get(key);
     const ttl = cached && cached.failed ? POI_FAIL_CACHE_MS : POI_CACHE_MS;
-    if (cached && Date.now() - cached.at < ttl) { whenStyleReady(() => renderPois(cached.pois)); return; }
+    if (cached && Date.now() - cached.at < ttl) { whenStyleReady(() => renderPois(mergePois(cached.pois, fromTiles))); return; }
     if (Date.now() - lastPoiFetchAt < POI_MIN_FETCH_GAP_MS) return; // grid cache misses can't stampede Overpass
     lastPoiFetchAt = Date.now();
     try {
@@ -3615,7 +3664,7 @@
       const data = await resp.json();
       const pois = data.pois || [];
       poiCache.set(key, { at: Date.now(), pois });
-      whenStyleReady(() => renderPois(pois));
+      whenStyleReady(() => renderPois(mergePois(pois, tilePois(bbox))));
     } catch (e) {
       // Best-effort decoration — the map is complete without POI markers.
       rememberPoiFailure(key);
@@ -3625,6 +3674,14 @@
   map.on("moveend", () => {
     clearTimeout(poiDebounce);
     poiDebounce = setTimeout(refreshPois, 600);
+  });
+  // Tiles stream in after a move; re-read their places once the map settles.
+  map.on("idle", () => {
+    if (map.getZoom() < POI_MIN_ZOOM || pageInner0.classList.contains("nav-active")) return;
+    const bbox = poiGridBbox();
+    const key = `${bbox.minLat},${bbox.minLon},${bbox.maxLat},${bbox.maxLon}`;
+    const cached = poiCache.get(key);
+    renderPois(mergePois(cached && !cached.failed ? cached.pois : [], tilePois(bbox)));
   });
 
   // ---- Kalimba (page 3): play always, record + leave an Echo once unlocked ----
