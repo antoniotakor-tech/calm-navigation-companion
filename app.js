@@ -1001,6 +1001,37 @@
     if (on) routeResultsCard.scrollTop = 0;
   }
   sheetHandle.addEventListener("click", () => setSheetExpanded(!routeResultsCard.classList.contains("expanded")));
+
+  // ---- Map peek (2026-10-12): with a route on screen, moving or tapping the
+  // map tucks both cards away so the map is free to explore; the slim bar
+  // (time · distance · Start) or the top line brings them back.
+  const peekBar = document.getElementById("peekBar");
+  const peekTop = document.getElementById("peekTop");
+  function inPeek() { return pageInner0.classList.contains("map-peek"); }
+  function setMapPeek(on) {
+    if (on && !routeResultsCard.classList.contains("visible")) return;
+    if (on && pageInner0.classList.contains("nav-active")) return;
+    pageInner0.classList.toggle("map-peek", !!on);
+    if (on) {
+      document.getElementById("peekTime").textContent = document.getElementById("calmTime").textContent;
+      document.getElementById("peekDist").textContent = "· " + document.getElementById("calmDist").textContent;
+      peekTop.textContent = "To: " + (endInput.value || "your destination");
+      setSheetExpanded(false);
+    }
+    requestAnimationFrame(() => map.resize());
+  }
+  map.on("dragstart", () => { if (routeResultsCard.classList.contains("visible")) setMapPeek(true); });
+  map.on("click", (e) => {
+    if (!routeResultsCard.classList.contains("visible") || inPeek()) return;
+    // a tap on a dot/flower opens its card instead; empty map tucks the cards away
+    const hitLayers = ["poi-circles", "calmspot-circles"].filter((id) => map.getLayer(id));
+    if (hitLayers.length && map.queryRenderedFeatures(e.point, { layers: hitLayers }).length) return;
+    setMapPeek(true);
+  });
+  document.getElementById("peekOpen").addEventListener("click", () => setMapPeek(false));
+  document.getElementById("peekStart").addEventListener("click", () => { setMapPeek(false); startNavBtn.click(); });
+  peekTop.addEventListener("click", () => { setMapPeek(false); });
+  endInput.addEventListener("focus", () => { if (inPeek()) setMapPeek(false); });
   const endAutocomplete = new AutocompleteController({
     input: endInput,
     listEl: document.getElementById("endAcList"),

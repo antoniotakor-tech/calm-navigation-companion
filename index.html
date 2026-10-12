@@ -211,6 +211,7 @@
              destination bar therefore comes FIRST in the DOM, start second
              (the reverse of the old top-to-bottom start->destination form). -->
         <div class="route-search-card collapsed" id="routeSearchCard">
+          <button type="button" class="peek-top" id="peekTop" aria-label="Edit route"></button>
           <div class="route-inputs">
             <div class="route-input-wrap">
               <div class="route-input-row end">
@@ -285,6 +286,15 @@
              toggles `.visible`); the Start button lives here, floating on
              the map, rather than in the old below-the-map row. -->
         <div class="route-results-card" id="routeResultsCard">
+          <!-- Map peek bar (2026-10-12): shown instead of the full card while
+               you explore the map; tap it to bring the route back. -->
+          <div class="peek-bar" id="peekBar">
+            <button type="button" class="peek-open" id="peekOpen" aria-label="Show route details">
+              <span class="peek-grabber" aria-hidden="true"></span>
+              <span class="peek-summary"><b id="peekTime">—</b> <span id="peekDist"></span></span>
+            </button>
+            <button type="button" class="peek-start" id="peekStart">Start</button>
+          </div>
           <!-- Bottom-sheet handle (2026-10-09): the card opens compact — time,
                distance, Start — like Google/Apple Maps, so the route stays
                visible; this expands it to the full comparison + steps. -->
