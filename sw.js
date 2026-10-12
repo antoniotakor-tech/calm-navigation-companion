@@ -75,7 +75,8 @@
 // v52 (2026-10-12): no walking needed before leaving a Calm Echo.
 // v53 (2026-10-12): research-based soundscapes (rain, stream, soft noise, city mask, calm tones, breathe) replace white/brown/ocean/nature; nearest-branch name search.
 // v54 (2026-10-12): faster nearest-branch search; suggestions no longer wait for it.
-const CACHE_NAME = "calm-companion-v54";
+// v55 (2026-10-12): nearest-branch search via the geocoder (Overpass refused it from Cloudflare).
+const CACHE_NAME = "calm-companion-v55";
 const APP_SHELL = [
   "/",
   "/index.html",

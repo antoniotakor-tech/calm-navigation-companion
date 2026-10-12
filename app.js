@@ -769,10 +769,25 @@
   async function searchPlacesByName(query, here) {
     const key = `${String(query).trim().toLowerCase()}|${here.lat.toFixed(2)}|${here.lon.toFixed(2)}`;
     if (nameSearchCache.has(key)) return nameSearchCache.get(key);
-    const url = `${apiBaseUrl}/api/pois?q=${encodeURIComponent(String(query).trim())}&lat=${here.lat.toFixed(5)}&lon=${here.lon.toFixed(5)}`;
-    const resp = await fetchPoisWithRetry(url);
+    // Uses the geocoder (GraphHopper/Photon, already proxied for addresses)
+    // with your position as the bias point: it returns chain branches nearest
+    // first (measured: Starbucks at 468 m, 861 m, 996 m...). Overpass name
+    // search was tried first but Overpass refuses/times out on these queries
+    // from Cloudflare. Only real venues (amenity/shop/transit) are kept.
+    const url = `${apiBaseUrl}/api/geocode?q=${encodeURIComponent(String(query).trim())}&point=${here.lat.toFixed(5)},${here.lon.toFixed(5)}&limit=10`;
+    const resp = await fetch(url);
     if (!resp || !resp.ok) return [];
-    const places = ((await resp.json()).places) || [];
+    const data = await resp.json();
+    const VENUE_KEYS = { amenity: "food", shop: "shop", railway: "transit", public_transport: "transit", tourism: "food", leisure: "food" };
+    const places = (data.hits || [])
+      .filter((h) => h && h.point && h.name && VENUE_KEYS[h.osm_key])
+      .map((h) => ({
+        id: `g/${h.name}/${h.point.lat.toFixed(5)},${h.point.lng.toFixed(5)}`,
+        name: h.name,
+        lat: h.point.lat,
+        lon: h.point.lng,
+        kind: h.osm_key === "shop" ? "shop" : VENUE_KEYS[h.osm_key],
+      }));
     nameSearchCache.set(key, places);
     return places;
   }
