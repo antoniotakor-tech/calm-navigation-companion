@@ -156,6 +156,16 @@
             <div class="arrived-icon">🏁</div>
             <div class="arrived-title">You've arrived</div>
             <div class="arrived-sub" id="arrivedSub">Destination reached.</div>
+            <!-- "How calm was it?" (2026-10-12): the recommender learns from this,
+                 on this device only. Optional — Done works without rating. -->
+            <div class="arrived-rate" id="arrivedRate">
+              <div class="arrived-rate-q">How calm was it?</div>
+              <div class="arrived-rate-btns">
+                <button type="button" data-rate="calm" aria-label="Calm">😌<span>Calm</span></button>
+                <button type="button" data-rate="ok" aria-label="Okay">😐<span>Okay</span></button>
+                <button type="button" data-rate="busy" aria-label="Too busy">😣<span>Too busy</span></button>
+              </div>
+            </div>
             <button class="arrived-done-btn" id="arrivedDoneBtn">Done</button>
           </div>
         </div>
@@ -697,6 +707,7 @@
 <script src="routing.js"></script>
 <script src="greenscore.js"></script>
 <script src="calmspots.js"></script>
+<script src="calmrec.js"></script>
 <script src="searchranking.js"></script>
 <script src="geocodingservice.js"></script>
 <script src="autocompletecontroller.js"></script>

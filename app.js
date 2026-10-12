@@ -911,6 +911,7 @@
     getLocalMatches: nearbyPlaceMatches,
     onSelect: (result) => {
       endSelectedResult = result;
+      destinationPlace = result && result.type ? { name: result.label, lat: result.lat, lon: result.lon, type: result.type, kind: result.kind } : null;
       endInput.blur();
       resolvedEnd = { label: result.label, lat: result.lat, lon: result.lon };
       expandSearchCard();
@@ -972,7 +973,12 @@
   // nearby café) all does the same thing to the destination field — pulled
   // out once so the three sections below share one code path instead of
   // three near-identical pointerdown handlers.
-  function selectDestinationSuggestion(label, lat, lon) {
+  // The place behind the current destination when it came from a known
+  // venue (recommendation / nearby list) — lets "How calm was it?" learn
+  // by place TYPE, not just by this one address.
+  let destinationPlace = null;
+  function selectDestinationSuggestion(label, lat, lon, place) {
+    destinationPlace = place || null;
     const selection = { label, lat, lon };
     endSelectedResult = selection;
     resolvedEnd = { label, lat, lon };
@@ -1016,11 +1022,29 @@
     endAcListEl.appendChild(li);
   }
 
+  // ---- Calm-place recommendations (2026-10-12, calmrec.js) ----
+  const CALM_PREFS_KEY = "calmRec.prefs.v1";
+  function loadCalmPrefs() {
+    try { return CalmRec.sanitizePrefs(JSON.parse(localStorage.getItem(CALM_PREFS_KEY) || "null")); } catch (e) { return CalmRec.emptyPrefs(); }
+  }
+  function saveCalmPrefs(prefs) {
+    try { localStorage.setItem(CALM_PREFS_KEY, JSON.stringify(prefs)); } catch (e) { /* storage blocked: learning just won't persist */ }
+  }
+  const calmSpotPlaces = (window.CalmSpots && CalmSpots.CALM_SPOTS || []).map((sp) => ({ name: sp.name, lat: sp.lat, lon: sp.lon, kind: "calm", type: "garden" }));
+  const calmSpotKeys = new Set(calmSpotPlaces.map((p) => CalmRec.placeKey(p)));
+  async function calmRecommendations(center) {
+    let around = [];
+    try { around = await placesAround(center); } catch (e) { around = []; }
+    return CalmRec.recommend(around.concat(calmSpotPlaces), {
+      here: center, hour: new Date().getHours(), prefs: loadCalmPrefs(), calmSpotKeys,
+    }, 5);
+  }
+
   async function showNearbySuggestions() {
     if (endInput.value.trim() !== "") return;
     const c = userPoint || (() => { const m = map.getCenter(); return { lat: m.lat, lon: m.lng }; })();
     let items;
-    try { items = await fetchNearbyFood(c); } catch (e) { items = []; }
+    try { items = await calmRecommendations(c); } catch (e) { items = []; }
     // The bar may have been typed into (or unfocused) while we fetched.
     if (endInput.value.trim() !== "" || document.activeElement !== endInput) return;
 
@@ -1047,9 +1071,12 @@
       });
     }
     if (items.length) {
-      appendSuggestionHeading("Nearby cafés & bars");
-      items.forEach((p) => {
-        appendSuggestionOption("☕", p.name, `${p.distanceM} m away`, () => selectDestinationSuggestion(p.name, p.lat, p.lon));
+      appendSuggestionHeading("Calm places for you");
+      const ICON = { library: "📚", park: "🌳", garden: "🌿", cafe: "☕", tea: "🍵", books: "📖", bakery: "🥐", restaurant: "🍽️", bar: "🍸", pub: "🍺", biergarten: "🍺" };
+      items.forEach((r) => {
+        const p = r.place;
+        const meta = [r.label, `${r.distanceM} m`, r.reason].filter(Boolean).join(" · ");
+        appendSuggestionOption(ICON[p.type] || (p.kind === "calm" ? "🌿" : "📍"), p.name, meta, () => selectDestinationSuggestion(p.name, p.lat, p.lon, p));
       });
     }
     endAcListEl.style.display = "block";
@@ -2150,7 +2177,20 @@
     if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
   }
 
+  const arrivedRate = document.getElementById("arrivedRate");
+  arrivedRate.querySelectorAll("[data-rate]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const place = destinationPlace || (resolvedEnd && { name: resolvedEnd.label, lat: resolvedEnd.lat, lon: resolvedEnd.lon, type: null });
+      if (!place) return;
+      saveCalmPrefs(CalmRec.learn(loadCalmPrefs(), place, btn.dataset.rate));
+      arrivedRate.querySelectorAll("[data-rate]").forEach((b) => b.classList.toggle("chosen", b === btn));
+      arrivedRate.querySelector(".arrived-rate-q").textContent = "Thanks — your suggestions will learn from this.";
+    });
+  });
+
   function showArrivedScreen() {
+    arrivedRate.querySelectorAll("[data-rate]").forEach((b) => b.classList.remove("chosen"));
+    arrivedRate.querySelector(".arrived-rate-q").textContent = "How calm was it?";
     document.getElementById("arrivedSub").textContent =
       `You reached ${resolvedEnd.label || "your destination"}.`;
     navArrived.style.display = "flex";

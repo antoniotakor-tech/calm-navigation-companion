@@ -151,8 +151,14 @@ export function normalizePoi(el) {
     name = tags.amenity === "ferry_terminal" ? "Ferry" : tags.railway ? "Station" : "Bus stop";
   }
   if (typeof lat !== "number" || typeof lon !== "number" || !name) return null;
-  const kind = isTransit ? "transit" : tags.shop ? "shop" : "food";
-  return { id: `${el.type || "node"}/${el.id}`, lat, lon, name: name.slice(0, 80), kind };
+  // "calm" kind (2026-10-12): libraries, parks and gardens — the places a
+  // calm-place recommender most wants to surface.
+  const isCalm = tags.amenity === "library" || tags.leisure === "park" || tags.leisure === "garden";
+  const kind = isTransit ? "transit" : isCalm ? "calm" : tags.shop ? "shop" : "food";
+  // Fine-grained type (cafe, bar, pub, library, park, bakery...) so the
+  // recommender can tell a quiet café from a nightclub.
+  const type = String(tags.amenity || tags.leisure || tags.shop || tags.railway || tags.highway || "").slice(0, 30) || null;
+  return { id: `${el.type || "node"}/${el.id}`, lat, lon, name: name.slice(0, 80), kind, type };
 }
 
 
@@ -276,7 +282,7 @@ export async function onRequestGet(context) {
   if (cached && cacheAge < POI_FRESH_MS) return poiResponse(cached.body, "hit");
   // Fixed query, bbox-only interpolation. `out center` makes ways (a shop
   // mapped as a building outline) come back with a usable single point.
-  const query = `[out:json][timeout:8];(node["shop"]["name"](${bboxQL});way["shop"]["name"](${bboxQL});node["amenity"~"^(${FOOD_AMENITIES})$"]["name"](${bboxQL});way["amenity"~"^(${FOOD_AMENITIES})$"]["name"](${bboxQL});node["amenity"="ferry_terminal"](${bboxQL});way["amenity"="ferry_terminal"](${bboxQL});node["railway"~"^(${TRANSIT_RAILWAY})$"](${bboxQL});node["highway"="bus_stop"](${bboxQL}););out center ${MAX_RESULTS * 2};`;
+  const query = `[out:json][timeout:8];(node["shop"]["name"](${bboxQL});way["shop"]["name"](${bboxQL});node["amenity"~"^(${FOOD_AMENITIES})$"]["name"](${bboxQL});way["amenity"~"^(${FOOD_AMENITIES})$"]["name"](${bboxQL});node["amenity"="library"]["name"](${bboxQL});way["amenity"="library"]["name"](${bboxQL});way["leisure"~"^(park|garden)$"]["name"](${bboxQL});node["amenity"="ferry_terminal"](${bboxQL});way["amenity"="ferry_terminal"](${bboxQL});node["railway"~"^(${TRANSIT_RAILWAY})$"](${bboxQL});node["highway"="bus_stop"](${bboxQL}););out center ${MAX_RESULTS * 2};`;
 
   // Mirrors are raced in PARALLEL, not tried one after another.
   //

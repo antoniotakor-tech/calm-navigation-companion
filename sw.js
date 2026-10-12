@@ -76,7 +76,8 @@
 // v53 (2026-10-12): research-based soundscapes (rain, stream, soft noise, city mask, calm tones, breathe) replace white/brown/ocean/nature; nearest-branch name search.
 // v54 (2026-10-12): faster nearest-branch search; suggestions no longer wait for it.
 // v55 (2026-10-12): nearest-branch search via the geocoder (Overpass refused it from Cloudflare).
-const CACHE_NAME = "calm-companion-v55";
+// v56 (2026-10-12): calm-place recommendations + "How calm was it?" learning.
+const CACHE_NAME = "calm-companion-v56";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -98,6 +99,7 @@ const APP_SHELL = [
   "/routing.js",
   "/greenscore.js",
   "/calmspots.js",
+  "/calmrec.js",
   "/voiceengine.js",
   "/voicequeue.js",
   "/config.js",

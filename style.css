@@ -1459,3 +1459,14 @@ body.nav-away .nav-back-btn { display: flex; align-items: center; }
 
 /* Apple HIG: 44pt minimum tap target for every sheet button. */
 .close-sheet { min-height: 44px; }
+
+/* --- "How calm was it?" on arrival (2026-10-12) --- */
+.arrived-rate { margin: 14px 0 6px; text-align: center; }
+.arrived-rate-q { font-weight: 700; margin-bottom: 8px; }
+.arrived-rate-btns { display: flex; gap: 8px; justify-content: center; }
+.arrived-rate-btns button {
+  min-width: 76px; min-height: 64px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface);
+  color: var(--ink); font: inherit; font-size: 1.5rem; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+}
+.arrived-rate-btns button span { font-size: 0.75rem; font-weight: 600; }
+.arrived-rate-btns button.chosen { border-color: var(--calm); background: var(--calm-soft); }

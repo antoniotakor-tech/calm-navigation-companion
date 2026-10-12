@@ -31,7 +31,8 @@ test("parseBbox: accepts a small valid bbox, rejects malformed/oversized/inverte
 
 test("normalizePoi: keeps named nodes/ways, classifies shop vs food, drops unnamed ones", () => {
   const shop = normalizePoi({ type: "node", id: 1, lat: 52.1, lon: 4.9, tags: { shop: "bakery", name: "Bakkerij Jan" } });
-  assert.deepEqual(shop, { id: "node/1", lat: 52.1, lon: 4.9, name: "Bakkerij Jan", kind: "shop" });
+  assert.deepEqual(shop, { id: "node/1", lat: 52.1, lon: 4.9, name: "Bakkerij Jan", kind: "shop", type: "bakery" });
+  assert.equal(normalizePoi({ type: "way", id: 7, center: { lat: 52.3, lon: 4.8 }, tags: { leisure: "park", name: "Vondelpark" } }).kind, "calm");
 
   const cafe = normalizePoi({ type: "way", id: 2, center: { lat: 52.2, lon: 4.8 }, tags: { amenity: "cafe", name: "Café Zee" } });
   assert.equal(cafe.kind, "food");
