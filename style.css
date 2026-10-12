@@ -2237,3 +2237,41 @@ header.top h1 { animation: title-wiggle 7s ease-in-out infinite; }
 .vc-publish .cm-error { flex-basis: 100%; }
 .studio-tabs { flex-wrap: nowrap !important; gap: 6px; }
 .studio-tabs .pill { padding: 8px 12px; font-size: .88rem !important; }
+.ch-pad.latched { background: var(--pad); outline: 3px solid var(--ink); outline-offset: 2px; animation: ch-beat .5s ease-in-out infinite alternate; }
+@keyframes ch-beat { from { transform: scale(1); } to { transform: scale(.96); } }
+/* Studio tabs scroll sideways when there are many */
+.studio-tabs { overflow-x: auto; justify-content: flex-start !important; scrollbar-width: none; padding: 2px 2px 6px; max-width: 100%; }
+.studio-tabs::-webkit-scrollbar { display: none; }
+.studio-tabs .pill { flex: none; }
+/* Sketchbook */
+.sk-bar { display: flex; flex-direction: column; gap: 8px; }
+.sk-colors { display: flex; gap: 8px; flex-wrap: wrap; }
+.sk-color { width: 32px; height: 32px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--ink) 40%, transparent); cursor: pointer; padding: 0; }
+.sk-color.on { outline: 3px solid var(--ink); outline-offset: 2px; transform: scale(1.08); }
+.sk-canvas { width: 100%; aspect-ratio: 4 / 5; border-radius: var(--r-lg, 18px); border: 1.5px solid var(--edge-strong, var(--line)); touch-action: none; background: #FFFAF1; box-shadow: var(--doodle-shadow); cursor: crosshair; }
+.sk-actions { justify-content: center; }
+.sk-photo { position: relative; }
+.sk-gallery { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.sk-thumb { flex: none; width: 64px; height: 80px; padding: 0; border-radius: 10px; overflow: hidden; border: 1.5px solid var(--edge, var(--line)); background: none; cursor: pointer; }
+.sk-thumb.on { border: 2.5px solid var(--ink); }
+.sk-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* Fidget tools */
+.fg-card { padding: 14px; border: 1.5px solid var(--edge-strong, var(--line)); border-radius: var(--r-lg, 20px); background: var(--surface); box-shadow: var(--doodle-shadow); }
+.fg-title { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-family: "Patrick Hand", cursive; font-size: 1.3rem; margin-bottom: 8px; }
+.fg-title small { font-family: var(--font-body); font-size: .8rem; opacity: .6; margin-right: auto; }
+.fg-spinner { display: block; width: 210px; height: 210px; margin: 0 auto; touch-action: none; cursor: grab; will-change: transform; }
+.fg-bubbles { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+.fg-bubble { aspect-ratio: 1; border-radius: 50%; border: 1.5px solid color-mix(in srgb, var(--ink) 35%, transparent); background: radial-gradient(circle at 35% 30%, #fff 0 18%, color-mix(in srgb, var(--crayon-blue) 35%, var(--surface)) 19%); cursor: pointer; padding: 0; transition: transform .1s; touch-action: manipulation; }
+.fg-bubble.popped { transform: scale(.82); background: color-mix(in srgb, var(--ink) 8%, var(--surface)); border-style: dashed; }
+.fg-row { display: flex; align-items: center; gap: 14px; justify-content: center; margin-bottom: 14px; }
+.fg-switch { width: 58px; height: 34px; border-radius: 999px; border: 1.5px solid var(--ink); background: var(--surface-2); padding: 3px; cursor: pointer; display: flex; transition: background .15s; }
+.fg-switch span { width: 26px; height: 26px; border-radius: 50%; background: var(--surface); border: 1.5px solid var(--ink); transition: transform .18s cubic-bezier(.34,1.56,.64,1); }
+.fg-switch[aria-pressed="true"] { background: var(--crayon-green); }
+.fg-switch[aria-pressed="true"] span { transform: translateX(24px); }
+.fg-clicker { width: 52px; height: 52px; border-radius: 50%; border: 2px solid var(--ink); background: var(--crayon-pink); box-shadow: 0 5px 0 #2D2A3E; cursor: pointer; transition: transform .06s, box-shadow .06s; touch-action: manipulation; }
+.fg-clicker.down { transform: translateY(4px); box-shadow: 0 1px 0 #2D2A3E; }
+.fg-slider { width: 100%; accent-color: var(--crayon-orange); }
+.fg-blob-card { text-align: center; }
+.fg-blob { width: 150px; height: 150px; margin: 6px auto; border-radius: 48% 52% 55% 45% / 50% 45% 55% 50%; background: var(--crayon-purple); border: 2px solid #2D2A3E; display: grid; place-items: center; font-size: 1.6rem; color: #2D2A3E; cursor: pointer; touch-action: none; user-select: none; transition: transform .35s cubic-bezier(.34,1.8,.5,1), border-radius .35s; animation: blob-breathe 4s ease-in-out infinite; }
+.fg-blob.squish { transform: scale(1.18, .72); border-radius: 60% 40% 45% 55% / 40% 55% 45% 60%; transition-duration: .12s; animation: none; }
+@keyframes blob-breathe { 50% { border-radius: 55% 45% 48% 52% / 45% 55% 50% 50%; transform: scale(1.03); } }

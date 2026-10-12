@@ -4003,7 +4003,7 @@
   const pages = Array.from(document.querySelectorAll(".page"));
   const dots = Array.from(document.querySelectorAll(".dot-btn"));
   const pageTagline = document.getElementById("pageTagline");
-  const TAGLINES = ["calm routing", "calm sounds", "music studio", "community"];
+  const TAGLINES = ["calm routing", "calm sounds", "studio", "community"];
   let currentPage = 0;
   let scrollRAF = null;
 

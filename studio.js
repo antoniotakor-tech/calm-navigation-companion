@@ -20,7 +20,7 @@
   let ctx = null, master = null, noiseBuf = null;
   function audio() {
     if (!ctx) {
-      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: "interactive" });
       const comp = ctx.createDynamicsCompressor();
       comp.threshold.value = -14; comp.ratio.value = 3;
       master = ctx.createGain();
@@ -91,6 +91,7 @@
   function schedule() {
     while (nextTime < ctx.currentTime + 0.12) {
       D.hitsAt(pattern, step).forEach((tr) => VOICES[tr](live(), nextTime));
+      if (latched && step % 4 === 0) startChord(latched.d, nextTime, D.stepSeconds(pattern.bpm) * 3.2);
       queue.push({ step, time: nextTime });
       nextTime += D.stepSeconds(pattern.bpm);
       step = (step + 1) % D.STEPS;
@@ -108,6 +109,8 @@
   }
   function stopDrums() {
     playing = false;
+    latched = null;
+    document.querySelectorAll(".ch-pad.latched").forEach((x) => x.classList.remove("latched"));
     clearInterval(timer);
     queue.length = 0;
     document.querySelectorAll(".dm-step.now").forEach((el) => el.classList.remove("now"));
@@ -441,14 +444,18 @@
     return chordBus;
   }
   function chordName(d) { return NOTE[(KEYS[chordState.key] + d.semis) % 12] + SUFFIX[d.q]; }
-  /** Starts a chord; returns a release() function. */
-  function startChord(d) {
+  /**
+   * Starts a chord at `when` (default: now). With `dur` it releases itself
+   * (used for chords played on the beat); otherwise returns release().
+   */
+  function startChord(d, when, dur) {
     const out = chordOut();
     const root = 48 + KEYS[chordState.key] + d.semis; // around C3
     const notes = [root - 12, ...QUAL[d.q].map((i) => root + 12 + i - (root + 12 + i > 76 ? 12 : 0))];
-    const t = ctx.currentTime;
+    const t = Math.max(when || 0, ctx.currentTime);
     const S = chordState.sound;
-    const atk = S === "pad" ? 0.35 : 0.006, peak = (S === "pad" ? 0.11 : 0.16) / Math.sqrt(notes.length);
+    // Quick attacks so a chord sounds the moment you touch it (was 350 ms on Soft pad).
+    const atk = S === "pad" ? 0.03 : 0.004, peak = (S === "pad" ? 0.11 : 0.16) / Math.sqrt(notes.length);
     const voices = [];
     notes.forEach((m, k) => {
       const g = ctx.createGain();
@@ -470,14 +477,23 @@
       });
       voices.push({ g });
     });
-    return () => {
-      const r = ctx.currentTime, rel = S === "pad" ? 1.2 : S === "keys" ? 0.5 : 0.25;
+    const release = (at) => {
+      const r = Math.max(at || 0, ctx.currentTime), rel = S === "pad" ? 0.9 : S === "keys" ? 0.5 : 0.25;
       voices.forEach((v) => {
         if (v.g) { v.g.gain.cancelScheduledValues(r); v.g.gain.setValueAtTime(Math.max(0.0001, v.g.gain.value), r); v.g.gain.exponentialRampToValueAtTime(0.0001, r + rel); }
         else v.stop(r + rel + 0.05);
       });
     };
+    if (dur) { release(t + dur); return null; }
+    return () => release();
   }
+  /** While the beat runs, a tap snaps to the nearest 16th note so chords land in time. */
+  function snapTime() {
+    if (!playing) return ctx.currentTime;
+    const len = D.stepSeconds(pattern.bpm), prev = nextTime - len;
+    return ctx.currentTime - prev < 0.045 ? ctx.currentTime : nextTime;
+  }
+  let latched = null; // { d, el } — "Play on the beat" mode
   function buildChords() {
     const grid = $("chGrid");
     grid.innerHTML = "";
@@ -489,7 +505,21 @@
       b.innerHTML = `<b>${chordName(d)}</b><small>${d.name}</small>`;
       b.setAttribute("aria-label", `Chord ${chordName(d)}`);
       let release = null;
-      const down = (e) => { e.preventDefault(); if (release) return; release = startChord(d); b.classList.add("down"); b.setPointerCapture && e.pointerId != null && b.setPointerCapture(e.pointerId); };
+      const down = (e) => {
+        e.preventDefault();
+        if (chordState.mode === "beat") {
+          document.querySelectorAll(".ch-pad.latched").forEach((x) => x.classList.remove("latched"));
+          if (latched && latched.d === d) { latched = null; return; }
+          latched = { d };
+          b.classList.add("latched");
+          if (!playing) startDrums(); // the beat keeps the time for you
+          return;
+        }
+        if (release) return;
+        audio();
+        release = startChord(d, snapTime());
+        b.classList.add("down");
+      };
       const up = () => { if (release) { release(); release = null; } b.classList.remove("down"); };
       b.addEventListener("pointerdown", down);
       b.addEventListener("pointerup", up);
@@ -500,10 +530,18 @@
     });
     document.querySelectorAll("#chKeys [data-chkey]").forEach((x) => x.classList.toggle("active", x.dataset.chkey === chordState.key));
     document.querySelectorAll("#chSounds [data-chsound]").forEach((x) => x.classList.toggle("active", x.dataset.chsound === chordState.sound));
+    document.querySelectorAll("#chModes [data-chmode]").forEach((x) => x.classList.toggle("active", x.dataset.chmode === (chordState.mode || "hold")));
     $("chVol").value = Math.round(chordState.volume * 100);
   }
   $("chKeys").addEventListener("click", (e) => { const b = e.target.closest("[data-chkey]"); if (b) { chordState.key = b.dataset.chkey; saveChords(); buildChords(); } });
   $("chSounds").addEventListener("click", (e) => { const b = e.target.closest("[data-chsound]"); if (b) { chordState.sound = b.dataset.chsound; saveChords(); buildChords(); } });
+  $("chModes").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-chmode]");
+    if (!b) return;
+    chordState.mode = b.dataset.chmode;
+    latched = null;
+    saveChords(); buildChords();
+  });
   $("chVol").addEventListener("input", (e) => { chordState.volume = Number(e.target.value) / 100; if (chordBus) chordBus.gain.value = chordState.volume; saveChords(); });
 
   // ---- tabs + wiring --------------------------------------------------------------
@@ -513,8 +551,9 @@
       b.classList.toggle("active", on);
       b.setAttribute("aria-selected", String(on));
     });
-    ["kalimba", "drums", "chords", "voice"].forEach((k) => { $("studio-" + k).hidden = k !== which; });
+    ["kalimba", "drums", "chords", "voice", "sketch", "fidget"].forEach((k) => { $("studio-" + k).hidden = k !== which; });
     if (which === "voice") renderTakes();
+    if (which === "chords") { try { chordOut(); } catch (e) { /* audio blocked until a tap */ } }
   }
   document.querySelectorAll("#studioTabs [data-studio]").forEach((b) => b.addEventListener("click", () => showPanel(b.dataset.studio)));
   $("dmPlay").addEventListener("click", () => (playing ? stopDrums() : startDrums()));

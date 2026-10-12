@@ -728,6 +728,12 @@
     $("cmKindRow").addEventListener("click", (e) => { const b = e.target.closest("[data-kind]"); if (b) setKind(b.dataset.kind); });
     $("cmCameraInput").addEventListener("change", (e) => { addPhotos(e.target.files); e.target.value = ""; });
     $("cmLibraryInput").addEventListener("change", (e) => { addPhotos(e.target.files); e.target.value = ""; });
+    // A drawing from the Sketchbook → a new post with it as the photo.
+    window.addEventListener("calmsketch:post", (e) => {
+      app.goToPage(3);
+      openComposer();
+      if ($("cmComposer").classList.contains("open")) addPhotos([new File([e.detail], "sketch.jpg", { type: "image/jpeg" })]);
+    });
     $("cmViewerClose").addEventListener("click", () => { $("cmProfileViewer").classList.remove("open"); window.CalmStudio && CalmStudio.stop(); });
     document.querySelectorAll("[data-feed]").forEach((b) => b.addEventListener("click", () => {
       feedMode = b.dataset.feed;
