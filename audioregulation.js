@@ -84,10 +84,17 @@
   // unused since that trim.
   const SOUNDSCAPE_LABELS = {
     off: "Off",
+    rain: "Rain",
+    stream: "Stream",
+    pink: "Soft noise",
+    mask: "City mask",
+    pads: "Calm tones",
+    breathe: "Breathe",
+    // Retired from the UI (2026-10-12) but still labelled for old saved prefs.
     white: "White noise",
     brown: "Brown noise",
     ocean: "Ocean",
-    nature: "Nature",
+    nature: "Park",
   };
 
   if (typeof module === "object" && module.exports) {

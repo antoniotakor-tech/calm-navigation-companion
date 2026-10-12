@@ -18,11 +18,11 @@
   // and a preset pointing at a removed soundscape would otherwise silently
   // fall back to "off" via sanitizeAudio below.
   const AUDIO_PRESETS = {
-    focus: { mode: "concentrate", soundscape: "brown", ambient: 0.48, voice: 0.62, effects: 0.16 },
-    relax: { mode: "relax", soundscape: "ocean", ambient: 0.52, voice: 0.42, effects: 0.12 },
-    "anxiety-relief": { mode: "relax", soundscape: "nature", ambient: 0.42, voice: 0.5, effects: 0.08 },
+    focus: { mode: "concentrate", soundscape: "pink", ambient: 0.48, voice: 0.62, effects: 0.16 },
+    relax: { mode: "relax", soundscape: "stream", ambient: 0.52, voice: 0.42, effects: 0.12 },
+    "anxiety-relief": { mode: "relax", soundscape: "rain", ambient: 0.42, voice: 0.5, effects: 0.08 },
     minimal: { mode: "concentrate", soundscape: "off", ambient: 0.0, voice: 0.58, effects: 0.08 },
-    "urban-explorer": { mode: "concentrate", soundscape: "white", ambient: 0.32, voice: 0.68, effects: 0.2 },
+    "urban-explorer": { mode: "concentrate", soundscape: "pink", ambient: 0.32, voice: 0.68, effects: 0.2 },
     custom: null, // "whatever the user last set by hand" — captured on manual change
   };
 
@@ -56,7 +56,9 @@
   // Kept in sync by hand with ambientengine.js's BUILDERS table + "off" —
   // prefs.js has no reference to that module (loaded earlier, deliberately
   // dependency-free), so this list is duplicated rather than imported.
-  const VALID_SOUNDSCAPES = ["off", "white", "brown", "ocean", "nature"];
+  // Offered (2026-10-12 research pass): rain, stream, pink ("Soft noise"), pads ("Calm tones"), breathe.
+  // white/brown/ocean/nature are retired from the UI; still accepted so older saved prefs load cleanly.
+  const VALID_SOUNDSCAPES = ["off", "rain", "stream", "pink", "mask", "pads", "breathe", "brown", "ocean", "nature", "white"];
   const VALID_MODES = ["relax", "concentrate"];
 
   function clamp01(v, fallback) {

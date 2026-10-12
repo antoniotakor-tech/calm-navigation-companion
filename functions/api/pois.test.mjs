@@ -182,3 +182,26 @@ test("D1 cache: a successful Overpass answer is stored for next time", async () 
   assert.ok(db.rows.get(KEY), "row written");
   assert.match(db.rows.get(KEY).body, /Fresh/);
 });
+
+test("name search: nearest branches first, query sanitised, cached", async () => {
+  const { sanitizeNameQuery } = await import("./pois.js");
+  assert.equal(sanitizeNameQuery('"]);out;(nwr'), "outnwr", "Overpass syntax can't be injected");
+  assert.equal(sanitizeNameQuery("a"), null);
+  let sentQuery = "";
+  const db = fakeDb();
+  await withMockedFetch(
+    async (_u, init) => { sentQuery = decodeURIComponent(init.body); return { ok: true, status: 200, json: async () => ({ elements: [
+      { type: "node", id: 1, lat: 52.40, lon: 4.90, tags: { amenity: "cafe", name: "Starbucks" } },
+      { type: "node", id: 2, lat: 52.3680, lon: 4.9045, tags: { amenity: "cafe", name: "Starbucks" } },
+    ] }) }; },
+    async () => {
+      const resp = await onRequestGet({ request: { url: "https://x/api/pois?q=Starbucks&lat=52.3676&lon=4.9041" }, env: { DB: db } });
+      const body = await resp.json();
+      assert.equal(body.places[0].id, "node/2", "the nearest branch comes first");
+      assert.ok(body.places[0].distanceM < body.places[1].distanceM);
+    }
+  );
+  assert.match(sentQuery, /around:6000,52.3676,4.9041/);
+  assert.match(sentQuery, /"name"~"Starbucks",i/);
+  assert.ok([...db.rows.keys()].some((k) => k.startsWith("name:starbucks:")), "cached in D1");
+});

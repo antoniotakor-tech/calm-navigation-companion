@@ -765,6 +765,18 @@
     poiCache.set(key, { at: Date.now(), pois });
     return pois;
   }
+  const nameSearchCache = new Map(); // "q|lat2|lon2" -> places
+  async function searchPlacesByName(query, here) {
+    const key = `${String(query).trim().toLowerCase()}|${here.lat.toFixed(2)}|${here.lon.toFixed(2)}`;
+    if (nameSearchCache.has(key)) return nameSearchCache.get(key);
+    const url = `${apiBaseUrl}/api/pois?q=${encodeURIComponent(String(query).trim())}&lat=${here.lat.toFixed(5)}&lon=${here.lon.toFixed(5)}`;
+    const resp = await fetchPoisWithRetry(url);
+    if (!resp || !resp.ok) return [];
+    const places = ((await resp.json()).places) || [];
+    nameSearchCache.set(key, places);
+    return places;
+  }
+
   async function nearbyPlaceMatches(query) {
     const q = foldText(query).trim();
     if (q.length < 2) return [];
@@ -772,7 +784,15 @@
     if (!here) return [];
     const categoryKinds = Object.keys(PLACE_CATEGORY_WORDS)
       .filter((k) => q.length >= 3 && PLACE_CATEGORY_WORDS[k].some((w) => w.startsWith(q) || q.startsWith(w)));
-    const pools = [await placesAround(here)];
+    // Name/brand search around you (2026-10-12): "Starbucks" -> the nearest
+    // branches within ~6 km, not only what's loaded on the map. Runs in
+    // parallel with the local area load; either may fail independently.
+    const isCategory = categoryKinds.length > 0;
+    const [around, named] = await Promise.all([
+      placesAround(here).catch(() => []),
+      isCategory || q.length < 3 ? Promise.resolve([]) : searchPlacesByName(query, here).catch(() => []),
+    ]);
+    const pools = [named, around];
     for (const entry of poiCache.values()) pools.push(entry.pois || []);
     const seen = new Set();
     const hits = [];
@@ -784,7 +804,7 @@
         const nameMatch = name.startsWith(q) || name.split(/[\s\-'’.,&()]+/).some((w) => w.startsWith(q));
         if (!nameMatch && !categoryKinds.includes(p.kind)) continue;
         const d = NavLogic.haversineM(here.lat, here.lon, p.lat, p.lon);
-        if (d > 3000) continue;
+        if (d > 6000) continue;
         hits.push({ p, d, nameMatch });
       }
     }

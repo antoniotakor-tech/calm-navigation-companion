@@ -155,9 +155,108 @@ export function normalizePoi(el) {
   return { id: `${el.type || "node"}/${el.id}`, lat, lon, name: name.slice(0, 80), kind };
 }
 
+
+// Races every Overpass mirror in PARALLEL and returns the first healthy
+// Response, or null if all fail/time out. (Sequential tries measured
+// 19-21 s in production on 2026-09-03 when mirrors refused us.)
+async function queryOverpass(query) {
+  const raceOne = async (upstream) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+    try {
+      const attempt = await fetch(upstream, {
+        method: "POST",
+        body: "data=" + encodeURIComponent(query),
+        headers: {
+          // Overpass's usage policy asks every client to identify itself, and
+          // their servers reject anonymous/UA-less requests.
+          "content-type": "application/x-www-form-urlencoded",
+          "user-agent": "CalmNavigationCompanion/1.0 (https://calm-navigation-companion.pages.dev)",
+        },
+        signal: controller.signal,
+      });
+      // A non-ok response must reject, or a 429 would beat a healthy mirror's 200.
+      if (!attempt.ok) throw new Error("upstream status " + attempt.status);
+      return attempt;
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+  try {
+    return await Promise.any(UPSTREAMS.map(raceOne));
+  } catch (e) {
+    console.warn("All %s upstream mirrors failed or timed out.", UPSTREAMS.length);
+    return null;
+  }
+}
+
+// ---- Name / brand search near the user (2026-10-12) ---------------------
+// "Starbucks" -> the nearest Starbucks branches, not a Starbucks in another
+// city. Searches OSM name + brand tags within NAME_SEARCH_RADIUS_M of the
+// given point, nearest first. Cached in D1 per (normalised name, ~1 km cell)
+// exactly like the area cache, with the same stale-on-failure fallback.
+const NAME_SEARCH_RADIUS_M = 6000;
+const NAME_SEARCH_MAX = 15;
+
+export function sanitizeNameQuery(raw) {
+  const q = String(raw || "").normalize("NFC").trim().replace(/\s+/g, " ");
+  // Letters (any script), digits, space and a few name characters only —
+  // everything else is dropped, then regex specials are escaped for the
+  // Overpass regex filter. Keeps user text from ever shaping the query.
+  const cleaned = q.replace(/[^\p{L}\p{N} '&.\-]/gu, "").slice(0, 40).trim();
+  if (cleaned.length < 2) return null;
+  return cleaned;
+}
+
+function haversineM(lat1, lon1, lat2, lon2) {
+  const R = 6371000, toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+async function handleNameSearch(context, incoming) {
+  const q = sanitizeNameQuery(incoming.searchParams.get("q"));
+  const lat = Number(incoming.searchParams.get("lat"));
+  const lon = Number(incoming.searchParams.get("lon"));
+  if (!q) return jsonError("q must be at least 2 letters.", 400);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
+    return jsonError("lat/lon must be valid coordinates.", 400);
+  }
+  const db = context.env && context.env.DB;
+  const cacheKey = `name:${q.toLowerCase()}:${lat.toFixed(2)},${lon.toFixed(2)}`;
+  const cached = await readPoiCache(db, cacheKey);
+  const cacheAge = cached ? Date.now() - Number(cached.fetched_at) : Infinity;
+  if (cached && cacheAge < POI_FRESH_MS) return poiResponse(cached.body, "hit");
+
+  const re = q.replace(/[.\-&']/g, (c) => "\\" + c);
+  const around = `around:${NAME_SEARCH_RADIUS_M},${lat},${lon}`;
+  const query = `[out:json][timeout:8];(nwr["name"~"${re}",i](${around});nwr["brand"~"${re}",i](${around}););out center 80;`;
+  const resp = await queryOverpass(query);
+  let data = null;
+  if (resp) { try { data = await resp.json(); } catch (e) { data = null; } }
+  if (!data) {
+    if (cached && cacheAge < POI_STALE_MAX_MS) return poiResponse(cached.body, "stale");
+    return jsonError("Place search is busy right now.", 502);
+  }
+  const seen = new Set();
+  const places = (Array.isArray(data.elements) ? data.elements : [])
+    .map(normalizePoi)
+    .filter(Boolean)
+    .filter((p) => (seen.has(p.id) ? false : seen.add(p.id)))
+    .map((p) => ({ ...p, distanceM: Math.round(haversineM(lat, lon, p.lat, p.lon)) }))
+    .sort((a, b) => a.distanceM - b.distanceM)
+    .slice(0, NAME_SEARCH_MAX);
+  const body = JSON.stringify({ places });
+  const write = writePoiCache(db, cacheKey, body);
+  if (context.waitUntil) context.waitUntil(write); else await write;
+  return poiResponse(body, "miss");
+}
+
 export async function onRequestGet(context) {
   const { request } = context;
   const incoming = new URL(request.url);
+  if (incoming.searchParams.has("q")) return handleNameSearch(context, incoming);
   const bbox = parseBbox(incoming.searchParams.get("bbox"));
   if (!bbox) {
     return jsonError("bbox must be minLat,minLon,maxLat,maxLon covering at most a neighborhood-sized area.", 400);
@@ -182,38 +281,7 @@ export async function onRequestGet(context) {
   // Racing bounds the wait at ONE timeout regardless of how many mirrors
   // there are, and the fastest healthy mirror wins instead of whichever
   // happens to be first in the list.
-  const raceOne = async (upstream) => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
-    try {
-      const attempt = await fetch(upstream, {
-        method: "POST",
-        body: "data=" + encodeURIComponent(query),
-        headers: {
-          // Overpass's usage policy asks every client to identify itself, and
-          // their servers reject anonymous/UA-less requests (workerd sends no
-          // default User-Agent — this header is load-bearing, not courtesy).
-          "content-type": "application/x-www-form-urlencoded",
-          "user-agent": "CalmNavigationCompanion/1.0 (https://calm-navigation-companion.pages.dev)",
-        },
-        signal: controller.signal,
-      });
-      // Promise.any resolves on the first NON-rejecting promise, so a non-ok
-      // response has to reject or a 429 would beat a healthy mirror's 200.
-      if (!attempt.ok) throw new Error("upstream status " + attempt.status);
-      return attempt;
-    } finally {
-      clearTimeout(timer); // also on the error path — a leaked timer pins the runtime alive
-    }
-  };
-
-  let resp = null;
-  try {
-    resp = await Promise.any(UPSTREAMS.map(raceOne));
-  } catch (e) {
-    // AggregateError: every mirror failed or timed out.
-    console.warn("All %s upstream mirrors failed or timed out.", UPSTREAMS.length);
-  }
+  const resp = await queryOverpass(query);
   if (!resp) {
     if (cached && cacheAge < POI_STALE_MAX_MS) return poiResponse(cached.body, "stale");
     return jsonError("POI service is busy right now.", 502);

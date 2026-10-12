@@ -7,7 +7,8 @@
 // would be misleading rather than calming. Every soundscape below IS a real,
 // audible signal, not a placeholder.
 //
-// Soundscapes: off, white, brown, ocean, nature (wind + birds).
+// Soundscapes: off, rain, stream, pink, brown, ocean, nature ("Park": wind + sparse birds),
+// pads, breathe, and white (Settings only). See the 2026-10-12 research section below.
 // Trimmed from eleven to four (product decision, 2026-07-29) — pink/tone/
 // rain/wind/birds/piano/forest are no longer offered as standalone choices.
 // wind/birds/pink-noise-buffer synthesis code stays below regardless: nature
@@ -152,15 +153,141 @@
   }
 
   // ---- layer builders — each returns { gain, stop() } ----
-  AmbientEngine.prototype._loopNoiseLayer = function (type, level) {
+  // opts.highpass / opts.lowpass tame the spectrum edges (2026-10-12
+  // research pass): sharp, high-pitched sound is the most consistently named
+  // trigger for autistic listeners, and steady energy below ~60-100 Hz is
+  // linked to annoyance and headache — so noise beds are band-limited.
+  AmbientEngine.prototype._loopNoiseLayer = function (type, level, opts) {
     const ctx = this._ctx();
     const gain = makeLayerGain(this, level);
     const src = ctx.createBufferSource();
     src.buffer = this._noiseBuffer(type);
     src.loop = true;
-    src.connect(gain);
+    let node = src;
+    if (opts && opts.highpass) {
+      const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = opts.highpass; hp.Q.value = 0.5;
+      node.connect(hp); node = hp;
+    }
+    if (opts && opts.lowpass) {
+      const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = opts.lowpass; lp.Q.value = 0.5;
+      node.connect(lp); node = lp;
+    }
+    node.connect(gain);
     src.start(0);
     return { gain, stop: () => src.stop() };
+  };
+
+  // ---- Research-based soundscapes (2026-10-12) --------------------------
+  // See reports/"Calming sounds for neurodivergent people". Design rules
+  // applied to every one: continuous and predictable (no clicks, drops or
+  // sudden onsets), slow modulation only (<= 0.2 Hz), high frequencies
+  // rolled off, no speech/mouth sounds, no low hum.
+
+  // Rain: steady pink noise shaped like distant rain on leaves — band-
+  // limited 250 Hz-3.5 kHz with a very slow (~25 s) intensity drift so it
+  // breathes without ever "doing" anything. Deliberately no individual
+  // drop sounds: those would be exactly the sharp transients to avoid.
+  AmbientEngine.prototype._rainLayer = function (level) {
+    const ctx = this._ctx();
+    const layer = this._loopNoiseLayer("pink", level * 0.9, { highpass: 250, lowpass: 3500 });
+    const drift = ctx.createOscillator(); drift.type = "sine"; drift.frequency.value = 0.04;
+    const depth = ctx.createGain(); depth.gain.value = level * 0.12;
+    drift.connect(depth); depth.connect(layer.gain.gain); drift.start();
+    return { gain: layer.gain, stop: () => { layer.stop(); drift.stop(); } };
+  };
+
+  // Stream: water had the strongest link to health outcomes in the 2021
+  // meta-analysis. Pink noise through two gently wandering band-passes
+  // (independent slow LFOs) gives a soft babble without splashes.
+  AmbientEngine.prototype._streamLayer = function (level) {
+    const ctx = this._ctx();
+    const gain = makeLayerGain(this, level);
+    const src = ctx.createBufferSource(); src.buffer = this._noiseBuffer("pink"); src.loop = true;
+    const stops = [() => src.stop()];
+    [[700, 0.11, 250], [1600, 0.07, 500]].forEach(([freq, rate, swing]) => {
+      const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = freq; bp.Q.value = 1.1;
+      const lfo = ctx.createOscillator(); lfo.type = "sine"; lfo.frequency.value = rate;
+      const lfoAmt = ctx.createGain(); lfoAmt.gain.value = swing;
+      lfo.connect(lfoAmt); lfoAmt.connect(bp.frequency);
+      const g = ctx.createGain(); g.gain.value = 0.9;
+      src.connect(bp); bp.connect(g); g.connect(gain);
+      lfo.start(); stops.push(() => lfo.stop());
+    });
+    src.start(0);
+    return { gain, stop: () => stops.forEach((f) => f()) };
+  };
+
+  // Calm pads: slow, simple, predictable tones (slow music lowers arousal),
+  // with a built-in near-silence every ~45 s — in the tempo study a short
+  // pause dropped heart rate and blood pressure below baseline. Soft sine
+  // voices in a low, consonant chord; no attack, no melody, no rhythm.
+  AmbientEngine.prototype._padsLayer = function (level) {
+    const ctx = this._ctx();
+    const gain = makeLayerGain(this, level * 0.55);
+    const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 1200; lp.connect(gain);
+    const voices = [];
+    [[146.83, 0.031], [220.0, 0.023], [293.66, 0.017], [369.99, 0.013]].forEach(([f, rate], i) => {
+      const osc = ctx.createOscillator(); osc.type = "sine"; osc.frequency.value = f;
+      osc.detune.value = (i % 2 ? 4 : -4);
+      const vg = ctx.createGain(); vg.gain.value = 0.18;
+      const lfo = ctx.createOscillator(); lfo.type = "sine"; lfo.frequency.value = rate;
+      const amt = ctx.createGain(); amt.gain.value = 0.1;
+      lfo.connect(amt); amt.connect(vg.gain);
+      osc.connect(vg); vg.connect(lp); osc.start(); lfo.start();
+      voices.push(osc, lfo);
+    });
+    // Planned near-silence: a slow sub-envelope on the whole pad (period
+    // ~45 s) that dips to ~10% for a few seconds, then returns.
+    const breath = ctx.createGain(); breath.gain.value = 1;
+    lp.disconnect(); lp.connect(breath); breath.connect(gain);
+    let stopped = false, timer = null;
+    const cycle = () => {
+      if (stopped) return;
+      const t = ctx.currentTime;
+      breath.gain.cancelScheduledValues(t);
+      breath.gain.setValueAtTime(breath.gain.value, t);
+      breath.gain.linearRampToValueAtTime(1, t + 6);
+      breath.gain.setValueAtTime(1, t + 34);
+      breath.gain.linearRampToValueAtTime(0.1, t + 40);
+      breath.gain.setValueAtTime(0.1, t + 44);
+      timer = setTimeout(cycle, 45000);
+    };
+    cycle();
+    return { gain, stop: () => { stopped = true; clearTimeout(timer); voices.forEach((v) => { try { v.stop(); } catch (e) {} }); } };
+  };
+
+  // City mask (2026-10-12): not active noise cancelling (that needs the
+  // headphones' own microphones and can't be done by an app). Sound
+  // MASKING instead: a steady bed weighted toward the band where city
+  // noise lives (traffic rumble and voices, ~100 Hz-2 kHz) so sudden
+  // sounds stand out less. Brown + pink blend, gentle lowpass, no movement.
+  AmbientEngine.prototype._cityMaskLayer = function (level) {
+    const brown = this._loopNoiseLayer("brown", level * 0.75, { highpass: 90, lowpass: 1800 });
+    const pink = this._loopNoiseLayer("pink", level * 0.35, { highpass: 300, lowpass: 2500 });
+    return [brown, pink];
+  };
+
+  // Breathe: a soft swell paced at 6 breaths per minute (4 s in, 6 s out) —
+  // slow paced breathing is a standard down-regulation technique, and
+  // following a sound needs no reading or looking at the screen.
+  AmbientEngine.prototype._breatheLayer = function (level) {
+    const ctx = this._ctx();
+    const layer = this._loopNoiseLayer("pink", 0, { highpass: 150, lowpass: 1400 });
+    const g = layer.gain.gain;
+    let stopped = false, timer = null;
+    const lo = level * 0.15, hi = level * 0.85;
+    const breath = () => {
+      if (stopped) return;
+      const t = ctx.currentTime;
+      g.cancelScheduledValues(t);
+      g.setValueAtTime(Math.max(g.value, 0.0001), t);
+      g.linearRampToValueAtTime(hi, t + 4);   // inhale
+      g.linearRampToValueAtTime(lo, t + 10);  // exhale
+      timer = setTimeout(breath, 10000);
+    };
+    // Let makeLayerGain's own fade-in finish before pacing starts.
+    timer = setTimeout(breath, 50);
+    return { gain: layer.gain, stop: () => { stopped = true; clearTimeout(timer); layer.stop(); } };
   };
 
   // Bandpassed noise with a slow filter-frequency sweep — reads as gusting
@@ -230,12 +357,14 @@
           const osc = ctx.createOscillator();
           const env = ctx.createGain();
           osc.type = "sine";
-          const base = 2200 + Math.random() * 1400;
+          // Softer + lower than before (2026-10-12): bird calls are sudden,
+          // high sounds — kept sparse, quiet, under ~2.6 kHz, slow attack.
+          const base = 1500 + Math.random() * 700;
           osc.frequency.setValueAtTime(base, ctx.currentTime);
           osc.frequency.exponentialRampToValueAtTime(base * 1.4, ctx.currentTime + 0.08);
           env.gain.setValueAtTime(0, ctx.currentTime);
-          env.gain.linearRampToValueAtTime(0.22, ctx.currentTime + 0.015);
-          env.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.14);
+          env.gain.linearRampToValueAtTime(0.09, ctx.currentTime + 0.05);
+          env.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.22);
           osc.connect(env);
           // A slight randomized stereo position per chirp — real birdsong
           // doesn't come from dead center, and a fixed position on every
@@ -250,10 +379,10 @@
             env.connect(gain);
           }
           osc.start();
-          osc.stop(ctx.currentTime + 0.16);
+          osc.stop(ctx.currentTime + 0.24);
         }, i * 140);
       }
-      timerId = setTimeout(chirp, 3000 + Math.random() * 5000);
+      timerId = setTimeout(chirp, 7000 + Math.random() * 9000);
     };
     timerId = setTimeout(chirp, 1000);
     return { gain, stop: () => { stopped = true; clearTimeout(timerId); } };
@@ -262,10 +391,17 @@
   // wind/birds are no longer independently selectable (see file header) but
   // stay as the two calls nature's own builder makes directly below.
   const BUILDERS = {
-    white: (e, lvl) => [e._loopNoiseLayer("white", lvl)],
-    brown: (e, lvl) => [e._loopNoiseLayer("brown", lvl)],
+    rain: (e, lvl) => [e._rainLayer(lvl)],
+    stream: (e, lvl) => [e._streamLayer(lvl)],
+    pink: (e, lvl) => [e._loopNoiseLayer("pink", lvl, { highpass: 60, lowpass: 6000 })],
+    brown: (e, lvl) => [e._loopNoiseLayer("brown", lvl, { highpass: 60 })],
     ocean: (e, lvl) => [e._oceanLayer(lvl)],
-    nature: (e, lvl) => [e._windLayer(lvl * 0.6), e._birdsLayer(lvl * 0.9)],
+    nature: (e, lvl) => [e._windLayer(lvl * 0.6), e._birdsLayer(lvl * 0.9)], // shown as "Park"
+    mask: (e, lvl) => e._cityMaskLayer(lvl),
+    pads: (e, lvl) => [e._padsLayer(lvl)],
+    breathe: (e, lvl) => [e._breatheLayer(lvl)],
+    // Settings-only (white noise can hurt focus for people without ADHD).
+    white: (e, lvl) => [e._loopNoiseLayer("white", lvl * 0.7, { lowpass: 9000 })],
   };
 
   AmbientEngine.prototype.availableSoundscapes = function () {
