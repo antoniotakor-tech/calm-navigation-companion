@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=Patrick+Hand&family=Gaegu:wght@700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -82,6 +82,25 @@
       <div class="page-inner">
         <div class="map-wrap" id="mapWrap">
           <div id="map"></div>
+          <!-- Doodle layer (2026-10-12): hand-drawn sun, clouds, butterflies,
+               birds and flowers drifting over the map. Decorative only:
+               pointer-events none, aria-hidden, off during navigation and
+               under Reduced Motion they stand still. -->
+          <div class="map-doodles" aria-hidden="true">
+            <svg width="0" height="0" style="position:absolute">
+              <filter id="crayon"><feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="3"><animate attributeName="seed" values="3;7;11;3" dur="0.9s" repeatCount="indefinite" calcMode="discrete"/></feTurbulence><feDisplacementMap in="SourceGraphic" scale="3.2"/></filter>
+            </svg>
+            <svg class="dd dd-sun" viewBox="0 0 100 100"><g filter="url(#crayon)"><g class="dd-rays" stroke="#FF9F1C" stroke-width="5" stroke-linecap="round"><path d="M50 6v12M50 82v12M6 50h12M82 50h12M19 19l8 8M73 73l8 8M19 81l8-8M73 27l8-8"/></g><circle cx="50" cy="50" r="22" fill="#FFD84D" stroke="#2D2A3E" stroke-width="3.5"/><path d="M41 47v1M59 47v1" stroke="#2D2A3E" stroke-width="5" stroke-linecap="round"/><path d="M41 57q9 8 18 0" fill="none" stroke="#2D2A3E" stroke-width="3.5" stroke-linecap="round"/><circle cx="37" cy="55" r="3" fill="#FF8FB8"/><circle cx="63" cy="55" r="3" fill="#FF8FB8"/></g></svg>
+            <svg class="dd dd-cloud dd-cloud1" viewBox="0 0 120 60"><path filter="url(#crayon)" d="M20 48c-11 0-14-15-3-18 0-12 15-17 23-9 5-12 26-12 30 2 13-3 22 8 16 17 9 2 7 9-1 9z" fill="#FFFFFF" stroke="#2D2A3E" stroke-width="3" stroke-linejoin="round"/></svg>
+            <svg class="dd dd-cloud dd-cloud2" viewBox="0 0 120 60"><path filter="url(#crayon)" d="M20 48c-11 0-14-15-3-18 0-12 15-17 23-9 5-12 26-12 30 2 13-3 22 8 16 17 9 2 7 9-1 9z" fill="#E8F4FF" stroke="#2D2A3E" stroke-width="3" stroke-linejoin="round"/></svg>
+            <div class="dd-fly dd-fly1"><svg class="dd dd-butterfly" viewBox="0 0 60 50"><g filter="url(#crayon)" stroke="#2D2A3E" stroke-width="2.5" stroke-linejoin="round"><g class="dd-wing-l"><path d="M30 25C18 6 4 10 8 22c3 8 14 8 22 3z" fill="#FF8FB8"/><path d="M30 27c-10 2-17 14-9 18 6 2 9-8 9-18z" fill="#B58CFF"/></g><g class="dd-wing-r"><path d="M30 25c12-19 26-15 22-3-3 8-14 8-22 3z" fill="#FF8FB8"/><path d="M30 27c10 2 17 14 9 18-6 2-9-8-9-18z" fill="#B58CFF"/></g><path d="M30 18v24" stroke-width="4" stroke-linecap="round"/><path d="M30 18l-5-8M30 18l5-8" fill="none" stroke-linecap="round"/></g></svg></div>
+            <div class="dd-fly dd-fly2"><svg class="dd dd-butterfly" viewBox="0 0 60 50"><g filter="url(#crayon)" stroke="#2D2A3E" stroke-width="2.5" stroke-linejoin="round"><g class="dd-wing-l"><path d="M30 25C18 6 4 10 8 22c3 8 14 8 22 3z" fill="#7CC8FF"/><path d="M30 27c-10 2-17 14-9 18 6 2 9-8 9-18z" fill="#7ED67A"/></g><g class="dd-wing-r"><path d="M30 25c12-19 26-15 22-3-3 8-14 8-22 3z" fill="#7CC8FF"/><path d="M30 27c10 2 17 14 9 18-6 2-9-8-9-18z" fill="#7ED67A"/></g><path d="M30 18v24" stroke-width="4" stroke-linecap="round"/><path d="M30 18l-5-8M30 18l5-8" fill="none" stroke-linecap="round"/></g></svg></div>
+            <svg class="dd dd-birds" viewBox="0 0 80 30"><g filter="url(#crayon)" fill="none" stroke="#2D2A3E" stroke-width="3" stroke-linecap="round"><path class="dd-bird" d="M4 14q8-9 14 0q6-9 14 0"/><path class="dd-bird dd-bird2" d="M44 22q6-7 11 0q5-7 11 0"/></g></svg>
+            <svg class="dd dd-flowers" viewBox="0 0 140 70"><g filter="url(#crayon)" stroke="#2D2A3E" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 68q30-10 60 0t60 0" fill="#7ED67A"/><g class="dd-stem dd-s1"><path d="M30 66V36" fill="none"/><path d="M30 52q-10-6-12 2 8 3 12-2z" fill="#7ED67A"/><circle cx="30" cy="24" r="8" fill="#FF8FB8"/><circle cx="30" cy="38" r="6" fill="#FF8FB8"/><circle cx="20" cy="31" r="6" fill="#FF8FB8"/><circle cx="40" cy="31" r="6" fill="#FF8FB8"/><circle cx="30" cy="31" r="5" fill="#FFD84D"/></g><g class="dd-stem dd-s2"><path d="M75 66V42" fill="none"/><circle cx="75" cy="33" r="6" fill="#B58CFF"/><circle cx="67" cy="39" r="6" fill="#B58CFF"/><circle cx="83" cy="39" r="6" fill="#B58CFF"/><circle cx="75" cy="44" r="5" fill="#B58CFF"/><circle cx="75" cy="39" r="4.5" fill="#FFD84D"/></g><g class="dd-stem dd-s3"><path d="M115 66V30" fill="none"/><path d="M115 50q10-6 12 2-8 3-12-2z" fill="#7ED67A"/><circle cx="115" cy="22" r="7" fill="#FF9F1C"/><circle cx="106" cy="28" r="6" fill="#FF9F1C"/><circle cx="124" cy="28" r="6" fill="#FF9F1C"/><circle cx="115" cy="33" r="5" fill="#FF9F1C"/><circle cx="115" cy="28" r="4.5" fill="#FFF3B0"/></g></g></svg>
+            <svg class="dd dd-star dd-star1" viewBox="0 0 30 30"><path filter="url(#crayon)" d="M15 3l3 8 9 1-7 6 2 9-7-5-7 5 2-9-7-6 9-1z" fill="#FFD84D" stroke="#2D2A3E" stroke-width="2.2" stroke-linejoin="round"/></svg>
+            <svg class="dd dd-star dd-star2" viewBox="0 0 30 30"><path filter="url(#crayon)" d="M15 3l3 8 9 1-7 6 2 9-7-5-7 5 2-9-7-6 9-1z" fill="#FF8FB8" stroke="#2D2A3E" stroke-width="2.2" stroke-linejoin="round"/></svg>
+            <svg class="dd dd-heart" viewBox="0 0 30 28"><path filter="url(#crayon)" d="M15 25C5 17 2 12 4 7c2-5 9-5 11 1 2-6 9-6 11-1 2 5-1 10-11 18z" fill="#FF6B8A" stroke="#2D2A3E" stroke-width="2.2" stroke-linejoin="round"/></svg>
+          </div>
           <div class="sim-badge" id="simBadge" style="display:none;">SIMULATED GPS — not real location</div>
           <!-- "Show my location", like the arrow button in Google/Apple Maps
                (2026-10-09). Planning screen only — navigation has its own
@@ -603,10 +622,12 @@
           </div>
           <p class="cm-note" id="acUnsupported" hidden>This browser can't use passkeys. Try Safari on iPhone or Mac, or Chrome.</p>
           <div class="cm-error" id="acMsg" role="alert"></div>
+          <button type="button" class="cm-link plus-reopen" id="plusReopen" hidden><i data-ci="sparkle"></i> About Calm+</button>
         </div>
 
         <div class="plus-card" id="plusCard">
-          <div class="plus-head"><i data-ci="sparkle"></i> <b>Calm+</b></div>
+          <div class="plus-head"><i data-ci="sparkle"></i> <b>Calm+</b>
+            <button type="button" class="plus-close" id="plusClose" aria-label="Hide Calm+">×</button></div>
           <ul class="plus-perks">
             <li>Your saved places, calm ratings, settings and blocks synced on all your devices</li>
             <li>Share up to 20 posts a day (free: 5)</li>
@@ -719,6 +740,7 @@
         <button class="pill" type="button" data-appearance="dark" aria-pressed="false"><i data-ci="moon"></i> Dark</button>
         <button class="pill" type="button" data-appearance="flow" aria-pressed="false"><i data-ci="sparkle"></i> Flow</button>
         <button class="pill" type="button" data-appearance="bloom" aria-pressed="false"><i data-ci="flower"></i> Bloom</button>
+        <button class="pill" type="button" data-appearance="doodle" aria-pressed="false"><i data-ci="sun"></i> Doodle</button>
       </div>
       <div class="desc" style="margin-top:6px;">Flow is an optional, calming animated theme — fully accessible, and it respects Reduced Motion/High Contrast just like Light and Dark.</div>
     </div>
@@ -791,9 +813,14 @@
     <textarea id="cmBodyInput" maxlength="400" rows="3" placeholder="What makes it calm? When is it quietest?" aria-label="Description"></textarea>
     <label class="cm-label" for="cmEventInput" id="cmEventLabel" hidden>When</label>
     <input id="cmEventInput" type="datetime-local" hidden />
-    <label class="cm-photo-btn" for="cmPhotoInput"><i data-ci="flower"></i> <span id="cmPhotoLabel">Add a photo (optional)</span></label>
-    <input id="cmPhotoInput" type="file" accept="image/*" hidden />
-    <img id="cmPhotoPreview" class="cm-photo-preview" alt="" hidden />
+    <div class="cm-photos">
+      <div class="cm-photo-actions">
+        <label class="cm-photo-btn" id="cmCameraBtn"><input id="cmCameraInput" type="file" accept="image/*" capture="environment" class="cm-file" /><i data-ci="camera"></i> Take photo</label>
+        <label class="cm-photo-btn" id="cmLibraryBtn"><input id="cmLibraryInput" type="file" accept="image/*" multiple class="cm-file" /><i data-ci="image"></i> From library</label>
+      </div>
+      <div class="cm-thumbs" id="cmThumbs"></div>
+      <div class="cm-note" id="cmPhotoCount">Up to 4 photos (optional)</div>
+    </div>
     <p class="cm-note" id="cmWhereNote"></p>
     <p class="cm-note">Please don't post photos where people can be recognised. Location data is removed from photos.</p>
     <div class="cm-error" id="cmComposerError" role="alert"></div>

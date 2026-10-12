@@ -186,6 +186,45 @@
     } catch (e) { /* offline — next time */ }
   }
 
+  // ---- Calm+ banner: swipe it away (or ×); "About Calm+" brings it back ------------
+  const DISMISS_KEY = "calmAccount.plusDismissed.v1";
+  function setPlusHidden(hidden) {
+    ls.set(DISMISS_KEY, hidden ? "1" : null);
+    const card = $("plusCard");
+    card.style.transform = "";
+    card.style.opacity = "";
+    card.hidden = hidden && !api.isPlus();
+    $("plusReopen").hidden = !card.hidden;
+  }
+  function wireSwipe(card) {
+    let startX = null, dx = 0, id = null;
+    card.addEventListener("pointerdown", (e) => {
+      if (e.target.closest("button")) return;
+      startX = e.clientX; dx = 0; id = e.pointerId;
+      card.style.transition = "none";
+    });
+    card.addEventListener("pointermove", (e) => {
+      if (startX == null || e.pointerId !== id) return;
+      dx = e.clientX - startX;
+      if (Math.abs(dx) > 8) {
+        card.style.transform = `translateX(${dx}px) rotate(${dx / 30}deg)`;
+        card.style.opacity = String(Math.max(0.2, 1 - Math.abs(dx) / 260));
+      }
+    });
+    const end = () => {
+      if (startX == null) return;
+      startX = null;
+      card.style.transition = "transform .28s ease, opacity .28s ease";
+      if (Math.abs(dx) > 90) {
+        card.style.transform = `translateX(${dx > 0 ? 120 : -120}%) rotate(${dx > 0 ? 12 : -12}deg)`;
+        card.style.opacity = "0";
+        setTimeout(() => { card.style.transition = ""; setPlusHidden(true); }, 280);
+      } else { card.style.transform = ""; card.style.opacity = ""; }
+    };
+    card.addEventListener("pointerup", end);
+    card.addEventListener("pointercancel", end);
+  }
+
   // ---- UI -----------------------------------------------------------------------
   function render() {
     const box = $("accountBox");
@@ -226,6 +265,10 @@
     $("plusYearly").addEventListener("click", () => buy("yearly"));
     $("plusManage").addEventListener("click", manage);
     $("plusNotify").addEventListener("click", notifyMe);
+    $("plusClose").addEventListener("click", () => setPlusHidden(true));
+    $("plusReopen").addEventListener("click", () => setPlusHidden(false));
+    wireSwipe($("plusCard"));
+    setPlusHidden(!!ls.get(DISMISS_KEY));
     render();
     loadBilling();
     refresh().then(() => syncNow("pull"));

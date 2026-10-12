@@ -132,6 +132,11 @@
   // theme, before the rest of the script (route inputs, nav wiring,
   // everything) ever runs.
   function initTheme() {
+    // 2026-10-12: Doodle (kid-drawing look) becomes the app's look. Applied
+    // once per device; anyone can still switch back in Settings → Appearance.
+    let introduced = true;
+    try { introduced = localStorage.getItem("calmTheme.doodleIntro.v1") === "1"; localStorage.setItem("calmTheme.doodleIntro.v1", "1"); } catch (e) { /* storage off: keep their theme */ }
+    if (!introduced) { setTheme("doodle"); return; }
     const stored = FlowTheme.loadStoredTheme();
     if (stored) {
       setTheme(stored);
@@ -4138,6 +4143,7 @@
     apiBaseUrl,
     deviceToken: () => creatorToken,
     currentRoute: () => (lastResult ? (selected === "fast" ? lastResult.fastest : lastResult.calm) : null),
+    lastFix: () => lastFixLatLng,
     isBlocked: (key) => blockedAuthors.has(key),
     blockAuthor,
     goToPage: (i) => goToPage(i),

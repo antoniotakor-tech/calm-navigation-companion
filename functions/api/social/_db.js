@@ -44,10 +44,11 @@ export function publicPost(row, profile) {
     route: row.route_json ? JSON.parse(row.route_json) : null,
     eventAt: row.event_at || null,
     hasPhoto: !!row.has_photo,
+    photoCount: row.has_photo ? (row.photo_count || 1) : 0,
     createdAt: row.created_at,
     author: { id: row.author_key, nickname: profile ? profile.nickname : row.nickname || "Someone", avatar: profile ? profile.avatar : row.avatar || "rose", plus: !!(profile ? profile.plus : row.plus) },
   };
 }
 
-export const POST_COLUMNS = "p.id, p.author_key, p.kind, p.title, p.body, p.lat, p.lon, p.route_json, p.event_at, (p.photo IS NOT NULL) AS has_photo, p.created_at, pr.nickname, pr.avatar, " +
+export const POST_COLUMNS = "p.id, p.author_key, p.kind, p.title, p.body, p.lat, p.lon, p.route_json, p.event_at, (p.photo IS NOT NULL) AS has_photo, (CASE WHEN p.photo LIKE '[%' THEN json_array_length(p.photo) ELSE 1 END) AS photo_count, p.created_at, pr.nickname, pr.avatar, " +
   "(SELECT a.plan = 'plus' AND (a.plan_until IS NULL OR a.plan_until > CAST(strftime('%s','now') AS INTEGER) * 1000) FROM accounts a WHERE a.owner_hash = p.owner_hash) AS plus";

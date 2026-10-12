@@ -55,7 +55,8 @@ test("nextTheme: cycles Light -> Dark -> Flow -> Bloom -> Light", () => {
   assert.equal(FlowTheme.nextTheme("light"), "dark");
   assert.equal(FlowTheme.nextTheme("dark"), "flow");
   assert.equal(FlowTheme.nextTheme("flow"), "bloom");
-  assert.equal(FlowTheme.nextTheme("bloom"), "light");
+  assert.equal(FlowTheme.nextTheme("bloom"), "doodle");
+  assert.equal(FlowTheme.nextTheme("doodle"), "light");
 });
 
 test("nextTheme: an unrecognized current theme safely restarts the cycle rather than throwing", () => {

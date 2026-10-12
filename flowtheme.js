@@ -23,7 +23,7 @@
 })(typeof self !== "undefined" ? self : this, function () {
   "use strict";
 
-  const THEMES = ["light", "dark", "flow", "bloom"]; // bloom: colourful + flowers (2026-10-12)
+  const THEMES = ["light", "dark", "flow", "bloom", "doodle"]; // bloom: colourful + flowers; doodle: kid-drawing look (2026-10-12)
   const DEFAULT_THEME = "light";
 
   function isValidTheme(t) {
@@ -95,8 +95,9 @@
     return theme === "flow";
   }
 
+  // Doodle shares Bloom's flowers-on-the-map and arrival petal burst.
   function isBloomActive(theme) {
-    return theme === "bloom";
+    return theme === "bloom" || theme === "doodle";
   }
 
   // Whether a theme should render with the dark CARTO tileset. Flow uses

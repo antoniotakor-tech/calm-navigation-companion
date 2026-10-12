@@ -37,6 +37,12 @@ test("events must be in the coming year", () => {
   assert.equal(S.validatePost({ ...base, kind: "event", eventAt: now + 86400000 }, now).valid, true);
 });
 
+test("up to 4 photos are accepted, a 5th is refused", () => {
+  const p = "data:image/jpeg;base64,AAAA";
+  assert.equal(S.validatePost({ ...base, photos: [p, p, p, p] }).value.photos.length, 4);
+  assert.equal(S.validatePost({ ...base, photos: [p, p, p, p, p] }).valid, false);
+});
+
 test("photos must be small image data URLs", () => {
   assert.equal(S.validatePost({ ...base, photo: "data:image/jpeg;base64,AAAA" }).valid, true);
   assert.equal(S.validatePost({ ...base, photo: "https://x.com/a.jpg" }).valid, false);

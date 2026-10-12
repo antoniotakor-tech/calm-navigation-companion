@@ -22,7 +22,7 @@
   const AVATARS = ["rose", "lilac", "mint", "sun", "sky", "peach"];
   const LIMITS = {
     nickname: 24, bio: 140, title: 60, body: 400,
-    routePoints: 300, photoChars: 450000, postsPerDay: 10,
+    routePoints: 300, photoChars: 380000, photos: 4, photosTotalChars: 1400000, postsPerDay: 10,
     eventMaxAheadMs: 366 * 24 * 3600 * 1000,
   };
 
@@ -89,12 +89,14 @@
         return { valid: false, error: "Pick when the event happens (from now up to a year ahead)." };
       }
     }
-    let photo = null;
-    if (body.photo != null && body.photo !== "") {
-      if (!isPhotoDataUrl(body.photo)) return { valid: false, error: "That photo is too large or not an image." };
-      photo = body.photo;
-    }
-    return { valid: true, value: { kind, title, body: text, lat, lon, route, eventAt, photo } };
+    // Photos: up to LIMITS.photos re-encoded images. `photo` (one) is still
+    // accepted from older app versions.
+    let photos = Array.isArray(body.photos) ? body.photos : (body.photo ? [body.photo] : []);
+    photos = photos.filter((p) => p != null && p !== "");
+    if (photos.length > LIMITS.photos) return { valid: false, error: `Up to ${LIMITS.photos} photos per post.` };
+    if (!photos.every(isPhotoDataUrl)) return { valid: false, error: "One of the photos is too large or not an image." };
+    if (photos.reduce((n, p) => n + p.length, 0) > LIMITS.photosTotalChars) return { valid: false, error: "Those photos are too large together — try fewer." };
+    return { valid: true, value: { kind, title, body: text, lat, lon, route, eventAt, photos } };
   }
 
   return { POST_KINDS, AVATARS, LIMITS, validateProfile, validatePost, simplifyRoute, isPhotoDataUrl, cleanText };

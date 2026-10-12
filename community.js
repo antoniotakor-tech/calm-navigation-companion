@@ -22,7 +22,9 @@
   let me = null; // { id, profile }
   let feedMode = "near";
   let composerKind = "spot";
-  let composerPhoto = null;
+  let composerPhotos = [];
+  let composerFix = null; // { lat, lon, accuracy } — posts are pinned where you are
+  let feedCenter = null;
   let mapMarkers = [];
 
   let loaded = false;
@@ -65,10 +67,30 @@
     renderMyProfile();
   }
 
+  // ---- where you are -------------------------------------------------------------
+  function locate() {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) return reject(new Error("This device can't share its location."));
+      navigator.geolocation.getCurrentPosition(
+        (p) => resolve({ lat: p.coords.latitude, lon: p.coords.longitude, accuracy: Math.round(p.coords.accuracy) }),
+        (e) => reject(new Error(e.code === 1 ? "Allow location for this app so your post is pinned where you are." : "Couldn't find your location — try again outside or near a window.")),
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+      );
+    });
+  }
+  function origin() {
+    if (feedCenter) return feedCenter;
+    const f = app.lastFix && app.lastFix();
+    if (f) return { lat: f[0], lon: f[1] };
+    const c = app.map.getCenter();
+    return { lat: c.lat, lon: c.lng };
+  }
+
   // ---- small render helpers ---------------------------------------------------
   function avatarEl(el, key) {
     el.innerHTML = CalmIcons.html("flower");
     el.style.color = AVATAR_COLORS[key] || AVATAR_COLORS.rose;
+    el.style.setProperty("--av", AVATAR_COLORS[key] || AVATAR_COLORS.rose);
     el.style.background = (AVATAR_COLORS[key] || AVATAR_COLORS.rose) + "22";
   }
   function make(tag, cls, text) {
@@ -87,9 +109,9 @@
     return new Date(ms).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
   }
   function distanceLabel(p) {
-    const c = app.map.getCenter();
+    const c = origin();
     const R = 6371000, toRad = (x) => (x * Math.PI) / 180;
-    const dLat = toRad(p.lat - c.lat), dLon = toRad(p.lon - c.lng);
+    const dLat = toRad(p.lat - c.lat), dLon = toRad(p.lon - c.lon);
     const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(c.lat)) * Math.cos(toRad(p.lat)) * Math.sin(dLon / 2) ** 2;
     const d = 2 * R * Math.asin(Math.sqrt(a));
     return d < 1000 ? Math.round(d / 10) * 10 + " m" : (d / 1000).toFixed(1) + " km";
@@ -172,8 +194,9 @@
         if (!me || !me.profile) { status.textContent = "Create a profile to start sharing."; return; }
         posts = (await api(`/api/social/profile/${encodeURIComponent(me.id)}`)).posts;
       } else {
-        const c = app.map.getCenter();
-        posts = (await api(`/api/social/posts?lat=${c.lat.toFixed(4)}&lon=${c.lng.toFixed(4)}&radius=10000`)).posts;
+        try { feedCenter = await locate(); } catch (e) { feedCenter = null; }
+        const c = origin();
+        posts = (await api(`/api/social/posts?lat=${c.lat.toFixed(4)}&lon=${c.lon.toFixed(4)}&radius=10000`)).posts;
         posts = posts.filter((p) => !app.isBlocked(p.author.id));
         showOnMapMarkers(posts);
       }
@@ -201,13 +224,7 @@
     head.append(who, badge);
     li.appendChild(head);
 
-    if (p.hasPhoto) {
-      const img = make("img", "cm-photo");
-      img.loading = "lazy";
-      img.alt = p.title;
-      img.src = `${app.apiBaseUrl}/api/social/photo/${encodeURIComponent(p.id)}`;
-      li.appendChild(img);
-    }
+    if (p.hasPhoto) li.appendChild(gallery(p));
     li.appendChild(make("h3", "cm-title", p.title));
     if (p.eventAt) li.appendChild(make("div", "cm-when", when(p.eventAt)));
     if (p.body) li.appendChild(make("p", "cm-body", p.body));
@@ -242,6 +259,57 @@
     }
     li.appendChild(actions);
     return li;
+  }
+
+  // Swipeable photo strip (scroll-snap) with dots; tap opens full screen.
+  function photoUrl(p, i) { return `${app.apiBaseUrl}/api/social/photo/${encodeURIComponent(p.id)}?i=${i}`; }
+  function gallery(p) {
+    const n = p.photoCount || 1;
+    const wrap = make("div", "cm-gallery");
+    const strip = make("div", "cm-gallery-strip");
+    for (let i = 0; i < n; i++) {
+      const img = make("img", "cm-photo");
+      img.loading = "lazy";
+      img.alt = `${p.title} — photo ${i + 1} of ${n}`;
+      img.src = photoUrl(p, i);
+      img.addEventListener("click", () => openLightbox(p, i));
+      strip.appendChild(img);
+    }
+    wrap.appendChild(strip);
+    if (n > 1) {
+      const dots = make("div", "cm-gallery-dots");
+      for (let i = 0; i < n; i++) dots.appendChild(make("span", i === 0 ? "on" : ""));
+      strip.addEventListener("scroll", () => {
+        const i = Math.round(strip.scrollLeft / strip.clientWidth);
+        Array.from(dots.children).forEach((d, k) => d.classList.toggle("on", k === i));
+      }, { passive: true });
+      wrap.appendChild(dots);
+    }
+    return wrap;
+  }
+  function openLightbox(p, start) {
+    const ov = make("div", "cm-lightbox");
+    ov.setAttribute("role", "dialog");
+    ov.setAttribute("aria-label", "Photos");
+    const strip = make("div", "cm-lightbox-strip");
+    for (let i = 0; i < (p.photoCount || 1); i++) {
+      const img = make("img");
+      img.src = photoUrl(p, i);
+      img.alt = `${p.title} — photo ${i + 1}`;
+      strip.appendChild(img);
+    }
+    const close = make("button", "cm-lightbox-close", "×");
+    close.type = "button";
+    close.setAttribute("aria-label", "Close photos");
+    const done = () => { ov.remove(); document.removeEventListener("keydown", onKey); };
+    const onKey = (e) => { if (e.key === "Escape") done(); };
+    close.addEventListener("click", done);
+    ov.addEventListener("click", (e) => { if (e.target === ov || e.target === strip) done(); });
+    document.addEventListener("keydown", onKey);
+    ov.append(strip, close);
+    document.body.appendChild(ov);
+    requestAnimationFrame(() => { strip.scrollLeft = start * strip.clientWidth; });
+    close.focus();
   }
 
   function toggleReasons(li, p) {
@@ -329,17 +397,29 @@
     $("cmKindRow").querySelectorAll("[data-kind]").forEach((b) => b.classList.toggle("active", b.dataset.kind === kind));
     $("cmEventInput").hidden = $("cmEventLabel").hidden = kind !== "event";
     const route = app.currentRoute();
-    $("cmWhereNote").textContent = kind === "route"
-      ? (route ? "Shares the route you have on the map right now." : "Plan a route on the map first, then share it here.")
-      : "Uses the centre of the map — move the map to the exact spot first.";
+    if (kind === "route") {
+      $("cmWhereNote").textContent = route ? "Shares the route you have on the map right now." : "Plan a route on the map first, then share it here.";
+      return;
+    }
+    renderWhere();
+  }
+  function renderWhere() {
+    const note = $("cmWhereNote");
+    if (composerFix) {
+      note.textContent = `Pinned where you are now (accurate to about ${Math.max(5, composerFix.accuracy)} m).`;
+    } else {
+      note.textContent = "Finding where you are…";
+      locate().then((f) => { composerFix = f; if (composerKind !== "route") renderWhere(); })
+        .catch((err) => { if (composerKind !== "route") note.textContent = err.message; });
+    }
   }
 
   function openComposer() {
     if (!me || !me.profile) { openProfileForm(); $("cmProfileError").textContent = "Create your profile first, then you can share."; return; }
     $("cmComposerForm").reset();
-    composerPhoto = null;
-    $("cmPhotoPreview").hidden = true;
-    $("cmPhotoLabel").textContent = "Add a photo (optional)";
+    composerPhotos = [];
+    composerFix = null;
+    renderThumbs();
     $("cmComposerError").textContent = "";
     setKind(app.currentRoute() ? "route" : "spot");
     $("cmComposer").classList.add("open");
@@ -349,7 +429,7 @@
   /** Re-encodes on the device: max 1080 px, JPEG — also strips EXIF/GPS. */
   async function compressPhoto(file) {
     const bmp = await createImageBitmap(file);
-    let size = 1080, quality = 0.75, url = "";
+    let size = 1280, quality = 0.72, url = "";
     for (let tries = 0; tries < 5; tries++) {
       const scale = Math.min(1, size / Math.max(bmp.width, bmp.height));
       const c = document.createElement("canvas");
@@ -365,14 +445,16 @@
 
   async function submitPost(e) {
     e.preventDefault();
-    const c = app.map.getCenter();
     const route = app.currentRoute();
+    if (composerKind !== "route" && !composerFix) {
+      try { composerFix = await locate(); } catch (err) { $("cmComposerError").textContent = err.message; return; }
+    }
     const post = {
       kind: composerKind,
       title: $("cmTitleInput").value,
       body: $("cmBodyInput").value,
-      lat: c.lat, lon: c.lng,
-      photo: composerPhoto,
+      lat: composerFix ? composerFix.lat : NaN, lon: composerFix ? composerFix.lon : NaN,
+      photos: composerPhotos,
     };
     if (composerKind === "route" && route) {
       post.route = route.coordinates;
@@ -383,6 +465,7 @@
     const check = S.validatePost(post);
     if (!check.valid) { $("cmComposerError").textContent = check.error; return; }
     $("cmComposerPost").disabled = true;
+    $("cmComposerPost").textContent = composerPhotos.length ? "Uploading photos…" : "Posting…";
     try {
       const data = await api("/api/social/posts", { token: app.deviceToken(), post: check.value });
       closeComposer();
@@ -391,7 +474,39 @@
       app.toast("Shared — thank you!");
     } catch (err) {
       $("cmComposerError").textContent = err.message;
-    } finally { $("cmComposerPost").disabled = false; }
+    } finally { $("cmComposerPost").disabled = false; $("cmComposerPost").textContent = "Post"; }
+  }
+
+  // ---- photos in the composer ------------------------------------------------------
+  function renderThumbs() {
+    const row = $("cmThumbs");
+    row.innerHTML = "";
+    composerPhotos.forEach((src, i) => {
+      const t = make("div", "cm-thumb");
+      const img = make("img");
+      img.src = src;
+      img.alt = `Photo ${i + 1}`;
+      const x = make("button", "cm-thumb-x", "×");
+      x.type = "button";
+      x.setAttribute("aria-label", `Remove photo ${i + 1}`);
+      x.addEventListener("click", () => { composerPhotos.splice(i, 1); renderThumbs(); });
+      t.append(img, x);
+      row.appendChild(t);
+    });
+    const full = composerPhotos.length >= S.LIMITS.photos;
+    $("cmCameraBtn").hidden = $("cmLibraryBtn").hidden = full;
+    $("cmPhotoCount").textContent = composerPhotos.length ? `${composerPhotos.length} of ${S.LIMITS.photos} photos` : `Up to ${S.LIMITS.photos} photos (optional)`;
+  }
+  async function addPhotos(files) {
+    const room = S.LIMITS.photos - composerPhotos.length;
+    const list = Array.from(files || []).slice(0, room);
+    if (!list.length) return;
+    $("cmPhotoCount").textContent = "Preparing photos…";
+    for (const f of list) {
+      try { composerPhotos.push(await compressPhoto(f)); }
+      catch (err) { $("cmComposerError").textContent = err.message; }
+    }
+    renderThumbs();
   }
 
   // ---- wiring -------------------------------------------------------------------
@@ -404,17 +519,8 @@
     $("cmComposerCancel").addEventListener("click", closeComposer);
     $("cmComposerForm").addEventListener("submit", submitPost);
     $("cmKindRow").addEventListener("click", (e) => { const b = e.target.closest("[data-kind]"); if (b) setKind(b.dataset.kind); });
-    $("cmPhotoInput").addEventListener("change", async (e) => {
-      const f = e.target.files && e.target.files[0];
-      if (!f) return;
-      $("cmPhotoLabel").textContent = "Preparing photo…";
-      try {
-        composerPhoto = await compressPhoto(f);
-        $("cmPhotoPreview").src = composerPhoto;
-        $("cmPhotoPreview").hidden = false;
-        $("cmPhotoLabel").textContent = "Change photo";
-      } catch (err) { composerPhoto = null; $("cmComposerError").textContent = err.message; $("cmPhotoLabel").textContent = "Add a photo (optional)"; }
-    });
+    $("cmCameraInput").addEventListener("change", (e) => { addPhotos(e.target.files); e.target.value = ""; });
+    $("cmLibraryInput").addEventListener("change", (e) => { addPhotos(e.target.files); e.target.value = ""; });
     $("cmViewerClose").addEventListener("click", () => $("cmProfileViewer").classList.remove("open"));
     document.querySelectorAll("[data-feed]").forEach((b) => b.addEventListener("click", () => {
       feedMode = b.dataset.feed;

@@ -35,6 +35,8 @@
     sun: `<circle ${T} cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>`,
     moon: `<path ${T} d="M19.5 14.5A8 8 0 0 1 9.5 4.5a8 8 0 1 0 10 10z"/><path d="M19.5 14.5A8 8 0 0 1 9.5 4.5a8 8 0 1 0 10 10z"/>`,
     flower: `<g ${T}><circle cx="12" cy="6.5" r="3.2"/><circle cx="17.2" cy="10.3" r="3.2"/><circle cx="15.2" cy="16.4" r="3.2"/><circle cx="8.8" cy="16.4" r="3.2"/><circle cx="6.8" cy="10.3" r="3.2"/></g><circle cx="12" cy="6.5" r="3.2"/><circle cx="17.2" cy="10.3" r="3.2"/><circle cx="15.2" cy="16.4" r="3.2"/><circle cx="8.8" cy="16.4" r="3.2"/><circle cx="6.8" cy="10.3" r="3.2"/><circle cx="12" cy="12" r="2" fill="currentColor"/>`,
+    camera: `<path ${T} d="M4 8.5h3l1.5-2.5h7L17 8.5h3v10H4z"/><path d="M4 8.5h3l1.5-2.5h7L17 8.5h3a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.3"/>`,
+    image: `<rect ${T} x="3.5" y="5" width="17" height="14" rx="3"/><rect x="3.5" y="5" width="17" height="14" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="M4 17l5-4.5 3.5 3 2.5-2 5 4"/>`,
     calm: `<circle ${T} cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="8.5"/><path d="M8.5 10.5c.6-.6 1.4-.6 2 0M13.5 10.5c.6-.6 1.4-.6 2 0M9 14.5c1.6 1.6 4.4 1.6 6 0"/>`,
     okay: `<circle ${T} cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="8.5"/><path d="M9 10h.01M15 10h.01M9 15h6"/>`,
     busy: `<circle ${T} cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="8.5"/><path d="M8.5 9.5l2 1-2 1M15.5 9.5l-2 1 2 1M9 16c1.6-1.4 4.4-1.4 6 0"/>`,
