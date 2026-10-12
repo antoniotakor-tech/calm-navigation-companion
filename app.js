@@ -1030,7 +1030,12 @@
   function saveCalmPrefs(prefs) {
     try { localStorage.setItem(CALM_PREFS_KEY, JSON.stringify(prefs)); } catch (e) { /* storage blocked: learning just won't persist */ }
   }
-  const calmSpotPlaces = (window.CalmSpots && CalmSpots.CALM_SPOTS || []).map((sp) => ({ name: sp.name, lat: sp.lat, lon: sp.lon, kind: "calm", type: "garden" }));
+  // Curated spots carry their own category: quiet bars stay bars (so the
+  // evening/bar logic and labels are right), everything else is a calm spot.
+  const calmSpotPlaces = (window.CalmSpots && CalmSpots.CALM_SPOTS || []).map((sp) => (
+    sp.category === "bar"
+      ? { name: sp.name, lat: sp.lat, lon: sp.lon, kind: "food", type: "bar" }
+      : { name: sp.name, lat: sp.lat, lon: sp.lon, kind: "calm", type: "garden" }));
   const calmSpotKeys = new Set(calmSpotPlaces.map((p) => CalmRec.placeKey(p)));
   async function calmRecommendations(center) {
     let around = [];

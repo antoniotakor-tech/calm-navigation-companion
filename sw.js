@@ -77,7 +77,8 @@
 // v54 (2026-10-12): faster nearest-branch search; suggestions no longer wait for it.
 // v55 (2026-10-12): nearest-branch search via the geocoder (Overpass refused it from Cloudflare).
 // v56 (2026-10-12): calm-place recommendations + "How calm was it?" learning.
-const CACHE_NAME = "calm-companion-v56";
+// v57 (2026-10-12): curated calm spots keep their own category.
+const CACHE_NAME = "calm-companion-v57";
 const APP_SHELL = [
   "/",
   "/index.html",
