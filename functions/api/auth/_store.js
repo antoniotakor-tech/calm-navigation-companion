@@ -11,7 +11,7 @@ export { jsonError, jsonResponse, parseJsonBody, requireDb, CORS_HEADERS } from 
 export const SESSION_MS = 180 * 24 * 3600 * 1000;
 export const CHALLENGE_MS = 5 * 60 * 1000;
 export const PLUS_LIMITS = { postsPerDay: 20 };
-export const FREE_LIMITS = { postsPerDay: 5 };
+export const FREE_LIMITS = { postsPerDay: 3 };
 
 let ready = false;
 export async function ensureAuthTables(db) {

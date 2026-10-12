@@ -6,7 +6,7 @@
 import { ensureAuthTables, accountFromSession, ownerHashForDeviceToken, jsonError, jsonResponse, parseJsonBody, requireDb, CORS_HEADERS } from "../auth/_store.js";
 import { billingEnabled, stripe } from "./_stripe.js";
 
-export const PRICES = { monthly: { label: "€2.99 / month" }, yearly: { label: "€19.99 / year", note: "4 months free" } };
+export const PRICES = { once: { label: "€9.99 once" } }; // pay once, yours forever
 
 export async function onRequestOptions() { return new Response(null, { status: 204, headers: CORS_HEADERS }); }
 
@@ -19,10 +19,7 @@ export async function onRequestPost({ request, env }) {
   const action = body.action || "config";
 
   if (action === "config") {
-    const prices = {};
-    if (env.STRIPE_PRICE_MONTHLY) prices.monthly = PRICES.monthly;
-    if (env.STRIPE_PRICE_YEARLY) prices.yearly = PRICES.yearly;
-    return jsonResponse({ enabled, prices: enabled ? prices : PRICES });
+    return jsonResponse({ enabled, prices: PRICES });
   }
 
   if (action === "notify") {
@@ -39,19 +36,19 @@ export async function onRequestPost({ request, env }) {
   const origin = new URL(request.url).origin;
 
   if (action === "checkout") {
-    const price = body.plan === "yearly" ? env.STRIPE_PRICE_YEARLY : env.STRIPE_PRICE_MONTHLY;
-    if (!price) return jsonError("That plan isn't available.", 400);
+    if (a.plan === "plus") return jsonError("You already have Calm+.", 409);
     const params = {
-      mode: "subscription",
-      "line_items[0][price]": price,
+      mode: "payment",
+      "line_items[0][price]": env.STRIPE_PRICE_ONCE,
       "line_items[0][quantity]": "1",
       client_reference_id: a.id,
-      "subscription_data[metadata][account_id]": a.id,
+      "payment_intent_data[metadata][account_id]": a.id,
       allow_promotion_codes: "true",
       success_url: `${origin}/?plus=success`,
       cancel_url: `${origin}/?plus=cancelled`,
     };
     if (a.stripe_customer) params.customer = a.stripe_customer;
+    else params.customer_creation = "always";
     const s = await stripe(env, "checkout/sessions", params);
     return jsonResponse({ url: s.url });
   }

@@ -5,9 +5,9 @@
 // leak or phish, no email needed, and they sync through iCloud Keychain so a
 // new iPhone just works. The server code is functions/api/auth/*.
 //
-// Calm+ (Stripe, functions/api/billing/*): the core app and the community
-// stay free. Calm+ adds sync of saved places, ratings, settings and blocks
-// across devices, 20 posts/day instead of 5, and a supporter badge. Until
+// Calm+ (Stripe, functions/api/billing/*), pay once — no subscription. The
+// core app and the community stay free. Calm+ adds sync of saved places,
+// ratings and settings across devices, 20 posts/day instead of 3, and a badge. Until
 // Stripe keys are configured it shows "coming soon — notify me".
 // ---------------------------------------------------------------------------
 (function () {
@@ -248,11 +248,8 @@
     $("plusSoon").hidden = plus || billing.enabled;
     $("plusNotify").textContent = ls.get("calmAccount.notified.v1") ? "We'll let you know ✓" : "Notify me when it opens";
     $("plusNotify").disabled = !!ls.get("calmAccount.notified.v1");
-    const prices = billing.prices || {};
-    $("plusMonthly").hidden = !prices.monthly;
-    $("plusYearly").hidden = !prices.yearly;
-    if (prices.monthly) $("plusMonthly").textContent = prices.monthly.label;
-    if (prices.yearly) $("plusYearly").textContent = prices.yearly.label + (prices.yearly.note ? " · " + prices.yearly.note : "");
+    const once = billing.prices && billing.prices.once;
+    if (once) $("plusOnce").textContent = "Get Calm+ · " + once.label;
   }
 
   function start() {
@@ -261,8 +258,7 @@
     $("acAddPasskey").addEventListener("click", addPasskey);
     $("acSignIn").addEventListener("click", signIn);
     $("acSignOut").addEventListener("click", signOut);
-    $("plusMonthly").addEventListener("click", () => buy("monthly"));
-    $("plusYearly").addEventListener("click", () => buy("yearly"));
+    $("plusOnce").addEventListener("click", () => buy("once"));
     $("plusManage").addEventListener("click", manage);
     $("plusNotify").addEventListener("click", notifyMe);
     $("plusClose").addEventListener("click", () => setPlusHidden(true));

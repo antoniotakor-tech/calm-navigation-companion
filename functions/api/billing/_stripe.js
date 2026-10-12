@@ -1,9 +1,9 @@
 // Stripe over plain fetch (no SDK — nothing from node_modules is deployed).
-// Configured with Pages secrets: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET,
-// STRIPE_PRICE_MONTHLY, STRIPE_PRICE_YEARLY. Until they exist, Calm+ shows
+// Configured with Pages secrets: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET and
+// STRIPE_PRICE_ONCE (a one-time price — Calm+ is pay once, no subscription). Until they exist, Calm+ shows
 // "coming soon" and people can ask to be notified (a fake-door test).
 export function billingEnabled(env) {
-  return !!(env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET && (env.STRIPE_PRICE_MONTHLY || env.STRIPE_PRICE_YEARLY));
+  return !!(env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET && env.STRIPE_PRICE_ONCE);
 }
 
 export async function stripe(env, path, params) {

@@ -15,8 +15,13 @@ export async function onRequestPost({ request, env }) {
   const event = JSON.parse(payload);
   const obj = event.data && event.data.object;
 
-  if (event.type === "checkout.session.completed" && obj.client_reference_id) {
-    await env.DB.prepare("UPDATE accounts SET stripe_customer = ?, plan = 'plus' WHERE id = ?").bind(obj.customer, obj.client_reference_id).run();
+  // Pay once: a paid checkout grants Calm+ for good (plan_until stays NULL).
+  if (event.type === "checkout.session.completed" && obj.client_reference_id && obj.payment_status === "paid") {
+    await env.DB.prepare("UPDATE accounts SET stripe_customer = ?, plan = 'plus', plan_until = NULL WHERE id = ?").bind(obj.customer, obj.client_reference_id).run();
+  }
+  // A full refund takes it back.
+  if (event.type === "charge.refunded" && obj.refunded && obj.metadata && obj.metadata.account_id) {
+    await env.DB.prepare("UPDATE accounts SET plan = 'free' WHERE id = ?").bind(obj.metadata.account_id).run();
   }
   if (/^customer\.subscription\.(created|updated|deleted)$/.test(event.type)) {
     const accountId = obj.metadata && obj.metadata.account_id;

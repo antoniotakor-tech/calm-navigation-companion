@@ -21,7 +21,7 @@ test("Stripe signatures: valid passes; tampered, wrong secret or stale fail", as
 
 test("billing stays off until every Stripe secret exists", () => {
   assert.equal(billingEnabled({}), false);
-  assert.equal(billingEnabled({ STRIPE_SECRET_KEY: "sk", STRIPE_WEBHOOK_SECRET: "wh", STRIPE_PRICE_MONTHLY: "price" }), true);
+  assert.equal(billingEnabled({ STRIPE_SECRET_KEY: "sk", STRIPE_WEBHOOK_SECRET: "wh", STRIPE_PRICE_ONCE: "price" }), true);
 });
 
 test("a forged webhook can't grant Calm+", async () => {
@@ -40,4 +40,14 @@ test("a signed subscription event upgrades the account until the period end", as
   assert.equal(res.status, 200);
   const up = DB.calls.find((c) => /UPDATE accounts SET plan/.test(c.sql));
   assert.deepEqual(up.args, ["plus", (t + 86400) * 1000, "cus", "acc"]);
+});
+
+test("a paid one-time checkout grants Calm+ for good", async () => {
+  const DB = createFakeDb();
+  const t = Math.floor(Date.now() / 1000);
+  const body = JSON.stringify({ type: "checkout.session.completed", data: { object: { client_reference_id: "acc", customer: "cus", payment_status: "paid" } } });
+  const res = await webhook.onRequestPost({ request: new Request("https://x/api/billing/webhook", { method: "POST", body, headers: { "stripe-signature": await sign(body, "whsec_x", t) } }), env: { DB, STRIPE_WEBHOOK_SECRET: "whsec_x" } });
+  assert.equal(res.status, 200);
+  const up = DB.calls.find((c) => /plan = 'plus', plan_until = NULL/.test(c.sql));
+  assert.deepEqual(up.args, ["cus", "acc"]);
 });
