@@ -3644,7 +3644,9 @@
         const what = [r.label, r.reason].filter(Boolean).join(" · ");
         calmSpotPopup = buildGoHerePopup([p.lon, p.lat], p.name, what || "A calm place nearby").addTo(map);
       });
-      return new maplibregl.Marker({ element: el, anchor: "center" }).setLngLat([p.lon, p.lat]).addTo(map);
+      const mk = new maplibregl.Marker({ element: el, anchor: "center" }).setLngLat([p.lon, p.lat]).addTo(map);
+      el.setAttribute("aria-label", `${p.name} — ${r.reason || "calm place"}`); // MapLibre overwrites it with "Map marker"
+      return mk;
     });
   }
   let autoFlowerTimer = null;
