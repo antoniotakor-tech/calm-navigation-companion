@@ -52,21 +52,48 @@
   }
   const feel = (kind, strength) => { sound(kind); buzz(strength || 1); };
 
-  // ---- 1. spinner (flick to spin; momentum + friction; tick every arm) -----------------
-  const spin = $("fgSpinner");
-  let angle = 0, vel = 0, dragging = false, lastA = 0, lastT = 0, lastArm = 0, raf = null;
+  // ---- 1. spinner: real flick physics -----------------------------------------------
+  // Velocity comes from the last ~90 ms of the drag (not one tiny move), so a
+  // flick really throws it; low friction so a good spin lasts 20-40 s.
+  const spin = $("fgSpinner"), ghost = $("fgSpinGhost");
+  let angle = 0, vel = 0, dragging = false, lastArm = 0, raf = null, spinStart = 0, best = 0;
+  let samples = []; // [{t, a}] unwrapped angle over time
+  let prevA = 0;
   const center = () => { const r = spin.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
   const angAt = (e) => { const c = center(); return Math.atan2(e.clientY - c.y, e.clientX - c.x); };
-  function render() { spin.style.transform = `rotate(${angle}rad)`; }
-  function checkTick() {
-    const arm = Math.floor(angle / (2 * Math.PI / 3));
-    if (arm !== lastArm) { lastArm = arm; feel("tick", Math.abs(vel) > 0.25 ? 1 : 2); }
+  const ARM = (2 * Math.PI) / 3;
+  function render() {
+    spin.style.transform = `rotate(${angle}rad)`;
+    const speed = Math.abs(vel);
+    // motion blur: a soft ghost disc fades in as it speeds up
+    ghost.style.opacity = String(Math.min(0.85, Math.max(0, (speed - 0.12) * 1.6)));
+    spin.style.filter = speed > 0.35 ? `blur(${Math.min(2.2, (speed - 0.35) * 4)}px)` : "";
+    $("fgRpm").textContent = String(Math.round(speed * 60 * 60 / (2 * Math.PI)));
+    if (spinStart) $("fgSpinTime").textContent = ((performance.now() - spinStart) / 1000).toFixed(1);
   }
-  function loop() {
+  function checkTick() {
+    const arm = Math.floor(angle / ARM);
+    if (arm !== lastArm) {
+      lastArm = arm;
+      if (Math.abs(vel) < 0.5) feel("tick", Math.abs(vel) < 0.08 ? 2 : 1); // ticks fade into a hum when fast
+    }
+  }
+  let lastFrame = 0;
+  function loop(now) {
+    const dt = lastFrame ? Math.min(3, (now - lastFrame) / 16.7) : 1;
+    lastFrame = now;
     if (!dragging) {
-      angle += vel;
-      vel *= 0.985;
-      if (Math.abs(vel) < 0.0015) { vel = 0; raf = null; render(); return; }
+      angle += vel * dt;
+      vel *= Math.pow(Math.abs(vel) > 0.05 ? 0.9935 : 0.975, dt); // bearing friction, then a gentle settle
+      if (Math.abs(vel) < 0.0012) {
+        vel = 0; raf = null; lastFrame = 0;
+        if (spinStart) {
+          const s = (performance.now() - spinStart) / 1000;
+          if (s > best) { best = s; $("fgBest").textContent = s.toFixed(1); try { localStorage.setItem("calmFidget.best.v1", s.toFixed(1)); } catch (e) { /* ok */ } }
+          spinStart = 0;
+        }
+        render(); return;
+      }
     }
     checkTick(); render();
     raf = requestAnimationFrame(loop);
@@ -74,24 +101,41 @@
   spin.addEventListener("pointerdown", (e) => {
     e.preventDefault();
     try { spin.setPointerCapture(e.pointerId); } catch (err) { /* synthetic */ }
-    dragging = true; lastA = angAt(e); lastT = performance.now(); vel = 0;
-    if (!raf) raf = requestAnimationFrame(loop);
+    dragging = true; vel = 0; spinStart = 0;
+    prevA = angAt(e);
+    samples = [{ t: performance.now(), a: angle }];
+    if (!raf) { lastFrame = 0; raf = requestAnimationFrame(loop); }
   });
   spin.addEventListener("pointermove", (e) => {
     if (!dragging) return;
-    const a = angAt(e), now = performance.now();
-    let d = a - lastA;
+    const a = angAt(e);
+    let d = a - prevA;
     if (d > Math.PI) d -= 2 * Math.PI; if (d < -Math.PI) d += 2 * Math.PI;
+    prevA = a;
     angle += d;
-    vel = (d / Math.max(1, now - lastT)) * 16.7; // radians per frame
-    lastA = a; lastT = now;
+    const now = performance.now();
+    samples.push({ t: now, a: angle });
+    while (samples.length > 2 && now - samples[0].t > 90) samples.shift();
   });
-  const release = () => { if (!dragging) return; dragging = false; vel = Math.max(-0.9, Math.min(0.9, vel * 1.4)); if (!raf) raf = requestAnimationFrame(loop); };
+  const release = () => {
+    if (!dragging) return;
+    dragging = false;
+    const now = performance.now();
+    const first = samples[0], last = samples[samples.length - 1];
+    const dtMs = Math.max(16, last.t - first.t);
+    const stale = now - last.t > 120; // finger stopped before lifting: no throw
+    vel = stale ? 0 : ((last.a - first.a) / dtMs) * 16.7 * 1.15;
+    vel = Math.max(-1.1, Math.min(1.1, vel));
+    if (Math.abs(vel) > 0.015) { spinStart = now; feel("clack", 2); }
+    if (!raf) { lastFrame = 0; raf = requestAnimationFrame(loop); }
+  };
   spin.addEventListener("pointerup", release);
   spin.addEventListener("pointercancel", release);
+  try { best = Number(localStorage.getItem("calmFidget.best.v1")) || 0; $("fgBest").textContent = best.toFixed(1); } catch (e) { /* ok */ }
 
   // ---- 2. bubble wrap ------------------------------------------------------------------
   const wrap = $("fgBubbles");
+  let popped = 0;
   function fillBubbles() {
     wrap.innerHTML = "";
     for (let i = 0; i < 30; i++) {
@@ -100,6 +144,7 @@
       b.addEventListener("pointerdown", () => {
         if (b.classList.contains("popped")) return;
         b.classList.add("popped"); feel("pop", 2);
+        popped++; $("fgPopped").textContent = popped;
         if (!wrap.querySelector(".fg-bubble:not(.popped)")) setTimeout(fillBubbles, 900);
       });
       wrap.appendChild(b);

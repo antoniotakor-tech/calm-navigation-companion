@@ -86,7 +86,7 @@ test("scoreHit: an address-looking query prefers address results; a place-lookin
   const place = S.normalizeHit(hit({ name: "Damstraat area" }));
   const addressQueryCtx = { queryText: "damstraat 1" };
   const placeQueryCtx = { queryText: "damstraat" };
-  assert.ok(S.scoreHit(address, addressQueryCtx) - S.textMatchScore("damstraat 1", address) === S.WEIGHTS.ADDRESS_TYPE_BOOST + S.WEIGHTS.HOUSENUMBER_EXACT);
+  assert.ok(S.scoreHit(address, addressQueryCtx) - S.textMatchScore("damstraat 1", address) === S.WEIGHTS.ADDRESS_TYPE_BOOST + S.WEIGHTS.HOUSENUMBER_EXACT + S.WEIGHTS.STREET_MATCH * 0.5 + S.WEIGHTS.STREET_EXACT);
   assert.ok(S.scoreHit(place, placeQueryCtx) - S.textMatchScore("damstraat", place) === S.WEIGHTS.PLACE_TYPE_BOOST);
 });
 
@@ -149,4 +149,13 @@ test("the city you typed wins over the same street elsewhere", () => {
     { name: "Lange Kerkstraat", street: "Lange Kerkstraat", housenumber: "12", city: "Hoorn", osm_key: "place", osm_value: "house", point: { lat: 52.64, lng: 5.06 } },
   ];
   assert.equal(rankHits(hits, { queryText: "Kerkstraat 12, Hoorn" })[0].city, "Hoorn");
+});
+
+test("the right street without a recorded number beats another street with that number", () => {
+  const { rankHits } = require("./searchranking.js");
+  const hits = [
+    { name: "Via della Regola di Francesco", street: "Via della Regola di Francesco", housenumber: "5", city: "Assisi", osm_key: "place", osm_value: "house", point: { lat: 43.05, lng: 12.6 }, inNamedCity: true },
+    { name: "Via San Francesco", city: "Assisi", osm_key: "highway", osm_value: "residential", point: { lat: 43.07, lng: 12.61 }, inNamedCity: true },
+  ];
+  assert.equal(rankHits(hits, { queryText: "Via San Francesco 5, Assisi" })[0].primary, "Via San Francesco");
 });

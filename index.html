@@ -774,18 +774,33 @@
         <div id="studio-fidget" class="studio-panel">
           <div class="fg-card">
             <div class="fg-title">Spinner <small>flick it</small></div>
-            <svg class="fg-spinner" id="fgSpinner" viewBox="0 0 200 200" role="img" aria-label="Fidget spinner">
-              <g stroke="#2D2A3E" stroke-width="4" stroke-linejoin="round">
-                <path d="M100 100 L100 30" stroke-width="34" stroke-linecap="round" stroke="#FF8FB8"/>
-                <path d="M100 100 L39 135" stroke-width="34" stroke-linecap="round" stroke="#7CC8FF"/>
-                <path d="M100 100 L161 135" stroke-width="34" stroke-linecap="round" stroke="#7ED67A"/>
-                <circle cx="100" cy="30" r="22" fill="#FFFAF1"/><circle cx="39" cy="135" r="22" fill="#FFFAF1"/><circle cx="161" cy="135" r="22" fill="#FFFAF1"/>
-                <circle cx="100" cy="100" r="30" fill="#FFD84D"/><circle cx="100" cy="100" r="10" fill="#2D2A3E"/>
-              </g>
-            </svg>
+            <div class="fg-spin-stage">
+              <div class="fg-spin-ghost" id="fgSpinGhost" aria-hidden="true"></div>
+              <svg class="fg-spinner" id="fgSpinner" viewBox="0 0 240 240" role="img" aria-label="Fidget spinner — flick to spin">
+                <defs>
+                  <radialGradient id="fgCap" cx="38%" cy="32%" r="70%"><stop offset="0" stop-color="#FFF7C2"/><stop offset=".55" stop-color="#FFD84D"/><stop offset="1" stop-color="#E7A928"/></radialGradient>
+                  <radialGradient id="fgBearing" cx="40%" cy="35%" r="70%"><stop offset="0" stop-color="#FFFFFF"/><stop offset=".6" stop-color="#D9DEE8"/><stop offset="1" stop-color="#9AA3B5"/></radialGradient>
+                </defs>
+                <g stroke="#2D2A3E" stroke-width="4" stroke-linejoin="round">
+                  <path d="M120 120 L120 42" stroke-width="58" stroke-linecap="round" stroke="#2D2A3E"/>
+                  <path d="M120 120 L52.5 159" stroke-width="58" stroke-linecap="round" stroke="#2D2A3E"/>
+                  <path d="M120 120 L187.5 159" stroke-width="58" stroke-linecap="round" stroke="#2D2A3E"/>
+                  <path d="M120 120 L120 42" stroke-width="50" stroke-linecap="round" stroke="#FF8FB8"/>
+                  <path d="M120 120 L52.5 159" stroke-width="50" stroke-linecap="round" stroke="#7CC8FF"/>
+                  <path d="M120 120 L187.5 159" stroke-width="50" stroke-linecap="round" stroke="#7ED67A"/>
+                  <circle cx="120" cy="42" r="21" fill="url(#fgBearing)"/><circle cx="120" cy="42" r="9" fill="#FFFAF1" stroke-width="3"/>
+                  <circle cx="52.5" cy="159" r="21" fill="url(#fgBearing)"/><circle cx="52.5" cy="159" r="9" fill="#FFFAF1" stroke-width="3"/>
+                  <circle cx="187.5" cy="159" r="21" fill="url(#fgBearing)"/><circle cx="187.5" cy="159" r="9" fill="#FFFAF1" stroke-width="3"/>
+                  <circle cx="120" cy="120" r="34" fill="url(#fgCap)"/>
+                  <circle cx="120" cy="120" r="13" fill="#2D2A3E"/>
+                  <path d="M104 106 a20 20 0 0 1 14 -7" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" opacity=".8"/>
+                </g>
+              </svg>
+            </div>
+            <div class="fg-spin-stats"><span><b id="fgRpm">0</b> rpm</span><span>spin <b id="fgSpinTime">0.0</b> s</span><span>best <b id="fgBest">0.0</b> s</span></div>
           </div>
           <div class="fg-card">
-            <div class="fg-title">Bubble wrap <button type="button" class="cm-link" id="fgRefill">Refill</button></div>
+            <div class="fg-title">Bubble wrap <small><span id="fgPopped">0</span> popped</small> <button type="button" class="cm-link" id="fgRefill">Refill</button></div>
             <div class="fg-bubbles" id="fgBubbles"></div>
           </div>
           <div class="fg-card">

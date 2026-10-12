@@ -39,7 +39,9 @@ const WEIGHTS = {
   HOUSENUMBER_OTHER: -120,      // an address on the street, but a different number
   NO_NUMBER_PENALTY: -260,      // you typed a number; this result has none (a canal, a whole street)
   QUERY_CITY_MATCH: 450,        // the city you typed ("…, Assisi") is this result's city
-  QUERY_CITY_MISMATCH: -380,    // you named a city; this result is somewhere else         // query has no house number: prefer places/streets/etc. over bare addresses
+  QUERY_CITY_MISMATCH: -900,    // you named a city; this result is somewhere else
+  STREET_MATCH: 800,            // × share of your street words found in the result's street
+  STREET_EXACT: 900,            // every street word matches: the right street beats the right number on a wrong street         // query has no house number: prefer places/streets/etc. over bare addresses
   // "I typed a street name in Amsterdam, show me Amsterdam's" (2026-10-10).
   // The distance decay alone (max -80) was too gentle to reliably beat a
   // same-tier hit with a city/type bonus elsewhere. Kept well under the 350
@@ -230,6 +232,16 @@ function scoreHit(hit, context) {
   }
 
   const q = parseAddressQuery(context.queryText);
+  if (q.street && q.number) {
+    const want = q.street.split(" ").filter((w) => w.length > 1);
+    const have = new Set(normalizeText(hit.street || hit.primary || "").split(/[^a-z0-9]+/));
+    if (want.length) {
+      const share = want.filter((w) => have.has(w)).length / want.length;
+      score += WEIGHTS.STREET_MATCH * share - WEIGHTS.STREET_MATCH * 0.5;
+      const extra = [...have].filter((w) => w.length > 2 && !want.includes(w)).length; // "della regola di" ≠ "san"
+      if (share === 1 && extra === 0) score += WEIGHTS.STREET_EXACT;
+    }
+  }
   if (q.number) {
     if (numberMatches(q.number, hit.housenumber)) score += WEIGHTS.HOUSENUMBER_EXACT;
     else if (hit.housenumber) score += WEIGHTS.HOUSENUMBER_OTHER;
