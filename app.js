@@ -3546,6 +3546,57 @@
   // click and see what it is, then I have no way to decide to go there").
   // Reuses selectDestinationSuggestion, the exact same set-destination-and-
   // search path the empty-state suggestions dropdown already uses.
+  // Place card for calm flowers (2026-10-12): photo + what it is + why it's
+  // calm + a short description, filled in from Wikipedia / Wikimedia Commons
+  // (placeinfo.js) while the card is already open.
+  function buildPlaceCardPopup(place, note) {
+    const wrap = document.createElement("div");
+    wrap.className = "place-card";
+    const photo = document.createElement("div");
+    photo.className = "place-card-photo loading";
+    photo.innerHTML = flowerSvg(BLOOM_COLORS[place.name.length % BLOOM_COLORS.length], 1);
+    const body = document.createElement("div");
+    body.className = "place-card-body";
+    const title = document.createElement("strong");
+    title.textContent = place.name;
+    const kind = document.createElement("div");
+    kind.className = "place-card-kind";
+    const why = document.createElement("div");
+    why.className = "place-card-why";
+    why.textContent = note || "";
+    const summary = document.createElement("p");
+    summary.className = "place-card-summary";
+    const credit = document.createElement("div");
+    credit.className = "place-card-credit";
+    const goBtn = document.createElement("button");
+    goBtn.type = "button";
+    goBtn.className = "map-pin-popup-go-btn";
+    goBtn.textContent = "Go here";
+    goBtn.addEventListener("click", () => {
+      selectDestinationSuggestion(place.name, place.lat, place.lon);
+      if (calmSpotPopup) { calmSpotPopup.remove(); calmSpotPopup = null; }
+    });
+    body.append(title, kind, why, summary, credit, goBtn);
+    wrap.append(photo, body);
+    const [k] = PlaceInfo.typeText(place.type);
+    kind.textContent = k;
+    PlaceInfo.lookup(place).then((info) => {
+      kind.textContent = info.kind;
+      if (!note) why.textContent = info.kindNote;
+      if (info.summary) summary.textContent = info.summary;
+      if (info.url) { const l = document.createElement("a"); l.href = info.url; l.target = "_blank"; l.rel = "noopener"; l.textContent = "More on Wikipedia"; credit.append(l, document.createTextNode(info.credit ? " · " : "")); }
+      if (info.credit) credit.append(document.createTextNode(info.credit));
+      if (info.photo) {
+        const img = new Image();
+        img.alt = place.name;
+        img.onload = () => { photo.classList.remove("loading"); photo.innerHTML = ""; photo.appendChild(img); };
+        img.onerror = () => photo.classList.remove("loading");
+        img.src = info.photo;
+      } else photo.classList.remove("loading");
+    }).catch(() => photo.classList.remove("loading"));
+    return new maplibregl.Popup({ closeButton: true, offset: 14, maxWidth: "290px", className: "place-card-popup" }).setLngLat([place.lon, place.lat]).setDOMContent(wrap);
+  }
+
   function buildGoHerePopup(lngLat, name, note) {
     const wrap = document.createElement("div");
     wrap.className = "map-pin-popup";
@@ -3643,7 +3694,7 @@
       el.addEventListener("click", (e) => {
         e.stopPropagation();
         if (calmSpotPopup) calmSpotPopup.remove();
-        calmSpotPopup = buildGoHerePopup([sp.lon, sp.lat], sp.name, sp.note).addTo(map);
+        calmSpotPopup = buildPlaceCardPopup({ name: sp.name, lat: sp.lat, lon: sp.lon, type: sp.category === "bar" ? "bar" : "garden" }, sp.note).addTo(map);
       });
       bloomFlowerMarkers.push(new maplibregl.Marker({ element: el, anchor: "center" }).setLngLat([sp.lon, sp.lat]).addTo(map));
     });
@@ -3686,8 +3737,7 @@
       el.addEventListener("click", (e) => {
         e.stopPropagation();
         if (calmSpotPopup) calmSpotPopup.remove();
-        const what = [r.label, r.reason].filter(Boolean).join(" · ");
-        calmSpotPopup = buildGoHerePopup([p.lon, p.lat], p.name, what || "A calm place nearby").addTo(map);
+        calmSpotPopup = buildPlaceCardPopup(p, r.reason || "").addTo(map);
       });
       const mk = new maplibregl.Marker({ element: el, anchor: "center" }).setLngLat([p.lon, p.lat]).addTo(map);
       el.setAttribute("aria-label", `${p.name} — ${r.reason || "calm place"}`); // MapLibre overwrites it with "Map marker"

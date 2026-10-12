@@ -2385,3 +2385,20 @@ input[type=range] { touch-action: pan-x; }
 .dep-when small.late { color: #B5530A; font-weight: 700; }
 .dep-when small.ok { color: #2E8B57; }
 .dep-when small.track { opacity: .65; }
+/* Place cards on calm flowers */
+.place-card-popup .maplibregl-popup-content { padding: 0; overflow: hidden; border-radius: 18px; border: 1.5px solid var(--edge-strong, var(--line)); background: var(--surface); color: var(--ink); box-shadow: var(--doodle-shadow); }
+.place-card-popup .maplibregl-popup-close-button { z-index: 2; width: 30px; height: 30px; font-size: 20px; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.6); }
+.place-card { width: 270px; }
+.place-card-photo { height: 150px; background: var(--surface-2); display: grid; place-items: center; overflow: hidden; }
+.place-card-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.place-card-photo svg { width: 64px; height: 64px; opacity: .8; }
+.place-card-photo.loading svg { animation: flower-sway 1.2s ease-in-out infinite; }
+.place-card-body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 3px; }
+.place-card-body strong { font-family: "Patrick Hand", cursive; font-weight: 400; font-size: 1.25rem; line-height: 1.1; }
+.place-card-kind { font-size: .78rem; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .03em; }
+.place-card-why { font-size: .85rem; opacity: .85; }
+.place-card-summary { font-size: .85rem; line-height: 1.4; margin: 4px 0 0; }
+.place-card-summary:empty { display: none; }
+.place-card-credit { font-size: .7rem; opacity: .6; }
+.place-card-credit a { color: inherit; }
+.place-card .map-pin-popup-go-btn { margin-top: 8px; }
