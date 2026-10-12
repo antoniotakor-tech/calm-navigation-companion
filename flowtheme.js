@@ -95,9 +95,10 @@
     return theme === "flow";
   }
 
-  // Doodle shares Bloom's flowers-on-the-map and arrival petal burst.
+  // Flowers on calm spots + the arrival petal burst run in EVERY theme
+  // (2026-10-12: playful by default). Reduced Motion still turns motion off.
   function isBloomActive(theme) {
-    return theme === "bloom" || theme === "doodle";
+    return isValidTheme(theme) || theme == null || theme === "";
   }
 
   // Whether a theme should render with the dark CARTO tileset. Flow uses

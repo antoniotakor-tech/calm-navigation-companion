@@ -73,14 +73,31 @@
   }
 
   // ---- where you are -------------------------------------------------------------
+  // A FRESH, precise fix: never reuse a cached position (that's how a post
+  // ended up far from where it was made). Listens for up to 10 s and keeps
+  // the most accurate reading, finishing early once it's within 25 m.
   function locate() {
     return new Promise((resolve, reject) => {
       if (!navigator.geolocation) return reject(new Error("This device can't share its location."));
-      navigator.geolocation.getCurrentPosition(
-        (p) => resolve({ lat: p.coords.latitude, lon: p.coords.longitude, accuracy: Math.round(p.coords.accuracy) }),
-        (e) => reject(new Error(e.code === 1 ? "Allow location for this app so your post is pinned where you are." : "Couldn't find your location — try again outside or near a window.")),
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+      let best = null, done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        navigator.geolocation.clearWatch(id);
+        clearTimeout(timer);
+        if (best) resolve(best);
+        else reject(new Error("Couldn't find your location — try again outside, or drag the map to the spot."));
+      };
+      const id = navigator.geolocation.watchPosition(
+        (p) => {
+          const fix = { lat: p.coords.latitude, lon: p.coords.longitude, accuracy: Math.round(p.coords.accuracy) };
+          if (!best || fix.accuracy < best.accuracy) best = fix;
+          if (best.accuracy <= 25) finish();
+        },
+        (e) => { if (e.code === 1) { done = true; navigator.geolocation.clearWatch(id); clearTimeout(timer); reject(new Error("Allow location for this app so your post is pinned where you are — or drag the map to the spot.")); } },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
+      const timer = setTimeout(finish, 10000);
     });
   }
   function origin() {
@@ -386,7 +403,10 @@
       show.addEventListener("click", () => showPost(p));
       row.prepend(show);
     }
-    new maplibregl.Popup({ offset: p.hasPhoto ? 46 : 20, maxWidth: "260px", className: "cm-popup" }).setLngLat([p.lon, p.lat]).setDOMContent(box).addTo(map);
+    // Slide the map so the card has room above the marker, then open it there.
+    const h = map.getContainer().clientHeight;
+    map.easeTo({ center: [p.lon, p.lat], offset: [0, Math.min(150, h * 0.32)], duration: 350 });
+    new maplibregl.Popup({ offset: p.hasPhoto ? 46 : 20, maxWidth: "260px", className: "cm-popup", anchor: "bottom" }).setLngLat([p.lon, p.lat]).setDOMContent(box).addTo(map);
   }
   function postLayer(map) {
     const markers = new Map();
@@ -487,7 +507,9 @@
     if (composerFix) {
       note.textContent = composerFix.source === "photo" ? "Pinned where your photo was taken. Drag the map to fine-tune."
         : composerFix.source === "map" ? "Pinned where you placed it."
-        : `Pinned where you are now (about ${Math.max(5, composerFix.accuracy || 5)} m). Drag the map to move the pin.`;
+        : composerFix.accuracy > 60
+          ? `Your phone's location is rough (±${composerFix.accuracy} m) — drag the map so the pin is exactly right.`
+          : `Pinned where you are now (±${Math.max(5, composerFix.accuracy || 5)} m). Drag the map to move the pin.`;
       showPickMap();
     } else {
       note.textContent = "Finding where you are…";

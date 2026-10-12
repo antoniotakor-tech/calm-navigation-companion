@@ -1884,3 +1884,16 @@ body.nav-away .nav-back-btn { display: flex; align-items: center; }
 :root[data-theme="doodle"] .cm-map-photo { border: 2.5px solid var(--ink); background: var(--crayon-yellow); padding: 0; }
 :root[data-theme="doodle"] .cm-map-photo::after { border-top-color: var(--ink); }
 :root[data-theme="doodle"] .cm-popup .maplibregl-popup-content { border: 2.5px solid var(--ink); border-radius: var(--doodle-radius-2); box-shadow: var(--doodle-shadow); font-family: var(--font-body); }
+
+/* 2026-10-12: map doodles + drifting petals in EVERY theme (playful by
+   default); Reduced Motion / High Contrast still switch them off. */
+.map-doodles { display: block; }
+.bloom-petals { display: block; }
+:root[data-theme="dark"] .dd path[stroke="#2D2A3E"], :root[data-theme="flow"] .dd path[stroke="#2D2A3E"] { stroke: #EDE9FF; }
+:root[data-theme="dark"] .dd [stroke="#2D2A3E"], :root[data-theme="flow"] .dd [stroke="#2D2A3E"] { stroke: #EDE9FF; }
+:root[data-theme="dark"] .dd-cloud path, :root[data-theme="flow"] .dd-cloud path { fill: #3A4A63; }
+:root[data-theme="dark"] .map-doodles, :root[data-theme="flow"] .map-doodles { opacity: .85; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme]) .dd [stroke="#2D2A3E"] { stroke: #EDE9FF; } :root:not([data-theme]) .dd-cloud path { fill: #3A4A63; } }
+:root[data-contrast="high"] .map-doodles, :root[data-contrast="high"] .bloom-petals,
+body.high-contrast .map-doodles, body.high-contrast .bloom-petals { display: none !important; }
+body:has(.app-shell.nav-fullscreen) .bloom-petals { display: none !important; }
