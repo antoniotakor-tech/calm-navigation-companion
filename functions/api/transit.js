@@ -53,7 +53,24 @@ export function normalizeLeg(leg) {
     endTime: typeof leg.endTime === "string" ? leg.endTime : null,
     points: typeof geom.points === "string" ? geom.points : null,
     precision: Number.isInteger(geom.precision) ? geom.precision : 6,
+    // Live info (2026-10-12): Transitous carries GTFS-Realtime for many
+    // European operators. delayMin is live minus timetable; null when unknown.
+    realTime: leg.realTime === true,
+    delayMin: delayMinutes(leg.startTime, leg.scheduledStartTime),
+    cancelled: leg.cancelled === true,
+    track: typeof leg.track === "string" ? leg.track.slice(0, 8) : (typeof leg.scheduledTrack === "string" ? leg.scheduledTrack.slice(0, 8) : null),
+    agency: typeof leg.agencyName === "string" ? leg.agencyName.slice(0, 40) : null,
+    color: /^[0-9a-fA-F]{6}$/.test(leg.routeColor || "") ? leg.routeColor : null,
+    textColor: /^[0-9a-fA-F]{6}$/.test(leg.routeTextColor || "") ? leg.routeTextColor : null,
+    stops: Array.isArray(leg.intermediateStops) ? leg.intermediateStops.length + 1 : null,
   };
+}
+
+/** Live minus scheduled, in whole minutes (null if either is missing). Exported for tests. */
+export function delayMinutes(live, scheduled) {
+  const a = Date.parse(live), b = Date.parse(scheduled);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+  return Math.round((a - b) / 60000);
 }
 
 /** Shapes one itinerary, or null if it has no usable legs. Exported for tests. */
@@ -80,7 +97,10 @@ export async function onRequestGet(context) {
   const upstream = new URL(UPSTREAM);
   upstream.searchParams.set("fromPlace", `${from.lat},${from.lon}`);
   upstream.searchParams.set("toPlace", `${to.lat},${to.lon}`);
-  upstream.searchParams.set("arriveBy", "false");
+  // Leave now (default), leave at a time, or arrive by a time.
+  const when = incoming.searchParams.get("time");
+  if (when && Number.isFinite(Date.parse(when))) upstream.searchParams.set("time", new Date(Date.parse(when)).toISOString());
+  upstream.searchParams.set("arriveBy", incoming.searchParams.get("arriveBy") === "true" ? "true" : "false");
 
   let resp;
   const controller = new AbortController();

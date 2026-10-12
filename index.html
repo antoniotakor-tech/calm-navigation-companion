@@ -252,6 +252,7 @@
               <ul class="ac-list" id="startAcList" style="display:none;"></ul>
             </div>
           </div>
+          <button type="button" class="pill dep-open" id="depOpenBtn"><i data-ci="clock"></i> Live departures near me</button>
           <div class="pill-row" id="travelModePills">
             <button class="pill active" data-travel="walk">Walk</button>
             <button class="pill" data-travel="bike">Bike</button>
@@ -297,12 +298,16 @@
                walk/bike-only feature (live GPS guidance for a tram you're
                sitting in would be noise, not calm) — the honest note below
                says so instead of pretending otherwise. -->
-          <div class="transit-results" id="transitResults" role="list"></div>
-          <div class="mode-note transit-note" id="transitNote" style="display:none;">
-            Live turn-by-turn stays available for Walk and Bike — for transit,
-            follow the departure times above. Times come from the open
-            Transitous journey planner and may differ from real-time boards.
+          <div class="transit-when" id="transitWhen">
+            <select id="transitWhenMode" aria-label="When">
+              <option value="now">Leave now</option>
+              <option value="depart">Leave at</option>
+              <option value="arrive">Arrive by</option>
+            </select>
+            <input type="datetime-local" id="transitWhenTime" aria-label="Time" hidden>
           </div>
+          <div class="transit-results" id="transitResults" role="list"></div>
+          <div class="mode-note transit-note" id="transitNote" style="display:none;">Turn-by-turn guidance is for Walk and Bike. Times are live where the operator shares them (marked “live”) — otherwise from the timetable.</div>
           <!-- One route by default (product decision, 2026-07-30): the calm
                route is auto-selected the moment a search returns, so the
                default flow is Find -> Start with no pick-a-route step in
@@ -990,6 +995,16 @@
   </div>
 </div>
 
+<!-- Live departure boards (departures.js) -->
+<div class="echo-overlay" id="depOverlay" role="dialog" aria-modal="true" aria-labelledby="depHeading">
+  <div class="echo-sheet dep-sheet">
+    <h2 id="depHeading">Live departures</h2>
+    <div class="cm-note" id="depStatus" aria-live="polite"></div>
+    <div id="depBoards"></div>
+    <button type="button" class="close-sheet" id="depClose">Close</button>
+  </div>
+</div>
+
 <!-- CAPACITOR_BRIDGE --><!--
   Build-time anchor, replaced with <script src="capacitor.js"></script> by
   scripts/build-web.sh when copying this file into www/ for the native
@@ -1064,6 +1079,7 @@
 <script src="sketch.js"></script>
 <script src="fidget.js"></script>
 <script src="weatherdoodles.js"></script>
+<script src="departures.js"></script>
 <script>
   // Skipped inside the native Capacitor shell: the app ships all assets
   // natively already, and WKWebView's service-worker support is unreliable —

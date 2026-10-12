@@ -1514,6 +1514,7 @@
 
   function setTransitModeUI(on) {
     routeResultsCard.classList.toggle("transit-mode", on);
+    document.getElementById("transitWhen").classList.toggle("on", on);
     transitNoteEl.style.display = on ? "block" : "none";
     if (!on) { transitResultsEl.innerHTML = ""; clearTransitRoute(); }
   }
@@ -1525,30 +1526,74 @@
     if (transitItineraries[idx]) drawTransitItinerary(transitItineraries[idx]);
   }
 
+  // Live-aware transit cards (2026-10-12): line colours, live/delay badge,
+  // cancellations, platform, operator and stop counts from Transitous.
+  function lineChip(leg) {
+    const icon = CalmIcons.html(TRANSIT_MODE_ICONS[leg.mode] || "🚌");
+    if (!leg.route) return `<span class="transit-leg">${icon}</span>`;
+    const bg = leg.color ? `#${leg.color}` : "var(--surface-2)";
+    const fg = leg.textColor ? `#${leg.textColor}` : (leg.color ? "#fff" : "var(--ink)");
+    return `<span class="transit-leg">${icon}<b class="line-chip" style="background:${bg};color:${fg}">${escapeHtml(leg.route)}</b></span>`;
+  }
+  function delayBadge(leg) {
+    if (!leg) return "";
+    if (leg.cancelled) return `<span class="live-badge cancelled">Cancelled</span>`;
+    if (!leg.realTime) return `<span class="live-badge sched">Timetable</span>`;
+    if (leg.delayMin == null || leg.delayMin === 0) return `<span class="live-badge ok">Live · on time</span>`;
+    return leg.delayMin > 0 ? `<span class="live-badge late">Live · +${leg.delayMin} min</span>` : `<span class="live-badge ok">Live · ${-leg.delayMin} min early</span>`;
+  }
+  function escapeHtml(s) { return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
   function renderTransitOptions(itineraries) {
     transitResultsEl.innerHTML = "";
     itineraries.forEach((it, idx) => {
       const card = document.createElement("button");
       card.type = "button";
-      card.className = "route-card transit-option" + (idx === 0 ? " selected" : "");
+      const first = it.legs.find((l) => l.mode !== "WALK");
+      const cancelled = it.legs.some((l) => l.cancelled);
+      card.className = "route-card transit-option" + (idx === 0 ? " selected" : "") + (cancelled ? " is-cancelled" : "");
       card.setAttribute("role", "listitem");
       const mins = it.durationS != null ? Math.round(it.durationS / 60) : null;
-      const legsHtml = it.legs.map((leg) => {
-        const icon = TRANSIT_MODE_ICONS[leg.mode] || "🚌";
-        return `<span class="transit-leg">${CalmIcons.html(icon)}${leg.route ? ` <b>${leg.route}</b>` : ""}</span>`;
-      }).join('<span class="transit-leg-sep" aria-hidden="true">›</span>');
+      const legsHtml = it.legs.map(lineChip).join('<span class="transit-leg-sep" aria-hidden="true">›</span>');
+      const detail = first ? [
+        first.fromName ? `from ${escapeHtml(first.fromName)}` : "",
+        first.track ? `platform ${escapeHtml(first.track)}` : "",
+        first.stops ? `${first.stops} stop${first.stops === 1 ? "" : "s"}` : "",
+        first.agency ? escapeHtml(first.agency) : "",
+      ].filter(Boolean).join(" · ") : "";
       card.innerHTML = `
-        <div class="rc-label">${transitTimeHHMM(it.startTime)} → ${transitTimeHHMM(it.endTime)}</div>
+        <div class="rc-label">${transitTimeHHMM(it.startTime)} → ${transitTimeHHMM(it.endTime)} ${delayBadge(first)}</div>
         <div class="rc-time">${mins != null ? mins + " min" : "—"}</div>
         <div class="rc-sub">${it.transfers} transfer${it.transfers === 1 ? "" : "s"}</div>
-        <div class="transit-legs">${legsHtml}</div>`;
+        <div class="transit-legs">${legsHtml}</div>
+        ${detail ? `<div class="transit-detail">${detail}</div>` : ""}`;
       card.addEventListener("click", () => selectTransitOption(idx));
       transitResultsEl.appendChild(card);
     });
   }
 
+  const transitWhenMode = document.getElementById("transitWhenMode");
+  const transitWhenTime = document.getElementById("transitWhenTime");
+  function transitWhenQuery() {
+    const m = transitWhenMode.value;
+    if (m === "now" || !transitWhenTime.value) return "";
+    const t = new Date(transitWhenTime.value);
+    if (isNaN(t)) return "";
+    return `&time=${encodeURIComponent(t.toISOString())}${m === "arrive" ? "&arriveBy=true" : ""}`;
+  }
+  transitWhenMode.addEventListener("change", () => {
+    const later = transitWhenMode.value !== "now";
+    transitWhenTime.hidden = !later;
+    if (later && !transitWhenTime.value) {
+      const d = new Date(Date.now() + 30 * 60000);
+      d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+      transitWhenTime.value = d.toISOString().slice(0, 16);
+    }
+    if (endInput.value.trim()) runSearch();
+  });
+  transitWhenTime.addEventListener("change", () => { if (endInput.value.trim()) runSearch(); });
+
   async function fetchTransitPlan(start, end) {
-    const resp = await fetch(`${apiBaseUrl}/api/transit?from=${start.lat},${start.lon}&to=${end.lat},${end.lon}`);
+    const resp = await fetch(`${apiBaseUrl}/api/transit?from=${start.lat},${start.lon}&to=${end.lat},${end.lon}${transitWhenQuery()}`);
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
       throw new Error(err.error || "Journey planner unavailable.");
@@ -4303,6 +4348,7 @@
     currentRoute: () => (lastResult ? (selected === "fast" ? lastResult.fastest : lastResult.calm) : null),
     lastFix: () => lastFixLatLng,
     navigateTo: (label, lat, lon) => selectDestinationSuggestion(label, lat, lon),
+    userPoint: () => userPoint || (lastFixLatLng ? { lat: lastFixLatLng[0], lon: lastFixLatLng[1] } : null),
     setKalimbaVolume: (v) => audioManager.setBusVolume("instrument", v),
     isBlocked: (key) => blockedAuthors.has(key),
     blockAuthor,
