@@ -580,6 +580,10 @@
          routes and events, with optional photos. Logic in community.js. -->
     <section class="page" id="page-3" role="tabpanel" aria-labelledby="dot-3" aria-label="Community">
       <div class="page-inner community-inner">
+        <div class="cm-map-wrap">
+          <div class="cm-map" id="cmMap" aria-label="Community map: photos and calm places people shared"></div>
+          <div class="cm-map-hint">Photos and places people shared — tap one</div>
+        </div>
         <div class="cm-profile-card" id="cmProfileCard">
           <div class="cm-avatar" id="cmMyAvatar" aria-hidden="true"></div>
           <div class="cm-profile-text">
@@ -821,6 +825,10 @@
       <div class="cm-thumbs" id="cmThumbs"></div>
       <div class="cm-note" id="cmPhotoCount">Up to 4 photos (optional)</div>
     </div>
+    <div class="cm-pick" id="cmPickWrap">
+      <div class="cm-pick-map" id="cmPickMap" aria-label="Drag the map to place your post"></div>
+      <div class="cm-pick-pin" aria-hidden="true"><i data-ci="pin"></i></div>
+    </div>
     <p class="cm-note" id="cmWhereNote"></p>
     <p class="cm-note">Please don't post photos where people can be recognised. Location data is removed from photos.</p>
     <div class="cm-error" id="cmComposerError" role="alert"></div>
@@ -904,6 +912,7 @@
 <script src="native/nativeLifecycleController.js"></script>
 <script src="native/nativeNotificationController.js"></script>
 <script src="shared/navigationBridge.js"></script>
+<script src="exifgps.js"></script>
 <script src="socialvalidation.js"></script>
 <script src="app.js"></script>
 <script src="account.js"></script>

@@ -1857,3 +1857,30 @@ body.nav-away .nav-back-btn { display: flex; align-items: center; }
 :root[data-theme="doodle"] .route-input-row input[type="text"] { border: none !important; box-shadow: none !important; background: transparent !important; border-radius: 0 !important; }
 :root[data-theme="doodle"] .cm-avatar .ci .ci-tint, :root[data-theme="doodle"] .cm-avatar .ci g.ci-tint circle { fill: var(--av, var(--crayon-pink)); fill-opacity: 1; }
 :root[data-theme="doodle"] .cm-avatar { background: #FFFFFF !important; }
+/* Drag-to-place mini map in the share composer */
+.cm-pick { position: relative; height: 190px; border-radius: 16px; overflow: hidden; border: 1.5px solid var(--line); }
+.cm-pick-map { position: absolute; inset: 0; }
+.cm-pick-pin { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -100%); pointer-events: none; }
+.cm-pick-pin .ci { width: 38px; height: 38px; color: var(--busy); filter: drop-shadow(0 3px 2px rgba(0,0,0,.25)); }
+.cm-pick-pin .ci .ci-tint { fill: var(--busy); fill-opacity: .85; }
+:root[data-theme="doodle"] .cm-pick { border: 2.5px solid var(--ink); border-radius: var(--doodle-radius-2); }
+.cm-sheet [hidden].cm-pick { display: none !important; }
+/* Community map + photo markers + popups */
+.cm-map-wrap { position: relative; margin-bottom: 14px; }
+.cm-map { height: 46vh; min-height: 260px; max-height: 420px; border-radius: 20px; overflow: hidden; border: 1px solid var(--line); }
+.cm-map-hint { position: absolute; left: 10px; top: 10px; padding: 5px 10px; border-radius: 999px; background: var(--glass); font-size: .78rem; pointer-events: none; }
+.cm-map-photo { width: 48px; height: 48px; padding: 0; border-radius: 14px; overflow: hidden; background: #fff; border: 3px solid #fff; }
+.cm-map-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cm-map-photo::after { content: ""; position: absolute; left: 50%; bottom: -8px; transform: translateX(-50%); border: 6px solid transparent; border-top-color: #fff; }
+.cm-map-marker { position: relative; overflow: visible; }
+.cm-popup .maplibregl-popup-content { padding: 10px; border-radius: 16px; }
+.cm-pop { display: flex; flex-direction: column; gap: 4px; font-size: .9rem; }
+.cm-pop-photo { width: 100%; height: 130px; object-fit: cover; border-radius: 10px; cursor: zoom-in; }
+.cm-pop-kind { font-size: .75rem; opacity: .8; }
+.cm-pop-kind .ci { width: 14px; height: 14px; }
+.cm-pop-title { font-weight: 700; font-size: 1rem; }
+.cm-pop-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+:root[data-theme="doodle"] .cm-map { border: 2.5px solid var(--ink); border-radius: var(--doodle-radius); box-shadow: var(--doodle-shadow); }
+:root[data-theme="doodle"] .cm-map-photo { border: 2.5px solid var(--ink); background: var(--crayon-yellow); padding: 0; }
+:root[data-theme="doodle"] .cm-map-photo::after { border-top-color: var(--ink); }
+:root[data-theme="doodle"] .cm-popup .maplibregl-popup-content { border: 2.5px solid var(--ink); border-radius: var(--doodle-radius-2); box-shadow: var(--doodle-shadow); font-family: var(--font-body); }

@@ -23,9 +23,10 @@
   let feedMode = "near";
   let composerKind = "spot";
   let composerPhotos = [];
-  let composerFix = null; // { lat, lon, accuracy } — posts are pinned where you are
+  let composerFix = null; // { lat, lon, accuracy?, source: "gps" | "photo" | "map" }
+  let pickMap = null;
   let feedCenter = null;
-  let mapMarkers = [];
+  let mapMarkers = []; // temporary marker for "Show on map" of a single post
 
   let loaded = false;
   function start() {
@@ -34,20 +35,24 @@
     try { me = JSON.parse(localStorage.getItem(PROFILE_CACHE) || "null"); } catch (e) { me = null; }
     renderMyProfile();
     wire();
+    mainLayer = postLayer(app.map);
     const fetchMe = () => api("/api/social/me", { token: app.deviceToken(), action: "get" }).then(setMe).catch(() => {});
     fetchMe();
     // Signing in on a new phone switches to the account's profile.
     if (window.CalmAccount) window.CalmAccount.onChange(() => { fetchMe(); if (loaded) loadFeed(); });
     // Load the timeline the first time someone opens the Community tab.
     const dot = $("dot-3");
-    const loadOnce = () => { if (!loaded) { loaded = true; loadFeed(); } };
+    const loadOnce = () => {
+      if (!loaded) { loaded = true; loadFeed(); }
+      initCommunityMap();
+      setTimeout(() => communityMap && communityMap.resize(), 80);
+    };
     dot && dot.addEventListener("click", loadOnce);
     const page = $("page-3");
     if (page && "IntersectionObserver" in window) {
       new IntersectionObserver((es) => es.forEach((e) => e.isIntersecting && loadOnce())).observe(page);
     }
   }
-  if (window.CalmApp) start(); else window.addEventListener("calmapp:ready", start, { once: true });
 
   // ---- network --------------------------------------------------------------
   async function api(path, body) {
@@ -198,7 +203,6 @@
         const c = origin();
         posts = (await api(`/api/social/posts?lat=${c.lat.toFixed(4)}&lon=${c.lon.toFixed(4)}&radius=10000`)).posts;
         posts = posts.filter((p) => !app.isBlocked(p.author.id));
-        showOnMapMarkers(posts);
       }
       status.textContent = posts.length ? "" : (feedMode === "mine" ? "You haven't shared anything yet." : "Nothing shared around here yet — be the first to share a calm spot.");
       posts.forEach((p) => list.appendChild(card(p)));
@@ -333,20 +337,94 @@
   }
 
   // ---- map --------------------------------------------------------------------
-  function clearMarkers() { mapMarkers.forEach((m) => m.remove()); mapMarkers = []; }
-  function flowerMarker(p, color) {
-    const el = make("button", "cm-map-marker");
+  // A layer of post markers on a map: photo bubbles (or a flower / clock),
+  // reloaded for whatever area the map shows. Used twice: on the main map
+  // and on the Community tab's own map.
+  function postMarker(map, p) {
+    const el = make("button", "cm-map-marker" + (p.hasPhoto ? " cm-map-photo" : ""));
     el.type = "button";
     el.setAttribute("aria-label", `${KIND_LABEL[p.kind]}: ${p.title}`);
-    el.innerHTML = CalmIcons.html(p.kind === "event" ? "clock" : "flower");
-    el.style.color = color || AVATAR_COLORS[p.author.avatar] || AVATAR_COLORS.rose;
-    el.addEventListener("click", (e) => { e.stopPropagation(); app.goToPage(3); highlight(p.id); });
-    return new maplibregl.Marker({ element: el }).setLngLat([p.lon, p.lat]).addTo(app.map);
+    if (p.hasPhoto) {
+      const img = make("img");
+      img.src = photoUrl(p, 0);
+      img.alt = "";
+      img.loading = "lazy";
+      el.appendChild(img);
+    } else {
+      el.innerHTML = CalmIcons.html(p.kind === "event" ? "clock" : p.kind === "route" ? "walk" : "flower");
+      el.style.color = AVATAR_COLORS[p.author.avatar] || AVATAR_COLORS.rose;
+    }
+    el.addEventListener("click", (e) => { e.stopPropagation(); openPopup(map, p); });
+    return new maplibregl.Marker({ element: el, anchor: p.hasPhoto ? "bottom" : "center" }).setLngLat([p.lon, p.lat]).addTo(map);
   }
-  function showOnMapMarkers(posts) {
-    clearMarkers();
-    posts.slice(0, 40).forEach((p) => mapMarkers.push(flowerMarker(p)));
+  function openPopup(map, p) {
+    const box = make("div", "cm-pop");
+    if (p.hasPhoto) {
+      const img = make("img", "cm-pop-photo");
+      img.src = photoUrl(p, 0);
+      img.alt = p.title;
+      img.addEventListener("click", () => openLightbox(p, 0));
+      box.appendChild(img);
+    }
+    const badge = make("div", "cm-pop-kind");
+    badge.innerHTML = CalmIcons.html(KIND_ICON[p.kind]) + " ";
+    badge.appendChild(document.createTextNode(KIND_LABEL[p.kind] + (p.eventAt ? " · " + when(p.eventAt) : "")));
+    box.append(badge, make("div", "cm-pop-title", p.title));
+    if (p.body) box.appendChild(make("div", "cm-pop-body", p.body.length > 120 ? p.body.slice(0, 117) + "…" : p.body));
+    const who = make("button", "cm-link", "by " + p.author.nickname);
+    who.type = "button";
+    who.addEventListener("click", () => openViewer(p.author.id));
+    const go = make("button", "pill", "Take me there");
+    go.type = "button";
+    go.addEventListener("click", () => { app.goToPage(0); app.navigateTo && app.navigateTo(p.title, p.lat, p.lon); });
+    const row = make("div", "cm-pop-actions");
+    row.append(go, who);
+    box.appendChild(row);
+    if (p.kind === "route" && p.route) {
+      const show = make("button", "pill", "Show route");
+      show.type = "button";
+      show.addEventListener("click", () => showPost(p));
+      row.prepend(show);
+    }
+    new maplibregl.Popup({ offset: p.hasPhoto ? 46 : 20, maxWidth: "260px", className: "cm-popup" }).setLngLat([p.lon, p.lat]).setDOMContent(box).addTo(map);
   }
+  function postLayer(map) {
+    const markers = new Map();
+    let timer = null, seq = 0;
+    async function reload() {
+      const mySeq = ++seq;
+      const b = map.getBounds(), c = map.getCenter();
+      const ne = b.getNorthEast();
+      const R = 6371000, toRad = (x) => (x * Math.PI) / 180;
+      const radius = Math.min(25000, Math.max(500, R * Math.acos(Math.min(1, Math.sin(toRad(c.lat)) * Math.sin(toRad(ne.lat)) + Math.cos(toRad(c.lat)) * Math.cos(toRad(ne.lat)) * Math.cos(toRad(ne.lng - c.lng))))));
+      let posts;
+      try { posts = (await api(`/api/social/posts?lat=${c.lat.toFixed(4)}&lon=${c.lng.toFixed(4)}&radius=${Math.round(radius)}`)).posts; } catch (e) { return; }
+      if (mySeq !== seq) return;
+      posts = posts.filter((p) => !app.isBlocked(p.author.id)).slice(0, 60);
+      const keep = new Set(posts.map((p) => p.id));
+      markers.forEach((m, id) => { if (!keep.has(id)) { m.remove(); markers.delete(id); } });
+      posts.forEach((p) => { if (!markers.has(p.id)) markers.set(p.id, postMarker(map, p)); });
+    }
+    const schedule = () => { clearTimeout(timer); timer = setTimeout(reload, 700); };
+    map.on("moveend", schedule);
+    if (map.loaded()) schedule(); else map.once("load", schedule);
+    return {
+      reload: schedule,
+      add(p) { if (!markers.has(p.id)) markers.set(p.id, postMarker(map, p)); },
+      remove(id) { const m = markers.get(id); if (m) { m.remove(); markers.delete(id); } },
+    };
+  }
+  let mainLayer = null, communityMap = null, communityLayer = null;
+  function showOnMapMarkers() { /* markers now come from the map layers */ }
+  function flowerMarker(p) { return postMarker(app.map, p); }
+  function initCommunityMap() {
+    if (communityMap || !window.maplibregl) return;
+    const c = origin();
+    communityMap = new maplibregl.Map({ container: "cmMap", style: app.map.getStyle(), center: [c.lon, c.lat], zoom: Math.max(13, app.map.getZoom()), attributionControl: { compact: true } });
+    communityMap.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+    communityLayer = postLayer(communityMap);
+  }
+
   function highlight(id) {
     setTimeout(() => {
       const li = Array.from($("cmFeed").children).find((x) => x.dataset.id === id);
@@ -372,7 +450,7 @@
     } else {
       setTimeout(() => map.flyTo({ center: [p.lon, p.lat], zoom: 16 }), 250);
     }
-    if (!mapMarkers.length) mapMarkers.push(flowerMarker(p));
+    if (mainLayer) mainLayer.add(p);
   }
 
   // ---- someone's profile --------------------------------------------------------
@@ -405,11 +483,15 @@
   }
   function renderWhere() {
     const note = $("cmWhereNote");
+    $("cmPickWrap").hidden = composerKind === "route";
     if (composerFix) {
-      note.textContent = `Pinned where you are now (accurate to about ${Math.max(5, composerFix.accuracy)} m).`;
+      note.textContent = composerFix.source === "photo" ? "Pinned where your photo was taken. Drag the map to fine-tune."
+        : composerFix.source === "map" ? "Pinned where you placed it."
+        : `Pinned where you are now (about ${Math.max(5, composerFix.accuracy || 5)} m). Drag the map to move the pin.`;
+      showPickMap();
     } else {
       note.textContent = "Finding where you are…";
-      locate().then((f) => { composerFix = f; if (composerKind !== "route") renderWhere(); })
+      locate().then((f) => { if (!composerFix) { composerFix = { ...f, source: "gps" }; } if (composerKind !== "route") renderWhere(); })
         .catch((err) => { if (composerKind !== "route") note.textContent = err.message; });
     }
   }
@@ -423,6 +505,7 @@
     $("cmComposerError").textContent = "";
     setKind(app.currentRoute() ? "route" : "spot");
     $("cmComposer").classList.add("open");
+    if (pickMap) setTimeout(() => pickMap.resize(), 50);
   }
   function closeComposer() { $("cmComposer").classList.remove("open"); }
 
@@ -471,10 +554,32 @@
       closeComposer();
       $("cmStatus").textContent = "";
       $("cmFeed").prepend(card(data.post));
+      if (mainLayer) mainLayer.add(data.post);
+      if (communityLayer) communityLayer.add(data.post);
+      if (communityMap) communityMap.flyTo({ center: [data.post.lon, data.post.lat], zoom: 16 });
       app.toast("Shared — thank you!");
     } catch (err) {
       $("cmComposerError").textContent = err.message;
     } finally { $("cmComposerPost").disabled = false; $("cmComposerPost").textContent = "Post"; }
+  }
+
+  // ---- drag-to-place mini map (the pin stays in the middle; you move the map) --------
+  function showPickMap() {
+    if (composerKind === "route" || !composerFix || !window.maplibregl) return;
+    const center = [composerFix.lon, composerFix.lat];
+    if (!pickMap) {
+      pickMap = new maplibregl.Map({ container: "cmPickMap", style: app.map.getStyle(), center, zoom: 17, attributionControl: false, dragRotate: false, pitchWithRotate: false });
+      pickMap.touchZoomRotate.disableRotation();
+      pickMap.on("moveend", (e) => {
+        if (!e.originalEvent) return; // ignore our own jumps
+        const c = pickMap.getCenter();
+        composerFix = { lat: c.lat, lon: c.lng, source: "map" };
+        renderWhere();
+      });
+    } else if (!pickMap.isMoving()) {
+      pickMap.jumpTo({ center });
+      pickMap.resize();
+    }
   }
 
   // ---- photos in the composer ------------------------------------------------------
@@ -503,6 +608,13 @@
     if (!list.length) return;
     $("cmPhotoCount").textContent = "Preparing photos…";
     for (const f of list) {
+      // Pin the post where the photo was taken — unless you already placed it by hand.
+      if (window.ExifGps && (!composerFix || composerFix.source === "gps")) {
+        try {
+          const g = ExifGps.readGps(await f.arrayBuffer());
+          if (g) { composerFix = { ...g, source: "photo" }; if (composerKind !== "route") renderWhere(); }
+        } catch (e) { /* no location in this photo */ }
+      }
       try { composerPhotos.push(await compressPhoto(f)); }
       catch (err) { $("cmComposerError").textContent = err.message; }
     }
@@ -533,4 +645,7 @@
       $("cmProfileViewer").classList.remove("open");
     });
   }
+
+  // Started last, so every declaration above exists before start() runs.
+  if (window.CalmApp) start(); else window.addEventListener("calmapp:ready", start, { once: true });
 })();
