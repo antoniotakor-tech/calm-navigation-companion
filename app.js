@@ -132,11 +132,11 @@
   // theme, before the rest of the script (route inputs, nav wiring,
   // everything) ever runs.
   function initTheme() {
-    // 2026-10-12: Doodle (kid-drawing look) becomes the app's look. Applied
-    // once per device; anyone can still switch back in Settings → Appearance.
-    let introduced = true;
-    try { introduced = localStorage.getItem("calmTheme.doodleIntro.v1") === "1"; localStorage.setItem("calmTheme.doodleIntro.v1", "1"); } catch (e) { /* storage off: keep their theme */ }
-    if (!introduced) { setTheme("doodle"); return; }
+    // 2026-10-12: only Light and Dark remain, both in the hand-drawn look.
+    // Light (paper) is the default; old Flow/Bloom/Doodle choices become Light.
+    let raw = null;
+    try { raw = localStorage.getItem("calmcompanion.theme.v1"); } catch (e) { /* storage off */ }
+    if (raw !== "dark") { setTheme("light"); return; }
     const stored = FlowTheme.loadStoredTheme();
     if (stored) {
       setTheme(stored);
@@ -2855,7 +2855,11 @@
   bindChipGroup(settingsPresetChips, "preset", isKnownPreset, setPreset);
   bindChipGroup(modeChips, "mode", isKnownMode, setMode);
   bindChipGroup(settingsModeChips, "mode", isKnownMode, setMode);
-  bindChipGroup(soundChips, "sound", isKnownSoundscape, setSoundscape);
+  // Tapping the sound that's already playing stops it (simplified page, 2026-10-12).
+  bindChipGroup(soundChips, "sound", isKnownSoundscape, (v) => {
+    const a = prefs.get().audio;
+    setSoundscape(v !== "off" && a.enabled && a.soundscape === v ? "off" : v);
+  });
   bindChipGroup(settingsSoundChips, "sound", isKnownSoundscape, setSoundscape);
 
   [ambientVolSlider, voiceVolSlider, effectsVolSlider].forEach((slider) => {
@@ -3999,7 +4003,7 @@
   const pages = Array.from(document.querySelectorAll(".page"));
   const dots = Array.from(document.querySelectorAll(".dot-btn"));
   const pageTagline = document.getElementById("pageTagline");
-  const TAGLINES = ["calm routing", "auditory regulation", "kalimba", "community"];
+  const TAGLINES = ["calm routing", "calm sounds", "music studio", "community"];
   let currentPage = 0;
   let scrollRAF = null;
 

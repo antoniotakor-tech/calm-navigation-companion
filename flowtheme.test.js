@@ -5,7 +5,7 @@ const FlowTheme = require("./flowtheme.js");
 test("isValidTheme: only light/dark/flow are valid", () => {
   assert.equal(FlowTheme.isValidTheme("light"), true);
   assert.equal(FlowTheme.isValidTheme("dark"), true);
-  assert.equal(FlowTheme.isValidTheme("flow"), true);
+  assert.equal(FlowTheme.isValidTheme("flow"), false, "Flow was retired 2026-10-12");
   assert.equal(FlowTheme.isValidTheme("neon"), false);
   assert.equal(FlowTheme.isValidTheme(null), false);
   assert.equal(FlowTheme.isValidTheme(undefined), false);
@@ -51,12 +51,9 @@ test("shouldAnimateFlowDecor: true only when reduced motion, battery saver, and 
   assert.equal(FlowTheme.shouldAnimateFlowDecor({ reducedMotion: false, batterySaver: false, backgrounded: false }), true);
 });
 
-test("nextTheme: cycles Light -> Dark -> Flow -> Bloom -> Light", () => {
+test("nextTheme: toggles Light <-> Dark", () => {
   assert.equal(FlowTheme.nextTheme("light"), "dark");
-  assert.equal(FlowTheme.nextTheme("dark"), "flow");
-  assert.equal(FlowTheme.nextTheme("flow"), "bloom");
-  assert.equal(FlowTheme.nextTheme("bloom"), "doodle");
-  assert.equal(FlowTheme.nextTheme("doodle"), "light");
+  assert.equal(FlowTheme.nextTheme("dark"), "light");
 });
 
 test("nextTheme: an unrecognized current theme safely restarts the cycle rather than throwing", () => {

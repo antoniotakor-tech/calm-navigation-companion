@@ -443,6 +443,16 @@
     communityMap = new maplibregl.Map({ container: "cmMap", style: app.map.getStyle(), center: [c.lon, c.lat], zoom: Math.max(13, app.map.getZoom()), attributionControl: { compact: true } });
     communityMap.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
     communityLayer = postLayer(communityMap);
+    // Open on people's posts: frame you + the posts around you (up to 25 km).
+    communityMap.once("load", async () => {
+      try {
+        const posts = (await api(`/api/social/posts?lat=${c.lat.toFixed(4)}&lon=${c.lon.toFixed(4)}&radius=25000`)).posts.filter((p) => !app.isBlocked(p.author.id));
+        if (!posts.length) return;
+        const b = new maplibregl.LngLatBounds([c.lon, c.lat], [c.lon, c.lat]);
+        posts.slice(0, 40).forEach((p) => b.extend([p.lon, p.lat]));
+        communityMap.fitBounds(b, { padding: 50, maxZoom: 16, duration: 0 });
+      } catch (e) { /* offline: stays on you */ }
+    });
   }
 
   function highlight(id) {
@@ -453,6 +463,13 @@
   }
 
   function showPost(p) {
+    // On the Community tab: move its own map to the post and open the card.
+    if (communityMap && p.kind !== "route") {
+      $("cmMap").scrollIntoView({ behavior: "smooth", block: "start" });
+      communityLayer.add(p);
+      setTimeout(() => openPopup(communityMap, p), 300);
+      return;
+    }
     const map = app.map;
     app.goToPage(0);
     const src = map.getSource("community-route");

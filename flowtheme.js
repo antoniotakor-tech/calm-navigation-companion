@@ -23,7 +23,7 @@
 })(typeof self !== "undefined" ? self : this, function () {
   "use strict";
 
-  const THEMES = ["light", "dark", "flow", "bloom", "doodle"]; // bloom: colourful + flowers; doodle: kid-drawing look (2026-10-12)
+  const THEMES = ["light", "dark"]; // 2026-10-12: both are the hand-drawn "doodle" look (light paper / dark chalkboard)
   const DEFAULT_THEME = "light";
 
   function isValidTheme(t) {
