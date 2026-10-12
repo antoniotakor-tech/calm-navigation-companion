@@ -2403,3 +2403,6 @@ input[type=range] { touch-action: pan-x; }
 .place-card-credit a { color: inherit; }
 .place-card .map-pin-popup-go-btn { margin-top: 8px; }
 .maplibregl-canvas-container .map-doodles { position: absolute; inset: 0; }
+.maplibregl-canvas-container .map-doodles { z-index: 0 !important; }
+.maplibregl-popup { z-index: 6; }
+.maplibregl-marker { z-index: 4; }
