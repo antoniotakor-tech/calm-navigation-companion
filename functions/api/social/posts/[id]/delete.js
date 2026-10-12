@@ -7,7 +7,7 @@ export async function onRequestPost({ request, env, params }) {
   const dbError = requireDb(env);
   if (dbError) return dbError;
   const body = await parseJsonBody(request);
-  const who = await identify(body && body.token);
+  const who = await identify(body, env.DB);
   if (!who) return jsonError("Missing device key.", 400);
   await ensureSocialTables(env.DB);
   await env.DB.prepare("DELETE FROM posts WHERE id = ? AND owner_hash = ?").bind(params.id, who.ownerHash).run();

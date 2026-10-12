@@ -29,7 +29,7 @@ test("a valid post is stored without the raw token and returned with the author"
 test("the daily post limit applies", async () => {
   const DB = createFakeDb([
     { match: /SELECT nickname, avatar FROM profiles/, first: () => ({ nickname: "Ann", avatar: "mint" }) },
-    { match: /COUNT\(\*\)/, first: () => ({ c: 10 }) },
+    { match: /COUNT\(\*\)/, first: () => ({ c: 5 }) },
   ]);
   const res = await posts.onRequestPost({ request: req({ token: "device-token-123", post }), env: { DB } });
   assert.equal(res.status, 429);

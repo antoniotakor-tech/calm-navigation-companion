@@ -586,6 +586,45 @@
           <button type="button" class="cm-danger" id="cmDeleteAccountBtn" hidden>Delete my profile and all my posts</button>
         </form>
 
+
+        <div class="ac-box" id="accountBox">
+          <div id="acSignedOut">
+            <div class="ac-title">Keep your profile safe</div>
+            <p class="cm-note">Add a passkey and sign in with Face ID or Touch ID: no password, no email. Use it to get your profile back on a new phone.</p>
+            <div class="cm-row ac-row">
+              <button type="button" class="pill" id="acSignIn">Sign in</button>
+              <button type="button" class="pill active" id="acAddPasskey">Add passkey</button>
+            </div>
+          </div>
+          <div id="acSignedIn" hidden>
+            <div class="ac-title">Signed in with passkey <span class="plus-badge" id="acPlusBadge" hidden>Calm+</span></div>
+            <div class="cm-note" id="acStatus"></div>
+            <div class="cm-row ac-row"><button type="button" class="pill" id="acSignOut">Sign out</button></div>
+          </div>
+          <p class="cm-note" id="acUnsupported" hidden>This browser can't use passkeys. Try Safari on iPhone or Mac, or Chrome.</p>
+          <div class="cm-error" id="acMsg" role="alert"></div>
+        </div>
+
+        <div class="plus-card" id="plusCard">
+          <div class="plus-head"><i data-ci="sparkle"></i> <b>Calm+</b></div>
+          <ul class="plus-perks">
+            <li>Your saved places, calm ratings, settings and blocks synced on all your devices</li>
+            <li>Share up to 20 posts a day (free: 5)</li>
+            <li>A Calm+ flower on your posts, and you keep the app independent and ad-free</li>
+          </ul>
+          <p class="cm-note">Routing, sounds, Kalimba, Echoes and the community stay free for everyone.</p>
+          <div id="plusBuy" class="cm-row ac-row" hidden>
+            <button type="button" class="pill" id="plusMonthly">Monthly</button>
+            <button type="button" class="pill active" id="plusYearly">Yearly</button>
+          </div>
+          <div id="plusActive" hidden><p class="cm-note"><b>You have Calm+. Thank you!</b></p></div>
+          <button type="button" class="pill" id="plusManage" hidden>Manage or cancel</button>
+          <div id="plusSoon" hidden>
+            <p class="cm-note">Coming soon: €2.99/month or €19.99/year.</p>
+            <button type="button" class="pill active" id="plusNotify">Notify me when it opens</button>
+          </div>
+        </div>
+
         <div class="cm-toolbar">
           <div class="pill-row" role="tablist" aria-label="Timeline">
             <button type="button" class="pill active" data-feed="near" role="tab" aria-selected="true">Nearby</button>
@@ -840,6 +879,7 @@
 <script src="shared/navigationBridge.js"></script>
 <script src="socialvalidation.js"></script>
 <script src="app.js"></script>
+<script src="account.js"></script>
 <script src="community.js"></script>
 <script>
   // Skipped inside the native Capacitor shell: the app ships all assets

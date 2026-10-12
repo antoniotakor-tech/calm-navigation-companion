@@ -2,6 +2,7 @@
 // POST /api/social/posts { token, post }     — share a spot / route / event
 import SocialValidation from "../../../../socialvalidation.js";
 import EchoValidation from "../../../../echovalidation.js";
+import { FREE_LIMITS, PLUS_LIMITS, isPlus } from "../../auth/_store.js";
 import { ensureSocialTables, identify, publicPost, POST_COLUMNS, jsonError, jsonResponse, parseJsonBody, requireDb, CORS_HEADERS } from "../_db.js";
 
 export async function onRequestOptions() { return new Response(null, { status: 204, headers: CORS_HEADERS }); }
@@ -28,7 +29,7 @@ export async function onRequestPost({ request, env }) {
   const dbError = requireDb(env);
   if (dbError) return dbError;
   const body = await parseJsonBody(request);
-  const who = await identify(body && body.token);
+  const who = await identify(body, env.DB);
   if (!who) return jsonError("Missing device key.", 400);
   const check = SocialValidation.validatePost(body.post);
   if (!check.valid) return jsonError(check.error, 400);
@@ -37,11 +38,12 @@ export async function onRequestPost({ request, env }) {
   if (!profile) return jsonError("Create your profile first.", 403);
   const now = Date.now();
   const recent = await env.DB.prepare("SELECT COUNT(*) AS c FROM posts WHERE owner_hash = ? AND created_at > ?").bind(who.ownerHash, now - 86400000).first();
-  if (recent && recent.c >= SocialValidation.LIMITS.postsPerDay) return jsonError("That's the most posts for today — come back tomorrow.", 429);
+  const limit = isPlus(who.account) ? PLUS_LIMITS.postsPerDay : FREE_LIMITS.postsPerDay;
+  if (recent && recent.c >= limit) return jsonError(isPlus(who.account) ? "That's the most posts for today — come back tomorrow." : `That's ${limit} posts today — come back tomorrow, or get Calm+ for more.`, 429);
   const v = check.value, id = crypto.randomUUID();
   await env.DB.prepare(
     `INSERT INTO posts (id, owner_hash, author_key, kind, title, body, lat, lon, route_json, event_at, photo, created_at, status)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'visible')`
   ).bind(id, who.ownerHash, who.authorKey, v.kind, v.title, v.body, v.lat, v.lon, v.route ? JSON.stringify(v.route) : null, v.eventAt, v.photo, now).run();
-  return jsonResponse({ post: publicPost({ id, author_key: who.authorKey, kind: v.kind, title: v.title, body: v.body, lat: v.lat, lon: v.lon, route_json: v.route ? JSON.stringify(v.route) : null, event_at: v.eventAt, has_photo: !!v.photo, created_at: now }, profile) }, 201);
+  return jsonResponse({ post: publicPost({ id, author_key: who.authorKey, kind: v.kind, title: v.title, body: v.body, lat: v.lat, lon: v.lon, route_json: v.route ? JSON.stringify(v.route) : null, event_at: v.eventAt, has_photo: !!v.photo, created_at: now }, { ...profile, plus: isPlus(who.account) }) }, 201);
 }

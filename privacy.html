@@ -29,10 +29,10 @@
   <div class="card">
   <h2>The short version</h2>
   <ul>
-    <li>There are <strong>no accounts</strong>, <strong>no ads</strong>, <strong>no analytics</strong> and <strong>no trackers</strong> in this app.</li>
+    <li>Accounts are <strong>optional</strong> and use passkeys (no password, no email). There are <strong>no ads</strong>, <strong>no analytics</strong> and <strong>no trackers</strong> in this app.</li>
     <li>Your location is used to show you on the map and to guide you. It is <strong>not stored on our servers</strong> and not sold or shared for advertising.</li>
     <li>Your recent routes and saved places stay <strong>on your device only</strong>.</li>
-    <li>The one thing that is stored on a server is a <strong>Calm Echo</strong>, and only if you choose to leave one (details below).</li>
+    <li>Things stored on a server only if you choose them: a <strong>Calm Echo</strong>, your <strong>community profile and posts</strong>, an optional <strong>passkey sign-in</strong>, and <strong>Calm+</strong> sync (details below).</li>
   </ul>
 
   <h2>Location</h2>
@@ -57,11 +57,21 @@
   </ul>
   <p>Echoes are shown to people nearby for 48 hours. Don't put personal information in a message — other people can read it.</p>
 
+  <h2>Community profile and posts (optional)</h2>
+  <p>If you create a profile we store the name, short bio and flower you pick. Posts you share (a calm spot, route or event) are stored with their title, text, place, route line, event time and optional photo, and anyone using the app can see them. Photos are shrunk on your phone first, which also removes hidden location data (EXIF). Please don't post photos of recognisable people. Your profile is linked to a random key on your device; we store only a one-way hash of it. You can delete any post, or delete your whole profile and all posts, from the Community tab.</p>
+
+  <h2>Passkey sign-in (optional)</h2>
+  <p>A passkey is created and kept by your device (for example in iCloud Keychain) and unlocked with Face ID, Touch ID or your device PIN. We receive and store only its <em>public</em> key, a counter, and when it was created and last used. We never see your face, fingerprint or PIN. Sign-in sessions are random tokens we store only as hashes; they expire after 180 days. "Delete account" removes the account, passkeys, sessions, profile and posts.</p>
+
+  <h2>Calm+ and payments (optional)</h2>
+  <p>Payments are handled by <strong>Stripe</strong>. We never see or store your card details. We store your Stripe customer ID, your plan and when it renews. With Calm+, we also store a copy of your saved places, calm ratings, settings and blocked people so they sync between your devices. It's overwritten every time you sync and deleted with your account. Cancel any time from "Manage or cancel".</p>
+
   <h2>Who else sees data</h2>
   <ul>
     <li><strong>GraphHopper</strong> receives coordinates only as part of a search or routing request, to answer it. Its own privacy policy applies.</li>
     <li><strong>OpenFreeMap / OpenStreetMap services</strong> supply map tiles and place data.</li>
     <li><strong>Cloudflare</strong> hosts the app and, like any web host, sees requests in transit. We don't add analytics or log your coordinates.</li>
+    <li><strong>Stripe</strong> processes Calm+ payments under its own privacy policy.</li>
     <li>We do not sell your data and we do not use it for advertising or tracking.</li>
   </ul>
 

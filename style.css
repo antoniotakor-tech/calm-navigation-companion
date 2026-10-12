@@ -1632,3 +1632,13 @@ body.nav-away .nav-back-btn { display: flex; align-items: center; }
 @media (prefers-reduced-motion: reduce) { .cm-card, .cm-map-marker { animation: none; } }
 
 .community-inner [hidden], .cm-sheet [hidden] { display: none !important; }
+
+/* ---- Account + Calm+ (account.js) ---- */
+.ac-box, .plus-card { margin-top: 12px; padding: 14px; border-radius: 20px; background: var(--surface); border: 1px solid var(--line); }
+.ac-title { font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.ac-row { justify-content: flex-start; margin-top: 8px; flex-wrap: wrap; }
+.ac-box [hidden], .plus-card [hidden] { display: none !important; }
+.plus-card { background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 12%, var(--surface)), var(--surface)); }
+.plus-head { display: flex; align-items: center; gap: 6px; font-size: 1.05rem; }
+.plus-perks { margin: 8px 0; padding-left: 18px; font-size: .88rem; line-height: 1.5; }
+.plus-badge { font-size: .68rem; font-weight: 700; padding: 2px 7px; border-radius: 999px; color: #fff; background: linear-gradient(90deg, #E0559B, #9B7BE0); letter-spacing: .02em; }

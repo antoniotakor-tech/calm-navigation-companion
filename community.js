@@ -25,16 +25,19 @@
   let composerPhoto = null;
   let mapMarkers = [];
 
+  let loaded = false;
   function start() {
     app = window.CalmApp;
     if (!app || !S) return;
     try { me = JSON.parse(localStorage.getItem(PROFILE_CACHE) || "null"); } catch (e) { me = null; }
     renderMyProfile();
     wire();
-    api("/api/social/me", { token: app.deviceToken(), action: "get" }).then(setMe).catch(() => {});
+    const fetchMe = () => api("/api/social/me", { token: app.deviceToken(), action: "get" }).then(setMe).catch(() => {});
+    fetchMe();
+    // Signing in on a new phone switches to the account's profile.
+    if (window.CalmAccount) window.CalmAccount.onChange(() => { fetchMe(); if (loaded) loadFeed(); });
     // Load the timeline the first time someone opens the Community tab.
     const dot = $("dot-3");
-    let loaded = false;
     const loadOnce = () => { if (!loaded) { loaded = true; loadFeed(); } };
     dot && dot.addEventListener("click", loadOnce);
     const page = $("page-3");
@@ -46,6 +49,8 @@
 
   // ---- network --------------------------------------------------------------
   async function api(path, body) {
+    const session = window.CalmAccount && window.CalmAccount.session();
+    if (body && session) body = { ...body, session };
     const res = await fetch(app.apiBaseUrl + path, body
       ? { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }
       : undefined);
@@ -142,6 +147,10 @@
   }
 
   async function deleteAccount() {
+    if (window.CalmAccount && window.CalmAccount.session()) {
+      if (await window.CalmAccount.deleteAccount()) { setMe({ id: me && me.id, profile: null }); closeProfileForm(); loadFeed(); }
+      return;
+    }
     if (!confirm("Delete your profile and every post you shared? This can't be undone.")) return;
     try {
       await api("/api/social/me", { token: app.deviceToken(), action: "delete" });
@@ -184,6 +193,7 @@
     const av = make("span", "cm-avatar cm-avatar-sm");
     avatarEl(av, p.author.avatar);
     who.append(av, make("span", "cm-author-name", p.author.nickname));
+    if (p.author.plus) who.appendChild(make("span", "plus-badge", "Calm+"));
     who.addEventListener("click", () => openViewer(p.author.id));
     const badge = make("span", "cm-badge");
     badge.innerHTML = CalmIcons.html(KIND_ICON[p.kind]) + " ";
