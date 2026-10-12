@@ -56,5 +56,16 @@
 		<string>location</string>
 		<string>audio</string>
 	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.calmnav.companion</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>calmnav</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>
