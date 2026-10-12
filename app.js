@@ -3516,7 +3516,12 @@
   // live rather than requiring a close/reopen.
   function refreshEchoRecordGate() {
     if (echoRecorder.state.phase === "recording") return; // don't yank the button out from under an in-progress recording
-    const progress = ExplorationTracker.unlockProgress(explorationState, Date.now());
+    // Walk-to-unlock removed (2026-10-12, owner's decision): Record is always
+    // available. Spam is still bounded server-side (DAILY_ECHO_LIMIT per
+    // device per day) and by the content filter/report/block moderation.
+    // ExplorationTracker is kept (still tested) in case a gate returns.
+    const ECHO_WALK_GATE = false;
+    const progress = ECHO_WALK_GATE ? ExplorationTracker.unlockProgress(explorationState, Date.now()) : { unlocked: true };
     if (progress.unlocked) {
       echoRecordBtn.disabled = false;
       echoRecordBtn.classList.remove("locked");

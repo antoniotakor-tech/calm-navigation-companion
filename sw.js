@@ -72,7 +72,8 @@
 // v49 (2026-10-10): Kalimba button during navigation + Back to navigation.
 // v50 (2026-10-12): privacy policy page + Settings link.
 // v51 (2026-10-12): Calm Echoes moderation — content filter, report, block, community rules.
-const CACHE_NAME = "calm-companion-v51";
+// v52 (2026-10-12): no walking needed before leaving a Calm Echo.
+const CACHE_NAME = "calm-companion-v52";
 const APP_SHELL = [
   "/",
   "/index.html",
