@@ -210,8 +210,31 @@ class AutocompleteController {
         })
         .slice(0, this.limit);
 
+      // Don't hold the list hostage to the slower nearby-place lookup: show
+      // geocoder results after a short grace period, then re-render with
+      // nearby places on top whenever they arrive (2026-10-12).
+      let local = await Promise.race([localPromise, new Promise((r) => setTimeout(() => r(null), 700))]);
+      if (!this.sequencer.isCurrent(token)) return;
+      if (local === null) {
+        this.renderMerged([], ranked, query);
+        local = await localPromise;
+        if (!this.sequencer.isCurrent(token) || !local.length) return;
+      }
+      this.renderMerged(local, ranked, query);
+    } catch (e) {
+      if (!this.sequencer.isCurrent(token)) return;
+      if (e && e.kind === "cancelled") return; // superseded request, not a user-facing error
+      // The address service failed, but nearby places we already know about
+      // are still worth offering instead of only an error.
       const local = await localPromise;
       if (!this.sequencer.isCurrent(token)) return;
+      if (local.length) { this.setItems(local); return; }
+      this.setError(e, query);
+    }
+  }
+
+  renderMerged(local, ranked, query) {
+    {
       // Drop geocoder hits that are the same place as a local match (same
       // name within ~150 m) so nothing appears twice.
       const merged = [
@@ -229,15 +252,6 @@ class AutocompleteController {
         ? [{ type: "current-location", primary: "Use my current location", secondary: "", isAction: true }, ...merged]
         : merged;
       this.setItems(items);
-    } catch (e) {
-      if (!this.sequencer.isCurrent(token)) return;
-      if (e && e.kind === "cancelled") return; // superseded request, not a user-facing error
-      // The address service failed, but nearby places we already know about
-      // are still worth offering instead of only an error.
-      const local = await localPromise;
-      if (!this.sequencer.isCurrent(token)) return;
-      if (local.length) { this.setItems(local); return; }
-      this.setError(e, query);
     }
   }
 

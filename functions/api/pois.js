@@ -159,10 +159,10 @@ export function normalizePoi(el) {
 // Races every Overpass mirror in PARALLEL and returns the first healthy
 // Response, or null if all fail/time out. (Sequential tries measured
 // 19-21 s in production on 2026-09-03 when mirrors refused us.)
-async function queryOverpass(query) {
+async function queryOverpass(query, timeoutMs) {
   const raceOne = async (upstream) => {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), timeoutMs || UPSTREAM_TIMEOUT_MS);
     try {
       const attempt = await fetch(upstream, {
         method: "POST",
@@ -195,7 +195,8 @@ async function queryOverpass(query) {
 // city. Searches OSM name + brand tags within NAME_SEARCH_RADIUS_M of the
 // given point, nearest first. Cached in D1 per (normalised name, ~1 km cell)
 // exactly like the area cache, with the same stale-on-failure fallback.
-const NAME_SEARCH_RADIUS_M = 6000;
+const NAME_SEARCH_RADIUS_M = 5000;
+const NAME_SEARCH_TIMEOUT_MS = 12000;
 const NAME_SEARCH_MAX = 15;
 
 export function sanitizeNameQuery(raw) {
@@ -231,8 +232,13 @@ async function handleNameSearch(context, incoming) {
 
   const re = q.replace(/[.\-&']/g, (c) => "\\" + c);
   const around = `around:${NAME_SEARCH_RADIUS_M},${lat},${lon}`;
-  const query = `[out:json][timeout:8];(nwr["name"~"${re}",i](${around});nwr["brand"~"${re}",i](${around}););out center 80;`;
-  const resp = await queryOverpass(query);
+  // Only amenity/shop-tagged objects + exact brand: a bare name regex over
+  // every object in 5 km timed out on Overpass (measured 2026-10-12: >7.6 s,
+  // 504); this shape answered in ~8.5 s with 12 Starbucks branches. The
+  // first lookup per (name, area) is slow; every later one is a D1 hit.
+  const brand = q.replace(/"/g, "");
+  const query = `[out:json][timeout:11];(nwr["amenity"]["name"~"${re}",i](${around});nwr["shop"]["name"~"${re}",i](${around});nwr["brand"="${brand}"](${around}););out center 40;`;
+  const resp = await queryOverpass(query, NAME_SEARCH_TIMEOUT_MS);
   let data = null;
   if (resp) { try { data = await resp.json(); } catch (e) { data = null; } }
   if (!data) {

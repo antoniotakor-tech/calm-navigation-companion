@@ -201,7 +201,8 @@ test("name search: nearest branches first, query sanitised, cached", async () =>
       assert.ok(body.places[0].distanceM < body.places[1].distanceM);
     }
   );
-  assert.match(sentQuery, /around:6000,52.3676,4.9041/);
-  assert.match(sentQuery, /"name"~"Starbucks",i/);
+  assert.match(sentQuery, /around:5000,52.3676,4.9041/);
+  assert.match(sentQuery, /\["amenity"\]\["name"~"Starbucks",i\]/);
+  assert.match(sentQuery, /"brand"="Starbucks"/);
   assert.ok([...db.rows.keys()].some((k) => k.startsWith("name:starbucks:")), "cached in D1");
 });
