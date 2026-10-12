@@ -2107,3 +2107,110 @@ header.top h1 { animation: title-wiggle 7s ease-in-out infinite; }
 :root[data-theme="dark"] body { background: repeating-linear-gradient(0deg, transparent 0 31px, rgba(244,241,255,.04) 31px 32px), var(--bg) !important; }
 :root:is([data-theme="light"],[data-theme="dark"]) { --gradient-accent: var(--crayon-orange); }
 :root:is([data-theme="light"],[data-theme="dark"]) .dot-btn.active::after { filter: none !important; }
+
+/* ======================================================================
+   "CHILDLIKE BUT PROFESSIONAL" (2026-10-12)
+   Playful in a few deliberate places (handwritten titles + tabs, doodle
+   icons, crayon accents, the map critters); everything people use all day
+   is calm, consistent and quiet: one UI font, one accent for actions,
+   soft tints for selection, thin outlines, small consistent corners.
+   ====================================================================== */
+:root:is([data-theme="light"],[data-theme="dark"]) {
+  --r: 14px 16px 13px 15px;            /* barely hand-cut, consistent everywhere */
+  --r-lg: 20px 22px 19px 21px;
+  --doodle-radius: var(--r); --doodle-radius-2: var(--r-lg);
+  --edge: color-mix(in srgb, var(--ink) 22%, transparent);
+  --edge-strong: color-mix(in srgb, var(--ink) 70%, transparent);
+  --doodle-shadow: 0 2px 0 color-mix(in srgb, var(--shadow-ink) 22%, transparent), 0 6px 18px color-mix(in srgb, var(--shadow-ink) 8%, transparent);
+  --tint: color-mix(in srgb, var(--crayon-yellow) 45%, var(--surface));
+}
+:root[data-theme="light"] { --bg: #FFFAF1; --surface: #FFFFFF; --surface-2: #FFF6E6; --surface-3: #FFFFFF; }
+:root[data-theme="light"] body { background: var(--bg) !important; }
+:root[data-theme="dark"] body { background: var(--bg) !important; }
+
+/* One UI font for controls; handwriting only for titles and tabs */
+:root:is([data-theme="light"],[data-theme="dark"]) .pill,
+:root:is([data-theme="light"],[data-theme="dark"]) .find-btn,
+:root:is([data-theme="light"],[data-theme="dark"]) .start-nav-btn,
+:root:is([data-theme="light"],[data-theme="dark"]) .cm-share-btn,
+:root:is([data-theme="light"],[data-theme="dark"]) .vc-fx-chip,
+:root:is([data-theme="light"],[data-theme="dark"]) .dm-name,
+:root:is([data-theme="light"],[data-theme="dark"]) .vc-rec,
+:root:is([data-theme="light"],[data-theme="dark"]) .ac-title,
+:root:is([data-theme="light"],[data-theme="dark"]) .cm-name { font-family: var(--font-body) !important; font-weight: 700; letter-spacing: 0; }
+:root:is([data-theme="light"],[data-theme="dark"]) .pill { font-size: .95rem; }
+:root:is([data-theme="light"],[data-theme="dark"]) .sound-tiles .pill b { font-family: "Patrick Hand", cursive; font-weight: 400; font-size: 1.3rem; }
+
+/* Surfaces: thin edge, soft shadow, consistent corners, no tilt */
+:root:is([data-theme="light"],[data-theme="dark"]) .route-search-card,
+:root:is([data-theme="light"],[data-theme="dark"]) .route-results-card,
+:root:is([data-theme="light"],[data-theme="dark"]) .nav-top-card,
+:root:is([data-theme="light"],[data-theme="dark"]) .nav-controls-card,
+:root:is([data-theme="light"],[data-theme="dark"]) .cm-profile-card,
+:root:is([data-theme="light"],[data-theme="dark"]) .cm-profile-form,
+:root:is([data-theme="light"],[data-theme="dark"]) .cm-card,
+:root:is([data-theme="light"],[data-theme="dark"]) .ac-box,
+:root:is([data-theme="light"],[data-theme="dark"]) .vc-take,
+:root:is([data-theme="light"],[data-theme="dark"]) .plus-card,
+:root:is([data-theme="light"],[data-theme="dark"]) .cm-map,
+:root:is([data-theme="light"],[data-theme="dark"]) .cm-pick {
+  border: 1.5px solid var(--edge-strong) !important; border-radius: var(--r-lg) !important;
+  box-shadow: var(--doodle-shadow) !important; transform: none !important;
+}
+:root:is([data-theme="light"],[data-theme="dark"]) .cm-card:nth-child(n) { background: var(--surface) !important; }
+:root:is([data-theme="light"],[data-theme="dark"]) .settings-sheet,
+:root:is([data-theme="light"],[data-theme="dark"]) .echo-sheet { border: 1.5px solid var(--edge-strong) !important; border-bottom: none !important; box-shadow: 0 -6px 24px rgba(0,0,0,.08) !important; }
+:root:is([data-theme="light"],[data-theme="dark"]) .plus-card { background: color-mix(in srgb, var(--crayon-yellow) 28%, var(--surface)) !important; border-style: dashed !important; }
+
+/* Controls: quiet by default, soft tint when selected, ONE accent for actions */
+:root:is([data-theme="light"],[data-theme="dark"]) .pill {
+  border: 1.5px solid var(--edge-strong); border-radius: var(--r); background: var(--surface); color: var(--ink);
+  box-shadow: 0 1.5px 0 color-mix(in srgb, var(--shadow-ink) 25%, transparent);
+}
+:root:is([data-theme="light"],[data-theme="dark"]) .pill.active,
+:root:is([data-theme="light"],[data-theme="dark"]) .pill:nth-child(n).active { background: var(--tint) !important; border-color: var(--ink); color: var(--ink) !important; }
+:root[data-theme="dark"] { --tint: color-mix(in srgb, var(--crayon-yellow) 30%, var(--surface)); }
+:root[data-theme="dark"] .pill.active, :root[data-theme="dark"] .pill:nth-child(n).active { color: var(--ink) !important; }
+:root:is([data-theme="light"],[data-theme="dark"]) .pill.active .ci { color: var(--ink) !important; }
+:root:is([data-theme="light"],[data-theme="dark"]) .find-btn,
+:root:is([data-theme="light"],[data-theme="dark"]) .start-nav-btn,
+:root:is([data-theme="light"],[data-theme="dark"]) .cm-share-btn {
+  background: var(--crayon-orange) !important; color: #2D2A3E !important; border: 1.5px solid #2D2A3E !important;
+  border-radius: var(--r) !important; box-shadow: 0 2px 0 #2D2A3E !important; font-size: 1.05rem !important;
+}
+:root:is([data-theme="light"],[data-theme="dark"]) .start-nav-btn { background: var(--crayon-green) !important; }
+:root:is([data-theme="light"],[data-theme="dark"]) .icon-btn { border: 1.5px solid var(--edge-strong); background: var(--surface); box-shadow: 0 1.5px 0 color-mix(in srgb, var(--shadow-ink) 25%, transparent); }
+:root:is([data-theme="light"],[data-theme="dark"]) .icon-btn, :root:is([data-theme="light"],[data-theme="dark"]) .icon-btn svg { color: var(--ink) !important; }
+:root:is([data-theme="light"],[data-theme="dark"]) #settingsBtn { background: var(--surface); }
+:root:is([data-theme="light"],[data-theme="dark"]) .cm-badge { border: 1px solid var(--edge-strong); background: var(--tint); font-size: .75rem; }
+:root:is([data-theme="light"],[data-theme="dark"]) .cm-kind-route .cm-badge { background: color-mix(in srgb, var(--crayon-blue) 35%, var(--surface)); }
+:root:is([data-theme="light"],[data-theme="dark"]) .cm-kind-event .cm-badge { background: color-mix(in srgb, var(--crayon-pink) 35%, var(--surface)); }
+:root:is([data-theme="light"],[data-theme="dark"]) .cm-badge, :root:is([data-theme="light"],[data-theme="dark"]) .cm-badge .ci { color: var(--ink) !important; }
+:root:is([data-theme="light"],[data-theme="dark"]) .vc-fx-chip.on { background: var(--tint); color: var(--ink); box-shadow: none; transform: none; }
+:root:is([data-theme="light"],[data-theme="dark"]) .vc-rec { border-width: 2px; box-shadow: 0 3px 0 #2D2A3E; font-size: 1.1rem; }
+:root:is([data-theme="light"],[data-theme="dark"]) .dm-name { box-shadow: none; border-width: 1.5px; border-radius: var(--r); }
+:root:is([data-theme="light"],[data-theme="dark"]) .dm-step.on { box-shadow: none; }
+:root:is([data-theme="light"],[data-theme="dark"]) .cm-map-marker { border-width: 2px; box-shadow: 0 2px 6px rgba(0,0,0,.18); }
+
+/* Header: handwritten title in ink with one crayon underline; tabs handwritten */
+:root:is([data-theme="light"],[data-theme="dark"]) header.top h1 { font-size: 1.85rem; transform: none; }
+:root:is([data-theme="light"],[data-theme="dark"]) .dot-btn { font-size: 1.1rem; }
+
+/* Fewer critters at once on the map: keep the gentle ones */
+.dd-rainbow, .dd-balloons, .dd-heart, .dd-star2, .dd-ladybug, .dd-birds { display: none !important; }
+.map-doodles { opacity: .85; }
+/* Calmer micro-motion: keep feedback, drop the attention-seekers */
+.cm-share-btn, header.top h1 { animation: none !important; }
+/* Lined paper back (he likes it): blue rules + the red margin line, subtle. */
+:root[data-theme="light"] body {
+  background:
+    linear-gradient(90deg, transparent 0 40px, rgba(255,92,138,.22) 40px 41.5px, transparent 41.5px),
+    repeating-linear-gradient(0deg, transparent 0 31px, rgba(77,168,255,.16) 31px 32px),
+    var(--bg) !important;
+}
+:root[data-theme="dark"] body {
+  background:
+    linear-gradient(90deg, transparent 0 40px, rgba(255,143,184,.18) 40px 41.5px, transparent 41.5px),
+    repeating-linear-gradient(0deg, transparent 0 31px, rgba(244,241,255,.07) 31px 32px),
+    var(--bg) !important;
+}
