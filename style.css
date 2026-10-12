@@ -2095,3 +2095,15 @@ header.top h1 { animation: title-wiggle 7s ease-in-out infinite; }
 .vc-fx::-webkit-scrollbar { display: none; }
 .vc-fx-chip { flex: none; font: inherit; font-family: "Patrick Hand", cursive; font-size: .95rem; padding: 6px 12px; border-radius: 999px; border: 1.5px solid color-mix(in srgb, var(--ink) 50%, transparent); background: var(--surface); color: var(--ink); cursor: pointer; transition: transform .18s cubic-bezier(.34,1.56,.64,1); }
 .vc-fx-chip.on { background: var(--crayon-purple, #B58CFF); color: #2D2A3E; border-color: var(--ink); box-shadow: 1px 2px 0 var(--shadow-ink, #2D2A3E); transform: scale(1.05) rotate(-1.5deg); }
+
+/* Flat colours, no gradients (2026-10-12) — feels hand-made, not "app-y". */
+:root:is([data-theme="light"],[data-theme="dark"]) header.top h1 {
+  background: none !important; -webkit-text-fill-color: currentColor !important; color: var(--ink) !important;
+  text-decoration: underline wavy var(--crayon-pink); text-decoration-thickness: 2px; text-underline-offset: 6px;
+  filter: none !important;
+}
+:root:is([data-theme="light"],[data-theme="dark"]) .plus-card { background: var(--crayon-yellow) !important; color: #2D2A3E; }
+:root:is([data-theme="light"],[data-theme="dark"]) .plus-card .cm-note, :root:is([data-theme="light"],[data-theme="dark"]) .plus-card .ci { color: #2D2A3E; }
+:root[data-theme="dark"] body { background: repeating-linear-gradient(0deg, transparent 0 31px, rgba(244,241,255,.04) 31px 32px), var(--bg) !important; }
+:root:is([data-theme="light"],[data-theme="dark"]) { --gradient-accent: var(--crayon-orange); }
+:root:is([data-theme="light"],[data-theme="dark"]) .dot-btn.active::after { filter: none !important; }
