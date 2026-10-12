@@ -23,7 +23,7 @@
 })(typeof self !== "undefined" ? self : this, function () {
   "use strict";
 
-  const THEMES = ["light", "dark", "flow"];
+  const THEMES = ["light", "dark", "flow", "bloom"]; // bloom: colourful + flowers (2026-10-12)
   const DEFAULT_THEME = "light";
 
   function isValidTheme(t) {
@@ -85,7 +85,7 @@
     return true;
   }
 
-  /** Cycles Light -> Dark -> Flow -> Light, for the header's quick-toggle button. */
+  /** Cycles Light -> Dark -> Flow -> Bloom -> Light, for the header's quick-toggle button. */
   function nextTheme(current) {
     const idx = THEMES.indexOf(current);
     return THEMES[idx === -1 ? 0 : (idx + 1) % THEMES.length];
@@ -93,6 +93,10 @@
 
   function isFlowActive(theme) {
     return theme === "flow";
+  }
+
+  function isBloomActive(theme) {
+    return theme === "bloom";
   }
 
   // Whether a theme should render with the dark CARTO tileset. Flow uses
@@ -125,6 +129,7 @@
   }
 
   const api = {
+    isBloomActive,
     THEMES, DEFAULT_THEME, isValidTheme,
     FLOW_PALETTE, paletteColorForTine,
     TIMING, shouldAnimateFlowDecor, nextTheme, isFlowActive, usesDarkMapTiles,

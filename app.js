@@ -30,10 +30,12 @@
       chip.classList.toggle("active", active);
       chip.setAttribute("aria-pressed", String(active));
     });
-    const labels = { light: "Switch to dark theme", dark: "Switch to Flow theme", flow: "Switch to light theme" };
+    const labels = { light: "Switch to dark theme", dark: "Switch to Flow theme", flow: "Switch to Bloom theme", bloom: "Switch to light theme" };
     themeToggleBtn.setAttribute("aria-label", labels[theme] || "Toggle theme");
     refreshMapTheme();
     setNightMode(FlowTheme.usesDarkMapTiles(theme));
+    // Defined later in this file (hoisted); flowers follow the theme.
+    if (typeof refreshBloomFlowers === "function") refreshBloomFlowers();
   }
 
   const themeToggleBtn = document.getElementById("themeToggle");
@@ -1001,7 +1003,7 @@
     const iconEl = document.createElement("span");
     iconEl.className = "ac-option-icon";
     iconEl.setAttribute("aria-hidden", "true");
-    iconEl.textContent = icon;
+    iconEl.innerHTML = CalmIcons.html(icon);
     const textWrap = document.createElement("span");
     textWrap.className = "ac-option-text";
     const primaryEl = document.createElement("span");
@@ -1219,7 +1221,7 @@
       li.className = "pinned-place-row";
       const icon = document.createElement("span");
       icon.setAttribute("aria-hidden", "true");
-      icon.textContent = PIN_ICONS[p.icon] || PIN_ICONS.star;
+      icon.innerHTML = CalmIcons.html(PIN_ICONS[p.icon] || PIN_ICONS.star);
       const label = document.createElement("span");
       label.className = "pinned-place-label";
       label.textContent = p.label;
@@ -1368,7 +1370,7 @@
       row.className = "step-row";
       const icon = document.createElement("span");
       icon.className = "step-icon";
-      icon.textContent = signIcon(s.sign);
+      icon.innerHTML = CalmIcons.html(signIcon(s.sign));
       const text = document.createElement("span");
       text.className = "step-text";
       text.textContent = s.text;
@@ -1433,7 +1435,7 @@
       const mins = it.durationS != null ? Math.round(it.durationS / 60) : null;
       const legsHtml = it.legs.map((leg) => {
         const icon = TRANSIT_MODE_ICONS[leg.mode] || "🚌";
-        return `<span class="transit-leg">${icon}${leg.route ? ` <b>${leg.route}</b>` : ""}</span>`;
+        return `<span class="transit-leg">${CalmIcons.html(icon)}${leg.route ? ` <b>${leg.route}</b>` : ""}</span>`;
       }).join('<span class="transit-leg-sep" aria-hidden="true">›</span>');
       card.innerHTML = `
         <div class="rc-label">${transitTimeHHMM(it.startTime)} → ${transitTimeHHMM(it.endTime)}</div>
@@ -2193,7 +2195,28 @@
     });
   });
 
+  function petalBurst() {
+    const reduced = root.getAttribute("data-motion") === "reduced" ||
+      (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+    if (reduced || !FlowTheme.isBloomActive(root.getAttribute("data-theme"))) return;
+    const colors = ["#FF9EC2", "#C9A7F2", "#FFC39B", "#8FD9C0", "#FFD86B"];
+    for (let i = 0; i < 18; i++) {
+      const p = document.createElement("div");
+      p.className = "petal-burst";
+      const angle = (i / 18) * Math.PI * 2;
+      const dist = 90 + (i % 4) * 30;
+      p.style.setProperty("--dx", `${Math.cos(angle) * dist}px`);
+      p.style.setProperty("--dy", `${Math.sin(angle) * dist}px`);
+      p.style.setProperty("--rot", `${(i % 2 ? 1 : -1) * (120 + i * 10)}deg`);
+      p.style.background = colors[i % colors.length];
+      p.setAttribute("aria-hidden", "true");
+      document.body.appendChild(p);
+      p.addEventListener("animationend", () => p.remove());
+    }
+  }
+
   function showArrivedScreen() {
+    petalBurst();
     arrivedRate.querySelectorAll("[data-rate]").forEach((b) => b.classList.remove("chosen"));
     arrivedRate.querySelector(".arrived-rate-q").textContent = "How calm was it?";
     document.getElementById("arrivedSub").textContent =
@@ -3205,7 +3228,8 @@
   let echoToastTimer = null;
   function showEchoToast(text, ms) {
     if (echoToastTimer) clearTimeout(echoToastTimer);
-    echoToastEl.textContent = text;
+    const m = /^(✨)\s*/.exec(text);
+    echoToastEl.innerHTML = m ? CalmIcons.html(m[1]) + " " + CalmIcons.html(text.slice(m[0].length)) : CalmIcons.html(text);
     echoToastEl.style.display = "block";
     echoToastTimer = setTimeout(() => { echoToastEl.style.display = "none"; }, ms || 3200);
   }
@@ -3438,6 +3462,44 @@
       calmSpotPopup = buildGoHerePopup(f.geometry.coordinates, f.properties.name, f.properties.note).addTo(map);
     });
   }
+
+  // ---- Bloom theme: flowers that open on calm spots (2026-10-12) ----
+  // Replaces the plain calm-spot dots with small hand-drawn flowers that
+  // bloom open and sway gently (CSS, see .bloom-flower). Static under
+  // Reduced Motion. Tapping one shows the same "Go here" popup as the dot.
+  let bloomFlowerMarkers = [];
+  const BLOOM_COLORS = ["#FF9EC2", "#C9A7F2", "#FFC39B", "#8FD9C0", "#FFD86B"];
+  function flowerSvg(color, i) {
+    const petals = [0, 72, 144, 216, 288].map((deg) =>
+      `<ellipse cx="20" cy="10.5" rx="6.2" ry="9" fill="${color}" transform="rotate(${deg} 20 20)" opacity="0.95"/>`).join("");
+    const center = ["#FFD86B", "#F2875A", "#FFFFFF"][i % 3];
+    return `<svg viewBox="0 0 40 40" aria-hidden="true">${petals}<circle cx="20" cy="20" r="5.5" fill="${center}" stroke="rgba(0,0,0,0.08)"/></svg>`;
+  }
+  function refreshBloomFlowers() {
+    bloomFlowerMarkers.forEach((m) => m.remove());
+    bloomFlowerMarkers = [];
+    const bloom = FlowTheme.isBloomActive(root.getAttribute("data-theme"));
+    if (map.getLayer && map.getLayer("calmspot-circles")) {
+      map.setLayoutProperty("calmspot-circles", "visibility", bloom ? "none" : "visible");
+    }
+    if (!bloom) return;
+    CalmSpots.CALM_SPOTS.forEach((sp, i) => {
+      const el = document.createElement("div");
+      el.className = "bloom-flower";
+      el.setAttribute("role", "button");
+      el.setAttribute("aria-label", `${sp.name} — calm spot`);
+      el.innerHTML = flowerSvg(BLOOM_COLORS[i % BLOOM_COLORS.length], i);
+      // Stagger the opening so they bloom one after another, not all at once.
+      el.firstChild.style.animationDelay = `${i * 0.12}s, ${1.1 + i * 0.12}s`;
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (calmSpotPopup) calmSpotPopup.remove();
+        calmSpotPopup = buildGoHerePopup([sp.lon, sp.lat], sp.name, sp.note).addTo(map);
+      });
+      bloomFlowerMarkers.push(new maplibregl.Marker({ element: el, anchor: "center" }).setLngLat([sp.lon, sp.lat]).addTo(map));
+    });
+  }
+  whenStyleReady(refreshBloomFlowers);
   function clearPoiMarkers() {
     if (map.getSource("pois")) map.getSource("pois").setData(EMPTY_FC);
     if (poiPopup) { poiPopup.remove(); poiPopup = null; }

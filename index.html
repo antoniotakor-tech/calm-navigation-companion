@@ -27,6 +27,10 @@
      entirely unless data-theme="flow" (see style.css's .flow-bg rule).
      Lives outside .app-shell so it renders behind everything at a fixed,
      full-viewport z-index:-1, and outside any scrolling container. -->
+<!-- Bloom theme (2026-10-12): a few petals drifting slowly across the
+     screen. Decorative only; hidden under Reduced Motion and during
+     navigation, so it never competes with directions. -->
+<div class="bloom-petals" aria-hidden="true"><span class="petal p1"></span><span class="petal p2"></span><span class="petal p3"></span><span class="petal p4"></span><span class="petal p5"></span><span class="petal p6"></span><span class="petal p7"></span><span class="petal p8"></span></div>
 <div class="flow-bg" aria-hidden="true">
   <div class="flow-bg-layer flow-bg-1"></div>
   <div class="flow-bg-layer flow-bg-2"></div>
@@ -153,7 +157,7 @@
           </div>
 
           <div class="nav-arrived" id="navArrived" style="display:none;">
-            <div class="arrived-icon">🏁</div>
+            <div class="arrived-icon"><i data-ci="flag"></i></div>
             <div class="arrived-title">You've arrived</div>
             <div class="arrived-sub" id="arrivedSub">Destination reached.</div>
             <!-- "How calm was it?" (2026-10-12): the recommender learns from this,
@@ -161,9 +165,9 @@
             <div class="arrived-rate" id="arrivedRate">
               <div class="arrived-rate-q">How calm was it?</div>
               <div class="arrived-rate-btns">
-                <button type="button" data-rate="calm" aria-label="Calm">😌<span>Calm</span></button>
-                <button type="button" data-rate="ok" aria-label="Okay">😐<span>Okay</span></button>
-                <button type="button" data-rate="busy" aria-label="Too busy">😣<span>Too busy</span></button>
+                <button type="button" data-rate="calm" aria-label="Calm"><i data-ci="calm"></i><span>Calm</span></button>
+                <button type="button" data-rate="ok" aria-label="Okay"><i data-ci="okay"></i><span>Okay</span></button>
+                <button type="button" data-rate="busy" aria-label="Too busy"><i data-ci="busy"></i><span>Too busy</span></button>
               </div>
             </div>
             <button class="arrived-done-btn" id="arrivedDoneBtn">Done</button>
@@ -195,16 +199,16 @@
                      Only meaningful once a destination is actually resolved —
                      see app.js's pinDestinationBtn wiring, which hides this
                      until endSelectedResult exists. -->
-                <button type="button" class="pin-dest-btn" id="pinDestinationBtn" aria-label="Save this destination as a pinned place" style="display:none;">📌</button>
+                <button type="button" class="pin-dest-btn" id="pinDestinationBtn" aria-label="Save this destination as a pinned place" style="display:none;"><i data-ci="pushpin"></i></button>
               </div>
               <div class="ac-status" id="endAcStatus" aria-live="polite"></div>
               <ul class="ac-list" id="endAcList" style="display:none;"></ul>
               <div class="pin-editor" id="pinEditor" style="display:none;">
                 <input type="text" id="pinEditorLabel" class="pin-editor-label" placeholder="Label (e.g. Home)" maxlength="60" aria-label="Pinned place label" />
                 <div class="pill-row" id="pinEditorIcons" role="group" aria-label="Pin icon">
-                  <button type="button" class="pill active" data-icon="star">📍 Spot</button>
-                  <button type="button" class="pill" data-icon="home">🏠 Home</button>
-                  <button type="button" class="pill" data-icon="work">💼 Work</button>
+                  <button type="button" class="pill active" data-icon="star"><i data-ci="pin"></i> Spot</button>
+                  <button type="button" class="pill" data-icon="home"><i data-ci="home"></i> Home</button>
+                  <button type="button" class="pill" data-icon="work"><i data-ci="work"></i> Work</button>
                 </div>
                 <div class="pin-editor-actions">
                   <button type="button" class="pill" id="pinEditorCancel">Cancel</button>
@@ -228,7 +232,7 @@
           </div>
 
           <button class="find-btn" id="findBtn">
-            <span class="leaf-loader" id="leafLoader" aria-hidden="true">🍃</span>
+            <span class="leaf-loader" id="leafLoader" aria-hidden="true"><i data-ci="leaf"></i></span>
             <span id="findBtnLabel">Find calm route</span>
           </button>
 
@@ -630,14 +634,15 @@
     <div class="settings-block">
       <div class="settings-block-label">appearance</div>
       <div class="pill-row" id="appearanceChips" role="group" aria-label="Appearance">
-        <button class="pill" type="button" data-appearance="light" aria-pressed="false">☀ Light</button>
-        <button class="pill" type="button" data-appearance="dark" aria-pressed="false">🌙 Dark</button>
-        <button class="pill" type="button" data-appearance="flow" aria-pressed="false">✨ Flow</button>
+        <button class="pill" type="button" data-appearance="light" aria-pressed="false"><i data-ci="sun"></i> Light</button>
+        <button class="pill" type="button" data-appearance="dark" aria-pressed="false"><i data-ci="moon"></i> Dark</button>
+        <button class="pill" type="button" data-appearance="flow" aria-pressed="false"><i data-ci="sparkle"></i> Flow</button>
+        <button class="pill" type="button" data-appearance="bloom" aria-pressed="false"><i data-ci="flower"></i> Bloom</button>
       </div>
       <div class="desc" style="margin-top:6px;">Flow is an optional, calming animated theme — fully accessible, and it respects Reduced Motion/High Contrast just like Light and Dark.</div>
     </div>
     <h2>Saved places</h2>
-    <p class="desc" style="margin:-6px 0 8px;">Pin a place from the "📌" button next to the destination field. Stored only on this device.</p>
+    <p class="desc" style="margin:-6px 0 8px;">Pin a place from the pin button next to the destination field. Stored only on this device.</p>
     <ul class="pinned-places-list" id="pinnedPlacesList"></ul>
     <div class="desc" id="pinnedPlacesEmpty">No pinned places yet.</div>
 
@@ -701,6 +706,8 @@
   source file, unmodified — window.Capacitor is simply never defined there).
 -->
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="icons.js"></script>
+<script>document.addEventListener("DOMContentLoaded",function(){CalmIcons.hydrate();});</script>
 <script src="config.js"></script>
 <script src="navlogic.js"></script>
 <script src="navsim.js"></script>

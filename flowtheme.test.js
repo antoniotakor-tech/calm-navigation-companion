@@ -51,10 +51,11 @@ test("shouldAnimateFlowDecor: true only when reduced motion, battery saver, and 
   assert.equal(FlowTheme.shouldAnimateFlowDecor({ reducedMotion: false, batterySaver: false, backgrounded: false }), true);
 });
 
-test("nextTheme: cycles Light -> Dark -> Flow -> Light", () => {
+test("nextTheme: cycles Light -> Dark -> Flow -> Bloom -> Light", () => {
   assert.equal(FlowTheme.nextTheme("light"), "dark");
   assert.equal(FlowTheme.nextTheme("dark"), "flow");
-  assert.equal(FlowTheme.nextTheme("flow"), "light");
+  assert.equal(FlowTheme.nextTheme("flow"), "bloom");
+  assert.equal(FlowTheme.nextTheme("bloom"), "light");
 });
 
 test("nextTheme: an unrecognized current theme safely restarts the cycle rather than throwing", () => {
@@ -72,4 +73,5 @@ test("usesDarkMapTiles: true for dark and flow, false for light", () => {
   assert.equal(FlowTheme.usesDarkMapTiles("dark"), true);
   assert.equal(FlowTheme.usesDarkMapTiles("flow"), true);
   assert.equal(FlowTheme.usesDarkMapTiles("light"), false);
+  assert.equal(FlowTheme.usesDarkMapTiles("bloom"), false, "Bloom is a bright, colourful daytime theme");
 });
