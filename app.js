@@ -3604,6 +3604,52 @@
     });
   }
   whenStyleReady(refreshBloomFlowers);
+
+  // ---- Automatic calm spots, anywhere in Europe (2026-10-12) ----
+  // The hand-researched CalmSpots only cover Amsterdam. Everywhere, the map
+  // also blooms the 10 calmest places in view — libraries, gardens, small
+  // parks, bookshops, tea rooms, cafés, quiet churches — picked from the
+  // map's own place data by calmrec.js (which also learns from the person's
+  // "how calm was it?" ratings). Honest label: "Usually quiet", never "curated".
+  let autoFlowerMarkers = [];
+  let lastAutoKey = "";
+  function refreshAutoCalmFlowers() {
+    if (map.getZoom() < 14 || pageInner0.classList.contains("nav-active")) {
+      autoFlowerMarkers.forEach((m) => m.remove()); autoFlowerMarkers = []; lastAutoKey = ""; return;
+    }
+    const c = map.getCenter();
+    const key = c.lat.toFixed(3) + "," + c.lng.toFixed(3) + "," + Math.round(map.getZoom());
+    if (key === lastAutoKey) return;
+    const b = map.getBounds();
+    const places = tilePois({ minLat: b.getSouth(), minLon: b.getWest(), maxLat: b.getNorth(), maxLon: b.getEast() })
+      .filter((p) => p.kind === "calm" || p.kind === "food");
+    if (!places.length) return; // tiles still loading; the next idle tries again
+    lastAutoKey = key;
+    const curated = new Set(CalmSpots.CALM_SPOTS.map((s) => s.name.toLowerCase()));
+    const picks = CalmRec.recommend(places.filter((p) => !curated.has(p.name.toLowerCase())), {
+      here: { lat: c.lat, lon: c.lng }, hour: new Date().getHours(), prefs: loadCalmPrefs(), calmSpotKeys,
+    }, 10).filter((r) => r.calm >= 0.6);
+    autoFlowerMarkers.forEach((m) => m.remove());
+    autoFlowerMarkers = picks.map((r, i) => {
+      const p = r.place;
+      const el = document.createElement("div");
+      el.className = "bloom-flower bloom-flower-auto";
+      el.setAttribute("role", "button");
+      el.setAttribute("aria-label", `${p.name} — ${r.reason || "calm place"}`);
+      el.innerHTML = flowerSvg(BLOOM_COLORS[(i + 3) % BLOOM_COLORS.length], i + 20);
+      el.firstChild.style.animationDelay = `${i * 0.1}s, ${1.1 + i * 0.1}s`;
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (calmSpotPopup) calmSpotPopup.remove();
+        const what = [r.label, r.reason].filter(Boolean).join(" · ");
+        calmSpotPopup = buildGoHerePopup([p.lon, p.lat], p.name, what || "A calm place nearby").addTo(map);
+      });
+      return new maplibregl.Marker({ element: el, anchor: "center" }).setLngLat([p.lon, p.lat]).addTo(map);
+    });
+  }
+  let autoFlowerTimer = null;
+  map.on("idle", () => { clearTimeout(autoFlowerTimer); autoFlowerTimer = setTimeout(refreshAutoCalmFlowers, 300); });
+
   function clearPoiMarkers() {
     if (map.getSource("pois")) map.getSource("pois").setData(EMPTY_FC);
     if (poiPopup) { poiPopup.remove(); poiPopup = null; }

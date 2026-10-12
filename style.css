@@ -2354,3 +2354,4 @@ input[type=range] { touch-action: pan-x; }
 .map-doodles[data-time="night"] .dd-cloud path { fill: #4A5370; }
 @media (prefers-reduced-motion: reduce) { .dd-rain, .dd-snow, .dd-flash, .dd-bolt, .dd-swirl, .dd-fog { display: none !important; } }
 .map-doodles:not([data-precip="none"]) .dd-star, .map-doodles[data-sky="cloudy"] .dd-star { display: none; }
+.bloom-flower-auto { width: 30px; height: 30px; opacity: .95; }
