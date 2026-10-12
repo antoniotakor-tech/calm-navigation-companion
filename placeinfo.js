@@ -25,8 +25,20 @@
     bar: ["Bar", "Calmer early in the evening."],
     pub: ["Pub", "Calmer early in the evening."],
     restaurant: ["Restaurant", "Quieter outside lunch and dinner peaks."],
+    fast_food: ["Fast food", "Usually busy and bright around meal times."],
+    ice_cream: ["Ice cream", "Busier on warm afternoons."],
+    bakery: ["Bakery", "Quick stop; busiest in the morning."],
+    shop: ["Shop", "Calmer on weekday mornings."],
+    grocery: ["Grocery", "Quietest early in the morning or late evening."],
+    supermarket: ["Supermarket", "Quietest early in the morning or late evening."],
+    clothes: ["Clothes shop", "Calmer on weekday mornings."],
+    stop: ["Stop", "Tap “Live departures near me” on the Route screen for the next times."],
+    bus: ["Bus stop", "Tap “Live departures near me” on the Route screen for the next times."],
+    railway: ["Station", "Tap “Live departures near me” on the Route screen for the next times."],
+    tram: ["Tram stop", "Tap “Live departures near me” on the Route screen for the next times."],
+    subway: ["Metro station", "Tap “Live departures near me” on the Route screen for the next times."],
   };
-  function typeText(type) { return TYPE_TEXT[type] || ["Calm place", "Picked because places like this are usually quiet."]; }
+  function typeText(type) { return TYPE_TEXT[type] || [type ? type.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()) : "Place", ""]; }
 
   const STOP = new Set(["the", "of", "di", "de", "del", "della", "la", "le", "il", "lo", "der", "die", "das", "het", "van", "and", "e", "et", "und", "church", "chiesa", "kerk", "kirche", "eglise", "iglesia", "san", "santa", "santo", "st", "saint", "museum", "museo"]);
   function tokens(s) {

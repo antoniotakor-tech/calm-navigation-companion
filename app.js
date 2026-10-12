@@ -3535,8 +3535,10 @@
       const f = e.features && e.features[0];
       if (!f) return;
       if (poiPopup) poiPopup.remove();
-      poiPopup = buildGoHerePopup(f.geometry.coordinates, f.properties.name, null)
-        .addTo(map);
+      // Same photo + "what is it" card as the calm flowers (2026-10-12).
+      const [lon, lat] = f.geometry.coordinates;
+      const kindType = f.properties.type || ({ food: "cafe", shop: "shop", transit: "stop", calm: "garden" })[f.properties.kind] || "";
+      poiPopup = buildPlaceCardPopup({ name: f.properties.name, lat, lon, type: kindType }, null).addTo(map);
     });
   }
 
@@ -3575,6 +3577,7 @@
     goBtn.addEventListener("click", () => {
       selectDestinationSuggestion(place.name, place.lat, place.lon);
       if (calmSpotPopup) { calmSpotPopup.remove(); calmSpotPopup = null; }
+      if (poiPopup) { poiPopup.remove(); poiPopup = null; }
     });
     body.append(title, kind, why, summary, credit, goBtn);
     wrap.append(photo, body);
@@ -3700,6 +3703,12 @@
     });
   }
   whenStyleReady(refreshBloomFlowers);
+  // Weather doodles live inside the map's canvas layer so flower markers and
+  // place cards always draw ON TOP of the sun/moon/clouds.
+  (function () {
+    const d = document.querySelector(".map-doodles");
+    if (d && map.getCanvasContainer) map.getCanvasContainer().appendChild(d);
+  })();
 
   // ---- Automatic calm spots, anywhere in Europe (2026-10-12) ----
   // The hand-researched CalmSpots only cover Amsterdam. Everywhere, the map
@@ -3792,7 +3801,7 @@
       features: pois.map((p) => ({
         type: "Feature",
         geometry: { type: "Point", coordinates: [p.lon, p.lat] },
-        properties: { name: p.name, kind: p.kind },
+        properties: { name: p.name, kind: p.kind, type: p.type || "" },
       })),
     });
   }

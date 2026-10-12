@@ -2402,3 +2402,4 @@ input[type=range] { touch-action: pan-x; }
 .place-card-credit { font-size: .7rem; opacity: .6; }
 .place-card-credit a { color: inherit; }
 .place-card .map-pin-popup-go-btn { margin-top: 8px; }
+.maplibregl-canvas-container .map-doodles { position: absolute; inset: 0; }
