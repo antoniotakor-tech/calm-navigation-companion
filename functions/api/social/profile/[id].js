@@ -1,5 +1,5 @@
 // GET /api/social/profile/:id — someone's public profile and their visible posts.
-import { ensureSocialTables, publicPost, POST_COLUMNS, jsonError, jsonResponse, requireDb, CORS_HEADERS } from "../_db.js";
+import { ensureSocialTables, publicPost, publicTrack, POST_COLUMNS, jsonError, jsonResponse, requireDb, CORS_HEADERS } from "../_db.js";
 
 export async function onRequestOptions() { return new Response(null, { status: 204, headers: CORS_HEADERS }); }
 
@@ -13,5 +13,6 @@ export async function onRequestGet({ env, params }) {
     `SELECT ${POST_COLUMNS} FROM posts p JOIN profiles pr ON pr.owner_hash = p.owner_hash
      WHERE p.author_key = ? AND p.status = 'visible' ORDER BY p.created_at DESC LIMIT 50`
   ).bind(params.id).all();
-  return jsonResponse({ id: params.id, profile: { nickname: pr.nickname, bio: pr.bio, avatar: pr.avatar, createdAt: pr.created_at }, posts: (results || []).map((r) => publicPost(r)) });
+  const tr = await env.DB.prepare("SELECT id, title, fx, pattern, ms, created_at, author_key FROM tracks WHERE author_key = ? AND status = 'visible' ORDER BY created_at DESC LIMIT 30").bind(params.id).all();
+  return jsonResponse({ id: params.id, tracks: (tr.results || []).map(publicTrack), profile: { nickname: pr.nickname, bio: pr.bio, avatar: pr.avatar, createdAt: pr.created_at }, posts: (results || []).map((r) => publicPost(r)) });
 }

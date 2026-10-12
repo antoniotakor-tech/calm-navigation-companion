@@ -27,6 +27,7 @@ export async function onRequestPost({ request, env }) {
       await ensureSocialTables(env.DB);
       for (const [sql, arg] of [
         ["DELETE FROM posts WHERE owner_hash = ?", a.owner_hash],
+        ["DELETE FROM tracks WHERE owner_hash = ?", a.owner_hash],
         ["DELETE FROM profiles WHERE owner_hash = ?", a.owner_hash],
         ["DELETE FROM passkeys WHERE account_id = ?", a.id],
         ["DELETE FROM sessions WHERE account_id = ?", a.id],

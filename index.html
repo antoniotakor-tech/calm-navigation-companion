@@ -482,6 +482,7 @@
         <div class="pill-row studio-tabs" id="studioTabs" role="tablist" aria-label="Studio">
           <button type="button" class="pill active" data-studio="kalimba" role="tab" aria-selected="true">Kalimba</button>
           <button type="button" class="pill" data-studio="drums" role="tab" aria-selected="false">Drums</button>
+          <button type="button" class="pill" data-studio="chords" role="tab" aria-selected="false">Chords</button>
           <button type="button" class="pill" data-studio="voice" role="tab" aria-selected="false">Voice</button>
         </div>
         <div id="studio-kalimba">
@@ -525,6 +526,7 @@
           <button type="button" class="pill" data-key="F">Key: F</button>
         </div>
 
+        <label class="dm-vol kalimba-vol">Kalimba volume<input type="range" id="kalimbaVol" min="0" max="100" aria-label="Kalimba volume"></label>
         <div class="echo-record-status" id="echoRecordStatus" aria-live="polite">Tap Record, then play something on the kalimba.</div>
 
         <div class="echo-record-controls" id="echoRecordControls">
@@ -601,11 +603,32 @@
           <p class="cm-note">Tap squares to make a beat. Tap a name to hear it. The beat keeps playing when you switch to Kalimba, so you can play along.</p>
         </div>
 
+        <!-- Studio: chord synth -->
+        <div id="studio-chords" class="studio-panel" hidden>
+          <div class="ch-grid" id="chGrid"></div>
+          <div class="pill-row" id="chSounds" aria-label="Chord sound">
+            <button type="button" class="pill" data-chsound="pad">Soft pad</button>
+            <button type="button" class="pill" data-chsound="keys">Keys</button>
+            <button type="button" class="pill" data-chsound="pluck">Pluck</button>
+          </div>
+          <div class="pill-row" id="chKeys" aria-label="Key">
+            <button type="button" class="pill" data-chkey="C">C</button>
+            <button type="button" class="pill" data-chkey="G">G</button>
+            <button type="button" class="pill" data-chkey="D">D</button>
+            <button type="button" class="pill" data-chkey="F">F</button>
+            <button type="button" class="pill" data-chkey="A">A</button>
+          </div>
+          <label class="dm-vol">Volume<input type="range" id="chVol" min="0" max="100" aria-label="Chord volume"></label>
+          <p class="cm-note">Hold a pad to play a chord. Every chord fits the key, so any order sounds good. Try I – V – vi – IV.</p>
+        </div>
+
         <!-- Studio: voice recorder -->
         <div id="studio-voice" class="studio-panel" hidden>
           <button type="button" class="vc-rec" id="vcRec">Record</button>
           <div class="vc-time" id="vcTime" aria-live="polite"></div>
-          <label class="vc-beat"><input type="checkbox" id="vcWithBeat" checked> Record over my beat (use headphones)</label>
+          <label class="vc-beat"><input type="checkbox" id="vcWithBeat" checked> Record over my beat</label>
+          <label class="vc-beat"><input type="checkbox" id="vcHeadphones"> I'm wearing headphones</label>
+          <p class="cm-note vc-tip">No headphones? That's fine — the beat plays softly while you record and your phone filters it out. The finished song gets the full beat.</p>
           <div class="cm-error" id="vcMsg" role="alert"></div>
           <ul class="vc-takes" id="vcTakes"></ul>
           <p class="cm-note" id="vcEmpty">Sing, hum, rap or talk over your beat — then pick an effect like Studio or Choir and everyone sounds good. Recordings stay on this phone until you share them.</p>
@@ -629,6 +652,8 @@
           </div>
           <button type="button" class="pill" id="cmEditProfileBtn">Create</button>
         </div>
+
+        <div class="cm-my-music" id="cmMyMusic" hidden></div>
 
         <form class="cm-profile-form" id="cmProfileForm" hidden>
           <label class="cm-label" for="cmNameInput">Name</label>

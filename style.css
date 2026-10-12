@@ -2214,3 +2214,26 @@ header.top h1 { animation: title-wiggle 7s ease-in-out infinite; }
     repeating-linear-gradient(0deg, transparent 0 31px, rgba(244,241,255,.07) 31px 32px),
     var(--bg) !important;
 }
+/* Chords */
+.ch-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.ch-pad { aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border-radius: var(--r-lg, 18px); border: 1.5px solid var(--edge-strong, #2D2A3E); background: color-mix(in srgb, var(--pad) 45%, var(--surface)); color: var(--ink); cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; transition: transform .12s cubic-bezier(.34,1.56,.64,1); box-shadow: 0 2px 0 color-mix(in srgb, var(--shadow-ink, #2D2A3E) 25%, transparent); }
+.ch-pad b { font-family: "Patrick Hand", cursive; font-weight: 400; font-size: 1.5rem; }
+.ch-pad small { font-size: .72rem; opacity: .65; }
+.ch-pad.down { transform: scale(.94); background: var(--pad); box-shadow: none; }
+.kalimba-vol { max-width: 360px; margin: 6px auto 0; width: 100%; }
+.vc-tip { text-align: center; margin: 0; }
+/* Music on profiles */
+.cm-my-music { margin-top: 12px; padding: 14px; border: 1.5px solid var(--edge-strong, var(--line)); border-radius: var(--r-lg, 20px); background: var(--surface); }
+.cm-section-title { margin: 0 0 8px; font-family: "Patrick Hand", cursive; font-weight: 400; font-size: 1.25rem; }
+.cm-music { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.cm-track { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px dashed var(--edge, var(--line)); }
+.cm-track:first-child { border-top: none; }
+.cm-track-play { flex: none; min-width: 66px; }
+.cm-track-info { flex: 1; min-width: 0; }
+.cm-track-title { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cm-viewer-music { list-style: none; padding: 12px; border: 1.5px solid var(--edge-strong, var(--line)); border-radius: var(--r-lg, 20px); }
+.vc-publish { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+.vc-publish input { flex: 1; min-width: 140px; font: inherit; font-size: 16px; padding: 9px 12px; border-radius: 12px; border: 1.5px solid var(--edge-strong, var(--line)); background: var(--bg); color: inherit; }
+.vc-publish .cm-error { flex-basis: 100%; }
+.studio-tabs { flex-wrap: nowrap !important; gap: 6px; }
+.studio-tabs .pill { padding: 8px 12px; font-size: .88rem !important; }

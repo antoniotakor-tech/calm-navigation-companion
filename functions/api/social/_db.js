@@ -14,6 +14,9 @@ export async function ensureSocialTables(db) {
     "CREATE TABLE IF NOT EXISTS posts (id TEXT PRIMARY KEY, owner_hash TEXT NOT NULL, author_key TEXT NOT NULL, kind TEXT NOT NULL, title TEXT NOT NULL, body TEXT NOT NULL DEFAULT '', lat REAL NOT NULL, lon REAL NOT NULL, route_json TEXT, event_at INTEGER, photo TEXT, created_at INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'visible')",
     "CREATE INDEX IF NOT EXISTS posts_geo ON posts (lat, lon)",
     "CREATE INDEX IF NOT EXISTS posts_author ON posts (author_key, created_at)",
+    "CREATE TABLE IF NOT EXISTS tracks (id TEXT PRIMARY KEY, owner_hash TEXT NOT NULL, author_key TEXT NOT NULL, title TEXT NOT NULL, audio TEXT NOT NULL, fx TEXT NOT NULL, pattern TEXT, ms INTEGER NOT NULL, created_at INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'visible')",
+    "CREATE INDEX IF NOT EXISTS tracks_author ON tracks (author_key, created_at)",
+    "CREATE TABLE IF NOT EXISTS track_reports (track_id TEXT NOT NULL, reporter_hash TEXT NOT NULL, reason TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY (track_id, reporter_hash))",
     "CREATE TABLE IF NOT EXISTS post_reports (post_id TEXT NOT NULL, reporter_hash TEXT NOT NULL, reason TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY (post_id, reporter_hash))",
   ];
   for (const s of stmts) await db.prepare(s).bind().run();
@@ -52,3 +55,7 @@ export function publicPost(row, profile) {
 
 export const POST_COLUMNS = "p.id, p.author_key, p.kind, p.title, p.body, p.lat, p.lon, p.route_json, p.event_at, (p.photo IS NOT NULL) AS has_photo, (CASE WHEN p.photo LIKE '[%' THEN json_array_length(p.photo) ELSE 1 END) AS photo_count, p.created_at, pr.nickname, pr.avatar, " +
   "(SELECT a.plan = 'plus' AND (a.plan_until IS NULL OR a.plan_until > CAST(strftime('%s','now') AS INTEGER) * 1000) FROM accounts a WHERE a.owner_hash = p.owner_hash) AS plus";
+
+export function publicTrack(r) {
+  return { id: r.id, title: r.title, fx: r.fx, pattern: r.pattern || null, ms: r.ms, createdAt: r.created_at, authorId: r.author_key };
+}

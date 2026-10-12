@@ -142,6 +142,7 @@
   // ---- my profile -------------------------------------------------------------
   function renderMyProfile() {
     const p = me && me.profile;
+    setTimeout(loadMyMusic, 0);
     avatarEl($("cmMyAvatar"), p ? p.avatar : "rose");
     $("cmMyName").textContent = p ? p.nickname : "Your profile";
     $("cmMyBio").textContent = p ? (p.bio || "No bio yet.") : "Create a profile to share calm spots, routes and events.";
@@ -490,6 +491,56 @@
     if (mainLayer) mainLayer.add(p);
   }
 
+  // ---- music on profiles ----------------------------------------------------------
+  function trackList(tracks, mine) {
+    const ul = make("ul", "cm-music");
+    tracks.forEach((t) => {
+      const li = make("li", "cm-track");
+      const play = make("button", "pill active cm-track-play", "Play");
+      play.type = "button";
+      play.addEventListener("click", () => window.CalmStudio && CalmStudio.playRemote(t, play));
+      const info = make("div", "cm-track-info");
+      info.append(make("div", "cm-track-title", t.title));
+      const fxName = { natural: "Natural", studio: "Studio", choir: "Choir", hall: "Big hall", echo: "Echo", robot: "Robot", chipmunk: "Chipmunk", deep: "Deep" }[t.fx] || "";
+      const secs = Math.round(t.ms / 1000);
+      info.append(make("div", "cm-meta", `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")} · ${fxName}${t.pattern ? " · with beat" : ""}`));
+      li.append(play, info);
+      if (mine) {
+        const del = make("button", "cm-link", "Delete");
+        del.type = "button";
+        del.addEventListener("click", async () => {
+          if (!confirm("Remove this song from your profile?")) return;
+          try { await api(`/api/social/tracks/${encodeURIComponent(t.id)}/delete`, { token: app.deviceToken() }); li.remove(); } catch (e) { app.toast(e.message); }
+        });
+        li.append(del);
+      } else {
+        const rep = make("button", "cm-link", "Report");
+        rep.type = "button";
+        rep.addEventListener("click", async () => {
+          if (!confirm("Report this song? It will be hidden while we review it.")) return;
+          try { await api(`/api/social/tracks/${encodeURIComponent(t.id)}/report`, { reporterToken: app.deviceToken(), reason: "other" }); li.remove(); app.toast("Thanks — it's hidden while we review it"); } catch (e) { app.toast(e.message); }
+        });
+        li.append(rep);
+      }
+      ul.appendChild(li);
+    });
+    return ul;
+  }
+  async function loadMyMusic() {
+    const box = $("cmMyMusic");
+    if (!box) return;
+    box.innerHTML = "";
+    if (!me || !me.profile) { box.hidden = true; return; }
+    box.hidden = false;
+    box.appendChild(make("h3", "cm-section-title", "My music"));
+    try {
+      const data = await api(`/api/social/profile/${encodeURIComponent(me.id)}`);
+      if (data.tracks && data.tracks.length) box.appendChild(trackList(data.tracks, true));
+      else box.appendChild(make("p", "cm-note", "Make a song in Music → Voice, then tap “Add to my profile”."));
+    } catch (e) { box.appendChild(make("p", "cm-note", "Couldn't load your music.")); }
+  }
+  window.addEventListener("calmstudio:published", () => loadMyMusic());
+
   // ---- someone's profile --------------------------------------------------------
   async function openViewer(id) {
     const ov = $("cmProfileViewer");
@@ -502,6 +553,11 @@
       avatarEl($("cmViewerAvatar"), data.profile.avatar);
       $("cmViewerName").textContent = data.profile.nickname;
       $("cmViewerBio").textContent = data.profile.bio || "";
+      if (data.tracks && data.tracks.length) {
+        const sec = make("li", "cm-viewer-music");
+        sec.append(make("h3", "cm-section-title", "Music"), trackList(data.tracks, me && me.id === id));
+        $("cmViewerFeed").appendChild(sec);
+      }
       data.posts.forEach((p) => $("cmViewerFeed").appendChild(card(p)));
     } catch (err) { $("cmViewerName").textContent = err.message; }
   }
@@ -672,7 +728,7 @@
     $("cmKindRow").addEventListener("click", (e) => { const b = e.target.closest("[data-kind]"); if (b) setKind(b.dataset.kind); });
     $("cmCameraInput").addEventListener("change", (e) => { addPhotos(e.target.files); e.target.value = ""; });
     $("cmLibraryInput").addEventListener("change", (e) => { addPhotos(e.target.files); e.target.value = ""; });
-    $("cmViewerClose").addEventListener("click", () => $("cmProfileViewer").classList.remove("open"));
+    $("cmViewerClose").addEventListener("click", () => { $("cmProfileViewer").classList.remove("open"); window.CalmStudio && CalmStudio.stop(); });
     document.querySelectorAll("[data-feed]").forEach((b) => b.addEventListener("click", () => {
       feedMode = b.dataset.feed;
       document.querySelectorAll("[data-feed]").forEach((x) => { x.classList.toggle("active", x === b); x.setAttribute("aria-selected", String(x === b)); });

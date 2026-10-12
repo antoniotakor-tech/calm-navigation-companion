@@ -55,3 +55,12 @@ test("profiles get a safe default avatar and need a name", () => {
   assert.equal(r.valid, true);
   assert.equal(r.value.avatar, S.AVATARS[0]);
 });
+
+test("songs: need a name, real audio and a sensible length", () => {
+  const ok = { title: "Morning walk", audio: "data:audio/mp4;base64,AAAA", ms: 30000, fx: "choir" };
+  assert.equal(S.validateTrack(ok).valid, true);
+  assert.equal(S.validateTrack({ ...ok, title: "" }).valid, false);
+  assert.equal(S.validateTrack({ ...ok, audio: "https://x.com/a.mp3" }).valid, false);
+  assert.equal(S.validateTrack({ ...ok, ms: 10 * 60 * 1000 }).valid, false);
+  assert.equal(S.validateTrack({ ...ok, fx: "weird" }).value.fx, "studio");
+});

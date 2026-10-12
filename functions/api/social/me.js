@@ -17,6 +17,7 @@ export async function onRequestPost({ request, env }) {
 
   if (action === "delete") {
     await env.DB.prepare("DELETE FROM posts WHERE owner_hash = ?").bind(who.ownerHash).run();
+    await env.DB.prepare("DELETE FROM tracks WHERE owner_hash = ?").bind(who.ownerHash).run();
     await env.DB.prepare("DELETE FROM profiles WHERE owner_hash = ?").bind(who.ownerHash).run();
     return jsonResponse({ deleted: true });
   }

@@ -4152,6 +4152,7 @@
     currentRoute: () => (lastResult ? (selected === "fast" ? lastResult.fastest : lastResult.calm) : null),
     lastFix: () => lastFixLatLng,
     navigateTo: (label, lat, lon) => selectDestinationSuggestion(label, lat, lon),
+    setKalimbaVolume: (v) => audioManager.setBusVolume("instrument", v),
     isBlocked: (key) => blockedAuthors.has(key),
     blockAuthor,
     goToPage: (i) => goToPage(i),

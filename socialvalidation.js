@@ -99,5 +99,24 @@
     return { valid: true, value: { kind, title, body: text, lat, lon, route, eventAt, photos } };
   }
 
-  return { POST_KINDS, AVATARS, LIMITS, validateProfile, validatePost, simplifyRoute, isPhotoDataUrl, cleanText };
+  // ---- songs on profiles (voice recording + effect + beat recipe) ----
+  const TRACK_LIMITS = { audioChars: 1900000, maxMs: 3 * 60 * 1000, title: 50 };
+  const TRACK_FX = ["natural", "studio", "choir", "hall", "echo", "robot", "chipmunk", "deep"];
+  function validateTrack(body) {
+    if (!body || typeof body !== "object") return { valid: false, error: "Invalid song." };
+    const title = cleanText(body.title);
+    if (title.length < 1) return { valid: false, error: "Give your song a name." };
+    if (title.length > TRACK_LIMITS.title) return { valid: false, error: `Name can be at most ${TRACK_LIMITS.title} characters.` };
+    const problem = textProblem(title, "Name");
+    if (problem) return { valid: false, error: problem };
+    if (typeof body.audio !== "string" || !/^data:audio\/(mp4|webm|ogg|mpeg|aac|x-m4a|wav)(;[^,]*)?;base64,[A-Za-z0-9+/=]+$/.test(body.audio)) return { valid: false, error: "That recording isn't a supported audio file." };
+    if (body.audio.length > TRACK_LIMITS.audioChars) return { valid: false, error: "That song is too long to share — keep it under about 2 minutes." };
+    const ms = Number(body.ms);
+    if (!Number.isFinite(ms) || ms <= 0 || ms > TRACK_LIMITS.maxMs) return { valid: false, error: "Songs can be up to 3 minutes." };
+    const fx = TRACK_FX.includes(body.fx) ? body.fx : "studio";
+    const pattern = typeof body.pattern === "string" && body.pattern.length < 2000 ? body.pattern : null;
+    return { valid: true, value: { title, audio: body.audio, ms: Math.round(ms), fx, pattern } };
+  }
+
+  return { POST_KINDS, AVATARS, LIMITS, TRACK_LIMITS, validateProfile, validatePost, validateTrack, simplifyRoute, isPhotoDataUrl, cleanText };
 });
