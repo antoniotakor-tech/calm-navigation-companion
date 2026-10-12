@@ -46,15 +46,20 @@ export async function onRequestGet(context) {
   const visibleSinceMs = Date.now() - VISIBILITY_WINDOW_MS;
   const { results } = await env.DB
     .prepare(
-      `SELECT id, lat, lon, created_at, message FROM echoes
+      `SELECT id, lat, lon, created_at, message, creator_token_hash FROM echoes
        WHERE moderation_status = 'visible' AND created_at > ? AND lat BETWEEN ? AND ? AND lon BETWEEN ? AND ?`
     )
     .bind(visibleSinceMs, box.minLat, box.maxLat, box.minLon, box.maxLon)
     .all();
 
-  const echoes = (results || [])
-    .map((row) => ({
+  // authorKey lets a listener block "this person" without the API ever
+  // exposing the creator hash itself (2026-10-12, App Store guideline 1.2).
+  const rows = results || [];
+  const authorKeys = await Promise.all(rows.map((row) => EchoValidation.deriveAuthorKey(row.creator_token_hash)));
+  const echoes = rows
+    .map((row, i) => ({
       id: row.id,
+      authorKey: authorKeys[i],
       lat: row.lat,
       lon: row.lon,
       message: row.message,

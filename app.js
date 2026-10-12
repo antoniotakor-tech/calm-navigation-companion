@@ -3096,6 +3096,28 @@
   }
   const creatorToken = getOrCreateCreatorToken();
 
+  // ---- Safety: blocked authors + my own author key (2026-10-12) ----
+  // Blocking is per device and permanent until the app's data is cleared:
+  // a blocked person's Echoes are never shown on this phone again.
+  const BLOCKED_KEY = "calmEchoes.blockedAuthors";
+  function readBlocked() {
+    try { return new Set(JSON.parse(localStorage.getItem(BLOCKED_KEY) || "[]")); } catch (e) { return new Set(); }
+  }
+  let blockedAuthors = readBlocked();
+  function blockAuthor(key) {
+    if (!key) return;
+    blockedAuthors.add(key);
+    try { localStorage.setItem(BLOCKED_KEY, JSON.stringify([...blockedAuthors])); } catch (e) { /* storage full/blocked: still hidden this session */ }
+  }
+  // Same derivation the server uses (sha256(token) -> authorKey), so Report/
+  // Block can be hidden on your own Echoes without the server revealing who
+  // left what.
+  let myAuthorKey = null;
+  EchoValidation.hashCreatorToken(creatorToken)
+    .then((h) => EchoValidation.deriveAuthorKey(h))
+    .then((k) => { myAuthorKey = k; })
+    .catch(() => {});
+
   // One shared ephemeral toast element for every Calm Echoes message
   // ("nearby", discovery notifications, save confirmation) — see index.html's
   // own comment on #echoToast for why these don't get three separate elements.
@@ -3171,7 +3193,7 @@
       const resp = await fetch(`${apiBaseUrl}/api/echoes/nearby?lat=${lat}&lon=${lon}&radiusM=500`);
       if (!resp.ok) return;
       const data = await resp.json();
-      nearbyEchoes = data.echoes || [];
+      nearbyEchoes = (data.echoes || []).filter((e) => !blockedAuthors.has(e.authorKey));
       renderEchoMarkers();
       const veryClose = nearbyEchoes.find((e) => e.distanceM <= 40 && !shownNearbyToastIds.has(e.id));
       if (veryClose) {
@@ -3620,9 +3642,26 @@
     echoMessageCount.textContent = `${echoMessageInput.value.length} / ${EchoValidation.MAX_MESSAGE_CHARS}`;
   });
 
+  // Community rules (2026-10-12, App Store guideline 1.2): shown once, and
+  // the first Save only counts as agreement on a second, deliberate tap.
+  const RULES_KEY = "calmEchoes.rulesAccepted.v1";
+  let rulesShown = false;
+  function rulesAccepted() { try { return localStorage.getItem(RULES_KEY) === "1"; } catch (e) { return rulesShown; } }
+
   echoSaveBtn.addEventListener("click", async () => {
     const payload = echoRecorder.buildSavePayload();
     if (!payload) return;
+    if (!rulesAccepted()) {
+      if (!rulesShown) {
+        rulesShown = true;
+        echoRecordStatus.innerHTML = '<div class="echo-rules"><strong>Before you leave your first Echo:</strong> keep it kind. No insults, hate, sexual content, links or personal details (yours or anyone else\'s). Echoes that break this are removed, and anyone can report or block them. <a href="/privacy.html" target="_blank" rel="noopener">Privacy &amp; rules</a></div>';
+        echoSaveBtn.dataset.label = echoSaveBtn.textContent;
+        echoSaveBtn.textContent = "I agree — leave my Echo";
+        return;
+      }
+      try { localStorage.setItem(RULES_KEY, "1"); } catch (e) { /* agreed for this session */ }
+      if (echoSaveBtn.dataset.label) echoSaveBtn.textContent = echoSaveBtn.dataset.label;
+    }
     const messageCheck = EchoValidation.validateMessage(echoMessageInput.value);
     if (!messageCheck.valid) {
       echoRecordStatus.textContent = messageCheck.error;
@@ -3685,7 +3724,60 @@
     return `${diffDay} day${diffDay === 1 ? "" : "s"} ago`;
   }
 
+  const echoSafety = document.getElementById("echoSafety");
+  const echoReportBtn = document.getElementById("echoReportBtn");
+  const echoBlockBtn = document.getElementById("echoBlockBtn");
+  const echoReportReasons = document.getElementById("echoReportReasons");
+  let openEcho = null;
+
+  function removeEchoLocally(predicate) {
+    nearbyEchoes = nearbyEchoes.filter((e) => !predicate(e));
+    renderEchoMarkers();
+  }
+
+  echoReportBtn.addEventListener("click", () => {
+    echoReportReasons.hidden = !echoReportReasons.hidden;
+  });
+  echoReportReasons.querySelectorAll("[data-reason]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!openEcho) return;
+      const echo = openEcho;
+      echoReportReasons.querySelectorAll("button").forEach((b) => { b.disabled = true; });
+      try {
+        const resp = await fetch(`${apiBaseUrl}/api/echoes/${echo.id}/report`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ reporterToken: creatorToken, reason: btn.dataset.reason }),
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          showEchoToast(err.error || "Couldn't send the report — please try again.", 4500);
+          return;
+        }
+        removeEchoLocally((e) => e.id === echo.id);
+        closeEchoDetail();
+        showEchoToast("Thanks for reporting. This Echo is now hidden.", 4000);
+      } catch (e) {
+        showEchoToast("Couldn't reach the server — please try again.", 4000);
+      } finally {
+        echoReportReasons.querySelectorAll("button").forEach((b) => { b.disabled = false; });
+      }
+    });
+  });
+  echoBlockBtn.addEventListener("click", () => {
+    if (!openEcho || !openEcho.authorKey) return;
+    const key = openEcho.authorKey;
+    blockAuthor(key);
+    removeEchoLocally((e) => e.authorKey === key);
+    closeEchoDetail();
+    showEchoToast("Blocked. You won't see Echoes from this person again.", 4000);
+  });
+
   function openEchoDetail(echo) {
+    openEcho = echo;
+    echoReportReasons.hidden = true;
+    // Your own Echo: nothing to report or block (you can delete it instead).
+    echoSafety.style.display = echo.authorKey && echo.authorKey === myAuthorKey ? "none" : "";
     openEchoId = echo.id;
     echoDetailReturnFocusEl = document.activeElement;
     echoDetailMessage.textContent = echo.message || "";
@@ -3697,6 +3789,7 @@
   }
   function closeEchoDetail() {
     openEchoId = null;
+    openEcho = null;
     echoDetailOverlay.classList.remove("open");
     if (echoDetailReturnFocusEl && typeof echoDetailReturnFocusEl.focus === "function") echoDetailReturnFocusEl.focus();
     echoDetailReturnFocusEl = null;

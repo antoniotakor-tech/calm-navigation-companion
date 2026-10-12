@@ -1442,3 +1442,20 @@ body.nav-away .nav-back-btn { display: flex; align-items: center; }
 .app-shell.nav-fullscreen .page:not(#page-0) .page-inner {
   overflow-y: auto; padding-top: calc(64px + env(safe-area-inset-top, 0px));
 }
+
+/* --- Echo report / block (2026-10-12) --- */
+.echo-safety { margin: 14px 0 4px; }
+.echo-safety-actions { display: flex; gap: 8px; justify-content: center; }
+.echo-safety-btn {
+  min-height: 44px; padding: 0 14px; border-radius: 22px; background: none;
+  border: 1px solid var(--line); color: var(--muted); font: inherit; font-size: 0.8125rem; font-weight: 600; cursor: pointer;
+}
+.echo-report-reasons { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 10px; }
+.echo-report-reasons .pill { min-height: 44px; }
+.echo-safety-label { width: 100%; text-align: center; margin: 0; color: var(--muted); font-size: 0.8125rem; }
+.echo-rules { font-size: 0.8125rem; line-height: 1.45; color: var(--ink); background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: 14px; padding: 10px 12px; margin: 8px 0; text-align: left; }
+.echo-rules a { color: var(--calm); }
+
+/* Apple HIG: 44pt minimum tap target for every sheet button. */
+.close-sheet { min-height: 44px; }

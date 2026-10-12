@@ -658,6 +658,20 @@
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M6 4l14 8-14 8V4z"/></svg>
       Play
     </button>
+    <!-- Report / block (2026-10-12, App Store guideline 1.2). Hidden on your own Echoes. -->
+    <div class="echo-safety" id="echoSafety">
+      <div class="echo-safety-actions">
+        <button type="button" class="echo-safety-btn" id="echoReportBtn">Report</button>
+        <button type="button" class="echo-safety-btn" id="echoBlockBtn">Block this person</button>
+      </div>
+      <div class="echo-report-reasons" id="echoReportReasons" hidden>
+        <p class="echo-safety-label">What's wrong with it?</p>
+        <button type="button" class="pill" data-reason="offensive">Offensive or hurtful</button>
+        <button type="button" class="pill" data-reason="personal-info">Personal information</button>
+        <button type="button" class="pill" data-reason="spam">Spam or advertising</button>
+        <button type="button" class="pill" data-reason="other">Something else</button>
+      </div>
+    </div>
     <button type="button" class="close-sheet" id="echoDetailCloseBtn">Close</button>
   </div>
 </div>

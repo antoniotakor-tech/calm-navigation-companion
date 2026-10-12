@@ -22,10 +22,10 @@ test("invalid lat/lon: 400, no query attempted", async () => {
 test("filters bounding-box hits down to the exact radius, and never returns the melody or creator hash", async () => {
   const db = createFakeDb([
     {
-      match: /SELECT id, lat, lon, created_at, message FROM echoes/,
+      match: /SELECT id, lat, lon, created_at, message, creator_token_hash FROM echoes/,
       all: () => ({
         results: [
-          { id: "close", lat: 52.3680, lon: 4.9041, created_at: 1000, message: "Nearby one" },
+          { id: "close", lat: 52.3680, lon: 4.9041, created_at: 1000, message: "Nearby one", creator_token_hash: "abc123secret" },
           { id: "far", lat: 52.5000, lon: 4.9041, created_at: 2000, message: "Far one" }, // ~14.7km away
         ],
       }),
@@ -38,13 +38,16 @@ test("filters bounding-box hits down to the exact radius, and never returns the 
   assert.equal(body.echoes[0].id, "close");
   assert.equal("melody" in body.echoes[0], false);
   assert.equal("creatorTokenHash" in body.echoes[0], false);
+  // Block support: a derived authorKey is present, and the raw hash never appears anywhere in the response.
+  assert.match(body.echoes[0].authorKey, /^[0-9a-f]{20}$/);
+  assert.equal(JSON.stringify(body).includes("abc123secret"), false);
 });
 
 test("radiusM is clamped server-side regardless of what the client requests", async () => {
   let boundArgs = null;
   const db = createFakeDb([
     {
-      match: /SELECT id, lat, lon, created_at, message FROM echoes/,
+      match: /SELECT id, lat, lon, created_at, message, creator_token_hash FROM echoes/,
       all: (args) => { boundArgs = args; return { results: [] }; },
     },
   ]);
@@ -63,7 +66,7 @@ test("48h visibility window: the query is bound with a visibleSince cutoff ~48h 
   let sql = null;
   const db = createFakeDb([
     {
-      match: /SELECT id, lat, lon, created_at, message FROM echoes/,
+      match: /SELECT id, lat, lon, created_at, message, creator_token_hash FROM echoes/,
       all: (args) => { boundArgs = args; return { results: [] }; },
     },
   ]);
@@ -79,7 +82,7 @@ test("48h visibility window: an Echo older than the cutoff never reaches the res
   const now = Date.now();
   const db = createFakeDb([
     {
-      match: /SELECT id, lat, lon, created_at, message FROM echoes/,
+      match: /SELECT id, lat, lon, created_at, message, creator_token_hash FROM echoes/,
       // Mimics what a real `created_at > ?` WHERE clause would do — the
       // fake DB doesn't execute SQL, so the filtering the endpoint asked
       // for is applied here to prove the bound cutoff would actually work.

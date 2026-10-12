@@ -55,6 +55,97 @@
   }
 
   /** Empty/whitespace-only input is valid and normalizes to null — an Echo with "no message" is a supported, intentional choice, not an error. */
+  // ---- Community content filter (2026-10-12) ---------------------------
+  // App Store guideline 1.2 (user-generated content) requires a method for
+  // filtering objectionable material. Echo messages/nicknames are short
+  // public text left at real places, for an audience that includes
+  // vulnerable people, so this errs strict. Three classes are refused:
+  //   1. insults, slurs and sexual terms (English + Dutch),
+  //   2. links / web addresses (spam, phishing),
+  //   3. contact details — email addresses and phone numbers (personal-info
+  //      sharing, and keeping strangers from arranging to meet via Echoes).
+  // Words are matched as whole tokens after normalising case, accents,
+  // common letter-for-number swaps and repeated letters, so "class" or
+  // "Scunthorpe" pass while "f.u.c.k" or "fuuuck" do not.
+  const BLOCKED_WORDS = [
+    // English
+    "fuck", "fucker", "fucking", "fucked", "motherfucker", "shit", "bullshit", "bitch", "bastard", "cunt", "dick", "dickhead",
+    "cock", "pussy", "asshole", "arsehole", "twat", "wanker", "slut", "whore", "porn", "porno", "nude", "nudes", "sex", "sexy",
+    "rape", "rapist", "nigger", "nigga", "faggot", "fag", "retard", "retarded", "spastic", "tranny", "kike", "chink", "paki",
+    "killyou", "kys", "killurself", "killyourself",
+    // Dutch
+    "kanker", "kankerlijer", "tering", "tyfus", "klootzak", "lul", "kut", "hoer", "slet", "neuk", "neuken", "kech", "mongool",
+    "debiel", "flikker", "nikker", "kutwijf", "godverdomme", "sukkel", "doodgaan",
+  ];
+  const BLOCKED_SET = new Set(BLOCKED_WORDS);
+  const LEET = { "0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "@": "a", "$": "s", "!": "i" };
+
+  function normaliseForFilter(text) {
+    return String(text || "")
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[013457@$!]/g, (c) => LEET[c] || c);
+  }
+
+  function containsBlockedWord(text) {
+    const norm = normaliseForFilter(text);
+    const words = norm.split(/[^a-z]+/).filter(Boolean);
+    const squeeze = (w) => w.replace(/(.)\1+/g, "$1");
+    for (const w of words) {
+      if (BLOCKED_SET.has(w) || BLOCKED_SET.has(squeeze(w))) return true;
+    }
+    // Letters split by dots/spaces/dashes ("f.u.c.k", "k a n k e r"): join
+    // runs of single letters and test the joined word too.
+    const singles = norm.split(/[^a-z]+/);
+    let run = "";
+    for (const t of singles.concat([""])) {
+      if (t.length === 1) { run += t; continue; }
+      if (run.length >= 3 && (BLOCKED_SET.has(run) || BLOCKED_SET.has(squeeze(run)))) return true;
+      run = "";
+    }
+    return false;
+  }
+
+  function containsLink(text) {
+    return /(https?:\/\/|www\.)|\b[a-z0-9-]+\.(com|nl|net|org|io|be|de|eu|co|app|xyz|info|me|ly|gg|tv)\b/i.test(String(text || ""));
+  }
+  function containsContactDetails(text) {
+    const t = String(text || "");
+    if (/[^\s@]+@[^\s@]+\.[a-z]{2,}/i.test(t)) return true;               // email
+    const digits = t.replace(/[^0-9+]/g, "");
+    if ((digits.match(/[0-9]/g) || []).length >= 8) return true;           // phone-number-length digit run
+    if (/(insta|instagram|snap|snapchat|whatsapp|telegram|tiktok)\s*[:@]/i.test(t)) return true; // social handles
+    return false;
+  }
+
+  /** Returns null if the text is fine, or a user-facing reason if it must be refused. */
+  function contentProblem(text) {
+    if (text == null || String(text).trim() === "") return null;
+    if (containsBlockedWord(text)) return "Please keep Echoes kind — this message can't be posted.";
+    if (containsLink(text)) return "Links can't be posted in Echoes.";
+    if (containsContactDetails(text)) return "For everyone's safety, Echoes can't contain phone numbers, emails or social handles.";
+    return null;
+  }
+
+  // ---- Reporting & blocking ---------------------------------------------
+  const REPORT_REASONS = ["offensive", "personal-info", "spam", "other"];
+  // Hidden for everyone after this many distinct reporters. 1 on purpose:
+  // Echoes vanish after 48h anyway, so wrongly hiding one costs little,
+  // while leaving a harmful one up for a vulnerable audience costs a lot.
+  const REPORT_HIDE_THRESHOLD = 1;
+  const DAILY_REPORT_LIMIT = 20; // per reporter, so one person can't wipe the map
+
+  /**
+   * Stable, non-reversible public id for an Echo's author, derived from the
+   * already-hashed creator token — lets a listener block "this person"
+   * without the API ever exposing the creator hash itself.
+   */
+  async function deriveAuthorKey(creatorTokenHash) {
+    const data = new TextEncoder().encode(String(creatorTokenHash) + ":author-key:v1");
+    const digest = await crypto.subtle.digest("SHA-256", data);
+    return toHex(digest).slice(0, 20);
+  }
+
   function validateMessage(text) {
     if (text == null) return { valid: true, value: null };
     const trimmed = String(text).trim();
@@ -62,6 +153,8 @@
     if (trimmed.length > MAX_MESSAGE_CHARS) {
       return { valid: false, value: null, error: `Message must be ${MAX_MESSAGE_CHARS} characters or fewer.` };
     }
+    const problem = contentProblem(trimmed);
+    if (problem) return { valid: false, value: null, error: problem };
     return { valid: true, value: trimmed };
   }
 
@@ -72,6 +165,8 @@
     if (trimmed.length > MAX_NICKNAME_CHARS) {
       return { valid: false, value: null, error: `Nickname must be ${MAX_NICKNAME_CHARS} characters or fewer.` };
     }
+    const problem = contentProblem(trimmed);
+    if (problem) return { valid: false, value: null, error: problem };
     return { valid: true, value: trimmed };
   }
 
@@ -213,6 +308,8 @@
     isDurationValid, isValidLatLon, validateMessage, validateNickname,
     validateMelody, validateEchoCreatePayload, clampNearbyRadius,
     fuzzLocation, boundingBox, hashCreatorToken, isRateLimited,
+    contentProblem, containsBlockedWord, containsLink, containsContactDetails,
+    REPORT_REASONS, REPORT_HIDE_THRESHOLD, DAILY_REPORT_LIMIT, deriveAuthorKey,
   };
   return api;
 });

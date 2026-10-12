@@ -71,7 +71,8 @@
 // v48 (2026-10-10): remaining iPhone fit items (title, kalimba height, keyboard-aware suggestions, toast).
 // v49 (2026-10-10): Kalimba button during navigation + Back to navigation.
 // v50 (2026-10-12): privacy policy page + Settings link.
-const CACHE_NAME = "calm-companion-v50";
+// v51 (2026-10-12): Calm Echoes moderation — content filter, report, block, community rules.
+const CACHE_NAME = "calm-companion-v51";
 const APP_SHELL = [
   "/",
   "/index.html",

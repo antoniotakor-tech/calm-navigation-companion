@@ -127,3 +127,25 @@ test("isRateLimited: true at/above the daily cap, false below it", () => {
   assert.equal(V.isRateLimited(5), true);
   assert.equal(V.isRateLimited(6), true);
 });
+
+test("contentProblem: blocks insults, links and contact details, without blocking ordinary words", () => {
+  const ok = ["Lovely quiet spot", "I love this class", "Scunthorpe trip", "assessment done", "Cocktail bar here", "Die Hard fan",
+    "homo sapiens", "die plek is rustig", "Essex coast", "Shitake soup", ""];
+  const bad = ["f.u.c.k off", "fuuuuck", "kanker", "k a n k e r", "visit www.spam.com", "go to calm.nl", "mail me jan@test.nl",
+    "bel 06 12345678", "insta: @jan", "sh1t place", "kys", "je bent een klootzak"];
+  for (const t of ok) assert.equal(V.contentProblem(t), null, `wrongly blocked: ${t}`);
+  for (const t of bad) assert.ok(V.contentProblem(t), `missed: ${t}`);
+});
+
+test("validateMessage/validateNickname refuse filtered content with a readable reason", () => {
+  assert.equal(V.validateMessage("you are a klootzak").valid, false);
+  assert.equal(V.validateNickname("www.spam.com").valid, false);
+  assert.equal(V.validateMessage("calm bench by the water").valid, true);
+});
+
+test("deriveAuthorKey: stable, 20 hex chars, and not the input hash", async () => {
+  const a = await V.deriveAuthorKey("hash-1");
+  assert.equal(a, await V.deriveAuthorKey("hash-1"));
+  assert.match(a, /^[0-9a-f]{20}$/);
+  assert.notEqual(a, await V.deriveAuthorKey("hash-2"));
+});
