@@ -1578,4 +1578,57 @@ body.nav-away .nav-back-btn { display: flex; align-items: center; }
 .arrived-rate .ci { width: 28px; height: 28px; display: block; margin: 0 auto 2px; }
 .transit-leg .ci { width: 18px; height: 18px; }
 .leaf-loader .ci { width: 18px; height: 18px; }
-:root[data-theme="bloom"] .ci-flower .ci-tint circle, :root[data-theme="bloom"] .ci-flower { color: #E0559B; }
+:root[data-theme="bloom"] .pill .ci-flower { color: #E0559B; }
+
+/* ---- Community page (community.js) ---- */
+.community-inner { padding: 16px 16px 120px; overflow-y: auto; max-width: 640px; margin: 0 auto; }
+.cm-profile-card { display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 20px; background: var(--surface); border: 1px solid var(--line); box-shadow: 0 6px 24px rgba(0,0,0,.05); }
+.cm-profile-text { flex: 1; min-width: 0; }
+.cm-name { font-family: var(--font-display); font-weight: 600; font-size: 1.125rem; }
+.cm-bio { color: var(--muted, inherit); opacity: .8; font-size: .875rem; margin-top: 2px; }
+.cm-avatar { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; flex: none; }
+.cm-avatar .ci { width: 60%; height: 60%; color: inherit; }
+.cm-avatar .ci .ci-tint, .cm-avatar .ci g.ci-tint circle { fill: currentColor; fill-opacity: .25; }
+.cm-avatar-sm { width: 28px; height: 28px; }
+.cm-avatar-row { display: flex; gap: 10px; flex-wrap: wrap; margin: 6px 0 10px; }
+.cm-avatar-pick { border: 2px solid transparent; cursor: pointer; width: 44px; height: 44px; }
+.cm-avatar-pick[aria-checked="true"] { border-color: currentColor; transform: scale(1.08); }
+.cm-profile-form, .cm-sheet { display: flex; flex-direction: column; gap: 8px; }
+.cm-profile-form { padding: 14px; border-radius: 20px; background: var(--surface); border: 1px solid var(--line); }
+.cm-profile-form input, .cm-sheet input[type="text"], .cm-sheet textarea, .cm-sheet input[type="datetime-local"] { font: inherit; font-size: 16px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: inherit; width: 100%; box-sizing: border-box; }
+.cm-label { font-size: .8125rem; font-weight: 600; margin-top: 4px; }
+.cm-hint { font-weight: 400; opacity: .7; }
+.cm-note { font-size: .78rem; opacity: .75; margin: 2px 0; }
+.cm-error { color: #C0392B; font-size: .85rem; min-height: 1em; }
+.cm-row { display: flex; gap: 8px; justify-content: flex-end; }
+.cm-danger { background: none; border: none; color: #C0392B; font: inherit; font-size: .85rem; margin-top: 6px; cursor: pointer; text-decoration: underline; align-self: flex-start; }
+.cm-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 18px 0 8px; }
+.cm-share-btn { display: inline-flex; align-items: center; gap: 6px; border: none; border-radius: 999px; padding: 10px 16px; font: inherit; font-weight: 600; color: #fff; background: var(--accent); cursor: pointer; box-shadow: 0 6px 18px rgba(0,0,0,.12); }
+.cm-share-btn .ci { color: #fff; }
+.cm-status { font-size: .9rem; opacity: .8; padding: 8px 2px; }
+.cm-feed { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.cm-card { padding: 14px; border-radius: 20px; background: var(--surface); border: 1px solid var(--line); animation: cm-in .35s ease both; transition: box-shadow .3s; }
+.cm-card.cm-flash { box-shadow: 0 0 0 3px var(--accent); }
+@keyframes cm-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.cm-card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.cm-author { display: inline-flex; align-items: center; gap: 8px; background: none; border: none; font: inherit; font-weight: 600; color: inherit; padding: 0; cursor: pointer; }
+.cm-badge { font-size: .75rem; padding: 4px 9px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 14%, transparent); white-space: nowrap; }
+.cm-badge .ci { width: 14px; height: 14px; }
+.cm-photo { width: 100%; max-height: 320px; object-fit: cover; border-radius: 14px; margin-top: 10px; background: var(--line); }
+.cm-title { margin: 10px 0 2px; font-family: var(--font-display); font-size: 1.05rem; }
+.cm-when { font-weight: 600; color: var(--accent); font-size: .9rem; }
+.cm-body { margin: 4px 0; font-size: .92rem; line-height: 1.45; }
+.cm-meta { font-size: .78rem; opacity: .65; margin-top: 4px; }
+.cm-actions { display: flex; align-items: center; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
+.cm-link { background: none; border: none; font: inherit; font-size: .85rem; opacity: .7; cursor: pointer; padding: 4px 0; color: inherit; }
+.cm-reasons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.cm-photo-btn { display: inline-flex; align-items: center; gap: 6px; font-size: .9rem; cursor: pointer; padding: 8px 0; }
+.cm-photo-preview { width: 100%; max-height: 180px; object-fit: cover; border-radius: 12px; }
+.cm-sheet { max-height: 88vh; overflow-y: auto; }
+.cm-map-marker { width: 34px; height: 34px; border-radius: 50%; border: none; background: var(--surface); display: grid; place-items: center; box-shadow: 0 3px 10px rgba(0,0,0,.18); cursor: pointer; animation: cm-pop .4s ease both; }
+.cm-map-marker .ci { width: 22px; height: 22px; color: inherit; }
+@keyframes cm-pop { from { transform: scale(.3); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+:root[data-motion="reduced"] .cm-card, :root[data-motion="reduced"] .cm-map-marker { animation: none; }
+@media (prefers-reduced-motion: reduce) { .cm-card, .cm-map-marker { animation: none; } }
+
+.community-inner [hidden], .cm-sheet [hidden] { display: none !important; }

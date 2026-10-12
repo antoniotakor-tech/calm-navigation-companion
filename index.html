@@ -61,6 +61,7 @@
     <button class="dot-btn active" id="dot-0" data-page="0" role="tab" aria-selected="true" aria-controls="page-0" aria-label="Calm routing">Route</button>
     <button class="dot-btn" id="dot-1" data-page="1" role="tab" aria-selected="false" aria-controls="page-1" aria-label="Auditory regulation">Sound</button>
     <button class="dot-btn" id="dot-2" data-page="2" role="tab" aria-selected="false" aria-controls="page-2" aria-label="Kalimba">Kalimba</button>
+    <button class="dot-btn" id="dot-3" data-page="3" role="tab" aria-selected="false" aria-controls="page-3" aria-label="Community">Community</button>
   </nav>
 
   <!-- Shown only while navigating and away from the map (e.g. playing the
@@ -556,6 +557,47 @@
       </div>
     </section>
 
+    <!-- Community (2026-10-12): profiles + a timeline of calm spots, calm
+         routes and events, with optional photos. Logic in community.js. -->
+    <section class="page" id="page-3" role="tabpanel" aria-labelledby="dot-3" aria-label="Community">
+      <div class="page-inner community-inner">
+        <div class="cm-profile-card" id="cmProfileCard">
+          <div class="cm-avatar" id="cmMyAvatar" aria-hidden="true"></div>
+          <div class="cm-profile-text">
+            <div class="cm-name" id="cmMyName">Your profile</div>
+            <div class="cm-bio" id="cmMyBio">Create a profile to share calm spots, routes and events.</div>
+          </div>
+          <button type="button" class="pill" id="cmEditProfileBtn">Create</button>
+        </div>
+
+        <form class="cm-profile-form" id="cmProfileForm" hidden>
+          <label class="cm-label" for="cmNameInput">Name</label>
+          <input id="cmNameInput" type="text" maxlength="24" placeholder="What should people call you?" autocomplete="nickname" />
+          <label class="cm-label" for="cmBioInput">About you <span class="cm-hint">(optional)</span></label>
+          <input id="cmBioInput" type="text" maxlength="140" placeholder="e.g. Loves quiet canals and early mornings" />
+          <div class="cm-label">Flower</div>
+          <div class="cm-avatar-row" id="cmAvatarRow" role="radiogroup" aria-label="Profile flower"></div>
+          <p class="cm-note">No password or email: your profile is tied to this device. No links, phone numbers or addresses.</p>
+          <div class="cm-error" id="cmProfileError" role="alert"></div>
+          <div class="cm-row">
+            <button type="button" class="pill" id="cmProfileCancel">Cancel</button>
+            <button type="submit" class="pill active" id="cmProfileSave">Save profile</button>
+          </div>
+          <button type="button" class="cm-danger" id="cmDeleteAccountBtn" hidden>Delete my profile and all my posts</button>
+        </form>
+
+        <div class="cm-toolbar">
+          <div class="pill-row" role="tablist" aria-label="Timeline">
+            <button type="button" class="pill active" data-feed="near" role="tab" aria-selected="true">Nearby</button>
+            <button type="button" class="pill" data-feed="mine" role="tab" aria-selected="false">My posts</button>
+          </div>
+          <button type="button" class="cm-share-btn" id="cmShareBtn"><i data-ci="sparkle"></i> Share</button>
+        </div>
+        <div class="cm-status" id="cmStatus" aria-live="polite"></div>
+        <ul class="cm-feed" id="cmFeed"></ul>
+      </div>
+    </section>
+
   </div>
 
 </div>
@@ -696,6 +738,45 @@
   </div>
 </div>
 
+
+<!-- Community: share composer -->
+<div class="echo-overlay" id="cmComposer" role="dialog" aria-modal="true" aria-labelledby="cmComposerHeading">
+  <form class="echo-sheet cm-sheet" id="cmComposerForm">
+    <h2 id="cmComposerHeading">Share something calm</h2>
+    <div class="pill-row" id="cmKindRow" role="radiogroup" aria-label="What are you sharing?">
+      <button type="button" class="pill active" data-kind="spot"><i data-ci="pin"></i> Calm spot</button>
+      <button type="button" class="pill" data-kind="route"><i data-ci="walk"></i> Calm route</button>
+      <button type="button" class="pill" data-kind="event"><i data-ci="clock"></i> Event</button>
+    </div>
+    <input id="cmTitleInput" type="text" maxlength="60" placeholder="Title, e.g. Quiet bench by the canal" aria-label="Title" />
+    <textarea id="cmBodyInput" maxlength="400" rows="3" placeholder="What makes it calm? When is it quietest?" aria-label="Description"></textarea>
+    <label class="cm-label" for="cmEventInput" id="cmEventLabel" hidden>When</label>
+    <input id="cmEventInput" type="datetime-local" hidden />
+    <label class="cm-photo-btn" for="cmPhotoInput"><i data-ci="flower"></i> <span id="cmPhotoLabel">Add a photo (optional)</span></label>
+    <input id="cmPhotoInput" type="file" accept="image/*" hidden />
+    <img id="cmPhotoPreview" class="cm-photo-preview" alt="" hidden />
+    <p class="cm-note" id="cmWhereNote"></p>
+    <p class="cm-note">Please don't post photos where people can be recognised. Location data is removed from photos.</p>
+    <div class="cm-error" id="cmComposerError" role="alert"></div>
+    <div class="cm-row">
+      <button type="button" class="pill" id="cmComposerCancel">Cancel</button>
+      <button type="submit" class="pill active" id="cmComposerPost">Post</button>
+    </div>
+  </form>
+</div>
+
+<!-- Community: someone's profile -->
+<div class="echo-overlay" id="cmProfileViewer" role="dialog" aria-modal="true" aria-labelledby="cmViewerName">
+  <div class="echo-sheet cm-sheet">
+    <div class="cm-profile-card">
+      <div class="cm-avatar" id="cmViewerAvatar" aria-hidden="true"></div>
+      <div class="cm-profile-text"><div class="cm-name" id="cmViewerName"></div><div class="cm-bio" id="cmViewerBio"></div></div>
+    </div>
+    <ul class="cm-feed" id="cmViewerFeed"></ul>
+    <button type="button" class="close-sheet" id="cmViewerClose">Close</button>
+  </div>
+</div>
+
 <!-- CAPACITOR_BRIDGE --><!--
   Build-time anchor, replaced with <script src="capacitor.js"></script> by
   scripts/build-web.sh when copying this file into www/ for the native
@@ -757,7 +838,9 @@
 <script src="native/nativeLifecycleController.js"></script>
 <script src="native/nativeNotificationController.js"></script>
 <script src="shared/navigationBridge.js"></script>
+<script src="socialvalidation.js"></script>
 <script src="app.js"></script>
+<script src="community.js"></script>
 <script>
   // Skipped inside the native Capacitor shell: the app ships all assets
   // natively already, and WKWebView's service-worker support is unreliable —

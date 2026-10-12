@@ -3991,7 +3991,7 @@
   const pages = Array.from(document.querySelectorAll(".page"));
   const dots = Array.from(document.querySelectorAll(".dot-btn"));
   const pageTagline = document.getElementById("pageTagline");
-  const TAGLINES = ["calm routing", "auditory regulation", "kalimba"];
+  const TAGLINES = ["calm routing", "auditory regulation", "kalimba", "community"];
   let currentPage = 0;
   let scrollRAF = null;
 
@@ -4130,4 +4130,18 @@
   // declared above. Must stay the last statement in this file; see
   // initTheme()'s own definition for why calling it any earlier throws.
   initTheme();
+
+  // Narrow bridge for community.js (profiles + timeline), which lives in its
+  // own file but needs the map, the current route and the device key.
+  window.CalmApp = {
+    map,
+    apiBaseUrl,
+    deviceToken: () => creatorToken,
+    currentRoute: () => (lastResult ? (selected === "fast" ? lastResult.fastest : lastResult.calm) : null),
+    isBlocked: (key) => blockedAuthors.has(key),
+    blockAuthor,
+    goToPage: (i) => goToPage(i),
+    toast: (text) => showEchoToast(text),
+  };
+  window.dispatchEvent(new Event("calmapp:ready"));
 })();
