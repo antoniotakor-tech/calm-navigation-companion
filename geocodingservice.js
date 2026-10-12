@@ -111,7 +111,9 @@ async function forwardGeocode({ query, point, limit, locale, signal, timeoutMs, 
         const [a, b] = await Promise.all([fetchJSON(near, { signal, timeoutMs }), fetchJSON(all, { signal, timeoutMs }).catch(() => ({ hits: [] }))]);
         // keep street results that really are near the named city (≤ 25 km)
         const nearHits = (a.hits || []).filter((h) => h.point && Math.abs(h.point.lat - cp.lat) < 0.23 && Math.abs(h.point.lng - cp.lon) < 0.33)
-          .map((h) => ({ ...h, inNamedCity: true })); // "Napoli" typed, "Naples" returned: still the right city
+          // "Napoli" typed, "Naples" returned: still the right city — but only
+          // close to its centre (~6 km), so a nearby village doesn't count.
+          .map((h) => ({ ...h, inNamedCity: Math.abs(h.point.lat - cp.lat) < 0.055 && Math.abs(h.point.lng - cp.lon) < 0.08 }));
         return { hits: nearHits.concat(Array.isArray(b.hits) ? b.hits : []) };
       }
     } catch (e) {
