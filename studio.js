@@ -26,54 +26,61 @@
       master = ctx.createGain();
       master.gain.value = pattern.volume;
       master.connect(comp).connect(ctx.destination);
-      noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
-      const d = noiseBuf.getChannelData(0);
-      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      noiseBuf = makeNoise(ctx);
     }
     if (ctx.state === "suspended") ctx.resume();
     return ctx;
   }
-  function env(t, peak, attack, decay) {
-    const g = ctx.createGain();
+  // Drum voices render into any target { c: context, out: node, nb: noise buffer },
+  // so the same sounds play live AND get mixed into an exported song.
+  function makeNoise(c) {
+    const b = c.createBuffer(1, c.sampleRate, c.sampleRate);
+    const d = b.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    return b;
+  }
+  function env(A, t, peak, attack, decay) {
+    const g = A.c.createGain();
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(peak, t + attack);
     g.gain.exponentialRampToValueAtTime(0.0001, t + attack + decay);
-    g.connect(master);
+    g.connect(A.out);
     return g;
   }
-  function noise(t, dur, type, freq, q, peak, decay) {
-    const src = ctx.createBufferSource();
-    src.buffer = noiseBuf;
-    const f = ctx.createBiquadFilter();
+  function noise(A, t, dur, type, freq, q, peak, decay) {
+    const src = A.c.createBufferSource();
+    src.buffer = A.nb;
+    const f = A.c.createBiquadFilter();
     f.type = type; f.frequency.value = freq; f.Q.value = q;
-    src.connect(f).connect(env(t, peak, 0.002, decay));
+    src.connect(f).connect(env(A, t, peak, 0.002, decay));
     src.start(t, Math.random() * 0.5, dur);
   }
   const VOICES = {
-    kick(t) {
-      const o = ctx.createOscillator();
+    kick(A, t) {
+      const o = A.c.createOscillator();
       o.frequency.setValueAtTime(150, t);
       o.frequency.exponentialRampToValueAtTime(42, t + 0.14);
-      o.connect(env(t, 1, 0.003, 0.38));
+      o.connect(env(A, t, 1, 0.003, 0.38));
       o.start(t); o.stop(t + 0.45);
     },
-    snare(t) {
-      noise(t, 0.2, "bandpass", 1800, 0.8, 0.55, 0.17);
-      const o = ctx.createOscillator();
+    snare(A, t) {
+      noise(A, t, 0.2, "bandpass", 1800, 0.8, 0.55, 0.17);
+      const o = A.c.createOscillator();
       o.type = "triangle"; o.frequency.setValueAtTime(190, t);
-      o.connect(env(t, 0.35, 0.002, 0.09)); o.start(t); o.stop(t + 0.12);
+      o.connect(env(A, t, 0.35, 0.002, 0.09)); o.start(t); o.stop(t + 0.12);
     },
-    clap(t) { [0, 0.012, 0.026].forEach((d, i) => noise(t + d, 0.1, "bandpass", 1400, 1.2, i === 2 ? 0.6 : 0.35, i === 2 ? 0.14 : 0.02)); },
-    hat(t) { noise(t, 0.06, "highpass", 7500, 0.7, 0.28, 0.045); },
-    tom(t) {
-      const o = ctx.createOscillator();
+    clap(A, t) { [0, 0.012, 0.026].forEach((d, i) => noise(A, t + d, 0.1, "bandpass", 1400, 1.2, i === 2 ? 0.6 : 0.35, i === 2 ? 0.14 : 0.02)); },
+    hat(A, t) { noise(A, t, 0.06, "highpass", 7500, 0.7, 0.28, 0.045); },
+    tom(A, t) {
+      const o = A.c.createOscillator();
       o.frequency.setValueAtTime(230, t);
       o.frequency.exponentialRampToValueAtTime(115, t + 0.2);
-      o.connect(env(t, 0.7, 0.003, 0.28)); o.start(t); o.stop(t + 0.35);
+      o.connect(env(A, t, 0.7, 0.003, 0.28)); o.start(t); o.stop(t + 0.35);
     },
-    shaker(t) { noise(t, 0.09, "bandpass", 5200, 1.5, 0.18, 0.06); },
+    shaker(A, t) { noise(A, t, 0.09, "bandpass", 5200, 1.5, 0.18, 0.06); },
   };
-  function hit(track, t) { audio(); VOICES[track]((t != null ? t : ctx.currentTime) + 0.001); }
+  const live = () => ({ c: ctx, out: master, nb: noiseBuf });
+  function hit(track, t) { audio(); VOICES[track](live(), (t != null ? t : ctx.currentTime) + 0.001); }
 
   // ---- sequencer (look-ahead scheduler) ------------------------------------------
   let pattern = D.deserialize(localStorage.getItem(PATTERN_KEY) || "") || D.fromPreset("calm");
@@ -83,7 +90,7 @@
 
   function schedule() {
     while (nextTime < ctx.currentTime + 0.12) {
-      D.hitsAt(pattern, step).forEach((tr) => VOICES[tr](nextTime));
+      D.hitsAt(pattern, step).forEach((tr) => VOICES[tr](live(), nextTime));
       queue.push({ step, time: nextTime });
       nextTime += D.stepSeconds(pattern.bpm);
       step = (step + 1) % D.STEPS;
@@ -210,29 +217,83 @@
     $("vcRec").textContent = "Record";
     $("vcTime").textContent = "";
     const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
-    const take = { id: String(Date.now()), name: `Take ${new Date().toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`, blob, ms: Date.now() - recStart, withBeat, pattern: withBeat ? D.serialize(pattern) : null };
+    const take = { fx: "studio", id: String(Date.now()), name: `Take ${new Date().toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`, blob, ms: Date.now() - recStart, withBeat, pattern: withBeat ? D.serialize(pattern) : null };
     await dbPut(take);
     renderTakes();
   }
   const fmt = (ms) => { const s = Math.floor(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
 
-  let playingAudio = null;
-  function playTake(take, btn) {
-    if (playingAudio) { playingAudio.el.pause(); playingAudio.btn.textContent = "Play"; const same = playingAudio.take.id === take.id; playingAudio = null; stopDrums(); if (same) return; }
-    const el = new Audio(URL.createObjectURL(take.blob));
-    if (take.withBeat && take.pattern) {
-      const p = D.deserialize(take.pattern);
-      if (p) { pattern = { ...p, volume: pattern.volume }; buildGrid(); renderTransport(); }
-      stopDrums(); startDrums();
-    }
-    el.play().catch(() => {});
-    btn.textContent = "Stop";
-    playingAudio = { el, btn, take };
-    el.onended = () => { btn.textContent = "Play"; playingAudio = null; stopDrums(); };
+  // ---- playback + export with voice effects -------------------------------------
+  const decoded = new Map(); // take id -> AudioBuffer
+  async function decode(take) {
+    if (decoded.has(take.id)) return decoded.get(take.id);
+    audio();
+    const buf = await ctx.decodeAudioData(await take.blob.arrayBuffer());
+    decoded.set(take.id, buf);
+    return buf;
   }
-  async function shareTake(take) {
-    const ext = (take.blob.type.includes("mp4") ? "m4a" : "webm");
-    const file = new File([take.blob], `${take.name.replace(/[^\w ]+/g, "")}.${ext}`, { type: take.blob.type });
+  let playingTake = null; // { id, src, btn }
+  function stopTake() {
+    if (!playingTake) return;
+    try { playingTake.src.stop(); } catch (e) { /* already ended */ }
+    playingTake.btn.textContent = "Play";
+    playingTake = null;
+    stopDrums();
+  }
+  async function playTake(take, btn) {
+    const same = playingTake && playingTake.id === take.id;
+    stopTake();
+    if (same) return;
+    let buf;
+    try { buf = await decode(take); } catch (e) { $("vcMsg").textContent = "This recording can't be played on this device."; return; }
+    const fx = take.fx || "studio";
+    const takePattern = take.withBeat && take.pattern ? D.deserialize(take.pattern) : null;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.playbackRate.value = VoiceFx.rateFor(fx);
+    const voiceGain = ctx.createGain(); voiceGain.gain.value = 1;
+    VoiceFx.connect(ctx, src, voiceGain, fx, takePattern ? D.stepSeconds(takePattern.bpm) * 4 : 0.5);
+    voiceGain.connect(ctx.destination);
+    if (takePattern && VoiceFx.keepsTime(fx)) { pattern = { ...takePattern, volume: pattern.volume }; buildGrid(); renderTransport(); stopDrums(); startDrums(); }
+    src.start();
+    btn.textContent = "Stop";
+    playingTake = { id: take.id, src, btn };
+    src.onended = () => { if (playingTake && playingTake.src === src) stopTake(); };
+  }
+
+  /** Renders voice + effect (+ the beat it was recorded over) into one WAV file. */
+  async function renderSong(take) {
+    const buf = await decode(take);
+    const fx = take.fx || "studio";
+    const rate = VoiceFx.rateFor(fx);
+    const tail = fx === "hall" ? 3.5 : fx === "echo" ? 2.5 : 1.5;
+    const seconds = buf.duration / rate + tail;
+    const off = new OfflineAudioContext(2, Math.ceil(seconds * 44100), 44100);
+    const mixBus = off.createGain(); mixBus.connect(off.destination);
+    const src = off.createBufferSource();
+    src.buffer = buf; src.playbackRate.value = rate;
+    const p = take.withBeat && take.pattern ? D.deserialize(take.pattern) : null;
+    VoiceFx.connect(off, src, mixBus, fx, p ? D.stepSeconds(p.bpm) * 4 : 0.5);
+    src.start(0);
+    if (p && VoiceFx.keepsTime(fx)) {
+      const drumBus = off.createGain(); drumBus.gain.value = (p.volume || 0.8) * 0.8; drumBus.connect(mixBus);
+      const A = { c: off, out: drumBus, nb: makeNoise(off) };
+      const stepLen = D.stepSeconds(p.bpm);
+      for (let k = 0, t = 0.06; t < buf.duration; k++, t += stepLen) D.hitsAt(p, k).forEach((tr) => VOICES[tr](A, t));
+    }
+    const rendered = await off.startRendering();
+    return new Blob([VoiceFx.encodeWav(rendered)], { type: "audio/wav" });
+  }
+
+  async function shareTake(take, btn) {
+    const label = btn.textContent;
+    btn.textContent = "Mixing…"; btn.disabled = true;
+    let blob;
+    try { blob = await renderSong(take); }
+    catch (e) { blob = take.blob; } // fall back to the raw recording
+    finally { btn.textContent = label; btn.disabled = false; }
+    const ext = blob.type === "audio/wav" ? "wav" : (blob.type.includes("mp4") ? "m4a" : "webm");
+    const file = new File([blob], `${take.name.replace(/[^\w ]+/g, "")}.${ext}`, { type: blob.type });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       try { await navigator.share({ files: [file], title: take.name }); return; } catch (e) { if (e.name === "AbortError") return; }
     }
@@ -258,12 +319,32 @@
       const row = document.createElement("div");
       row.className = "vc-take-actions";
       const mk = (label, fn, cls) => { const b = document.createElement("button"); b.type = "button"; b.className = cls || "pill"; b.textContent = label; b.addEventListener("click", () => fn(b)); return b; };
+      const fxRow = document.createElement("div");
+      fxRow.className = "vc-fx";
+      fxRow.setAttribute("role", "radiogroup");
+      fxRow.setAttribute("aria-label", "Voice effect");
+      VoiceFx.EFFECTS.forEach((e) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "vc-fx-chip" + ((take.fx || "studio") === e.id ? " on" : "");
+        b.textContent = e.label;
+        b.setAttribute("role", "radio");
+        b.setAttribute("aria-checked", String((take.fx || "studio") === e.id));
+        b.addEventListener("click", async () => {
+          take.fx = e.id;
+          await dbPut(take);
+          fxRow.querySelectorAll(".vc-fx-chip").forEach((x) => { const on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-checked", String(on)); });
+          const playBtn = row.querySelector(".pill.active");
+          if (playingTake && playingTake.id === take.id) { stopTake(); playTake(take, playBtn); }
+        });
+        fxRow.appendChild(b);
+      });
       row.append(
         mk("Play", (b) => playTake(take, b), "pill active"),
-        mk("Share", () => shareTake(take)),
+        mk("Share song", (b) => shareTake(take, b)),
         mk("Delete", async () => { if (confirm("Delete this recording?")) { await dbDel(take.id); renderTakes(); } }, "cm-link")
       );
-      li.append(name, meta, row);
+      li.append(name, meta, fxRow, row);
       list.appendChild(li);
     });
   }

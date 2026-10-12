@@ -2091,3 +2091,7 @@ header.top h1 { animation: title-wiggle 7s ease-in-out infinite; }
 .dd-flowers { width: 120px; }
 .map-doodles { opacity: .9; }
 .sound-tiles .sound-stop.active { background: var(--surface) !important; color: var(--ink) !important; opacity: .7; animation: none; }
+.vc-fx { display: flex; gap: 6px; overflow-x: auto; padding: 8px 2px 4px; scrollbar-width: none; }
+.vc-fx::-webkit-scrollbar { display: none; }
+.vc-fx-chip { flex: none; font: inherit; font-family: "Patrick Hand", cursive; font-size: .95rem; padding: 6px 12px; border-radius: 999px; border: 1.5px solid color-mix(in srgb, var(--ink) 50%, transparent); background: var(--surface); color: var(--ink); cursor: pointer; transition: transform .18s cubic-bezier(.34,1.56,.64,1); }
+.vc-fx-chip.on { background: var(--crayon-purple, #B58CFF); color: #2D2A3E; border-color: var(--ink); box-shadow: 1px 2px 0 var(--shadow-ink, #2D2A3E); transform: scale(1.05) rotate(-1.5deg); }
