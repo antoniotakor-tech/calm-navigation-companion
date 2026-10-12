@@ -1031,6 +1031,18 @@
   document.getElementById("peekOpen").addEventListener("click", () => setMapPeek(false));
   document.getElementById("peekStart").addEventListener("click", () => { setMapPeek(false); startNavBtn.click(); });
   peekTop.addEventListener("click", () => { setMapPeek(false); });
+  document.getElementById("showMapBtn").addEventListener("click", () => setMapPeek(true));
+  // Swipe the route card down to show the map.
+  (function () {
+    let y0 = null;
+    routeResultsCard.addEventListener("touchstart", (e) => { y0 = routeResultsCard.scrollTop <= 0 ? e.touches[0].clientY : null; }, { passive: true });
+    routeResultsCard.addEventListener("touchend", (e) => {
+      if (y0 == null) return;
+      const dy = e.changedTouches[0].clientY - y0;
+      y0 = null;
+      if (dy > 70 && !inPeek()) setMapPeek(true);
+    }, { passive: true });
+  })();
   endInput.addEventListener("focus", () => { if (inPeek()) setMapPeek(false); });
   const endAutocomplete = new AutocompleteController({
     input: endInput,

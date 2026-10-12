@@ -2445,3 +2445,6 @@ input[type=range] { touch-action: pan-x; }
 .peek-summary b { font-size: 1.15rem; }
 .peek-summary span { opacity: .7; }
 .peek-start { font: inherit; font-weight: 700; padding: 10px 18px; border-radius: var(--r, 14px); border: 1.5px solid #2D2A3E; background: var(--crayon-green, #7ED67A); color: #2D2A3E; box-shadow: 0 2px 0 #2D2A3E; cursor: pointer; }
+.show-map-btn { position: absolute; top: 10px; right: 12px; z-index: 2; display: inline-flex; align-items: center; gap: 4px; font: inherit; font-size: .85rem; font-weight: 700; padding: 6px 12px; border-radius: 999px; border: 1.5px solid var(--edge-strong, var(--line)); background: var(--surface); color: var(--ink); cursor: pointer; box-shadow: 0 2px 0 color-mix(in srgb, var(--shadow-ink, #000) 20%, transparent); }
+.show-map-btn .ci { width: 16px; height: 16px; }
+.route-results-card { position: relative; }
