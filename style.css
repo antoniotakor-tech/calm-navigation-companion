@@ -2275,3 +2275,15 @@ header.top h1 { animation: title-wiggle 7s ease-in-out infinite; }
 .fg-blob { width: 150px; height: 150px; margin: 6px auto; border-radius: 48% 52% 55% 45% / 50% 45% 55% 50%; background: var(--crayon-purple); border: 2px solid #2D2A3E; display: grid; place-items: center; font-size: 1.6rem; color: #2D2A3E; cursor: pointer; touch-action: none; user-select: none; transition: transform .35s cubic-bezier(.34,1.8,.5,1), border-radius .35s; animation: blob-breathe 4s ease-in-out infinite; }
 .fg-blob.squish { transform: scale(1.18, .72); border-radius: 60% 40% 45% 55% / 40% 55% 45% 60%; transition-duration: .12s; animation: none; }
 @keyframes blob-breathe { 50% { border-radius: 55% 45% 48% 52% / 45% 55% 50% 50%; transform: scale(1.03); } }
+/* Tool pages + scroll lock */
+.tool-page { padding: 12px 16px 120px; overflow-y: auto; max-width: 640px; margin: 0 auto; }
+.tool-page .pillar-title { text-align: center; margin: 4px 0 10px; }
+html.tool-lock .pages-wrap { overflow: hidden !important; scroll-snap-type: none !important; }
+html.tool-lock .page-inner { overflow: hidden !important; }
+input[type=range] { touch-action: pan-x; }
+.sk-canvas, .fg-spinner, .fg-blob, .ch-pad, .kalimba-wrap { touch-action: none; }
+/* Six tabs: let the tab bar scroll sideways if it doesn't fit */
+.page-dots { overflow-x: auto; justify-content: flex-start; scrollbar-width: none; padding-left: 12px; padding-right: 12px; }
+.page-dots::-webkit-scrollbar { display: none; }
+.page-dots .dot-btn { flex: none; }
+@media (min-width: 520px) { .page-dots { justify-content: center; } }

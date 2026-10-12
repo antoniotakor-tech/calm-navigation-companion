@@ -4003,7 +4003,7 @@
   const pages = Array.from(document.querySelectorAll(".page"));
   const dots = Array.from(document.querySelectorAll(".dot-btn"));
   const pageTagline = document.getElementById("pageTagline");
-  const TAGLINES = ["calm routing", "calm sounds", "studio", "community"];
+  const TAGLINES = ["calm routing", "calm sounds", "studio", "community", "sketchbook", "fidget"];
   let currentPage = 0;
   let scrollRAF = null;
 
@@ -4073,6 +4073,7 @@
       d.setAttribute("aria-selected", idx === i ? "true" : "false");
     });
     pageTagline.textContent = TAGLINES[i] || "";
+    if (dots[i] && dots[i].scrollIntoView) dots[i].scrollIntoView({ inline: "nearest", block: "nearest" });
     if (i === 0) requestAnimationFrame(() => map.resize());
     if (i === 2) refreshEchoRecordGate();
   }

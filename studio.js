@@ -551,7 +551,7 @@
       b.classList.toggle("active", on);
       b.setAttribute("aria-selected", String(on));
     });
-    ["kalimba", "drums", "chords", "voice", "sketch", "fidget"].forEach((k) => { $("studio-" + k).hidden = k !== which; });
+    ["kalimba", "drums", "chords", "voice"].forEach((k) => { $("studio-" + k).hidden = k !== which; });
     if (which === "voice") renderTakes();
     if (which === "chords") { try { chordOut(); } catch (e) { /* audio blocked until a tap */ } }
   }

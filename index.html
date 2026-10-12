@@ -62,6 +62,8 @@
     <button class="dot-btn" id="dot-1" data-page="1" role="tab" aria-selected="false" aria-controls="page-1" aria-label="Auditory regulation">Sound</button>
     <button class="dot-btn" id="dot-2" data-page="2" role="tab" aria-selected="false" aria-controls="page-2" aria-label="Studio">Studio</button>
     <button class="dot-btn" id="dot-3" data-page="3" role="tab" aria-selected="false" aria-controls="page-3" aria-label="Community">Community</button>
+    <button class="dot-btn" id="dot-4" data-page="4" role="tab" aria-selected="false" aria-controls="page-4" aria-label="Sketchbook">Draw</button>
+    <button class="dot-btn" id="dot-5" data-page="5" role="tab" aria-selected="false" aria-controls="page-5" aria-label="Fidget tools">Fidget</button>
   </nav>
 
   <!-- Shown only while navigating and away from the map (e.g. playing the
@@ -477,15 +479,13 @@
           </svg>
         </div>
         <h2 class="pillar-title display" id="kalimbaHeading">Studio</h2>
-        <p class="tool-sub">Make a beat, play along, record your voice — or just draw.</p>
+        <p class="tool-sub">Make a beat, play along and record your voice.</p>
 
         <div class="pill-row studio-tabs" id="studioTabs" role="tablist" aria-label="Studio">
           <button type="button" class="pill active" data-studio="kalimba" role="tab" aria-selected="true">Kalimba</button>
           <button type="button" class="pill" data-studio="drums" role="tab" aria-selected="false">Drums</button>
           <button type="button" class="pill" data-studio="chords" role="tab" aria-selected="false">Chords</button>
           <button type="button" class="pill" data-studio="voice" role="tab" aria-selected="false">Voice</button>
-          <button type="button" class="pill" data-studio="sketch" role="tab" aria-selected="false">Sketch</button>
-          <button type="button" class="pill" data-studio="fidget" role="tab" aria-selected="false">Fidget</button>
         </div>
         <div id="studio-kalimba">
         <div class="kalimba-wrap" id="kalimbaWrap">
@@ -628,66 +628,6 @@
           <p class="cm-note">Every chord fits the key, so any order sounds good — try I – V – vi – IV. With the beat on, chords snap into time. “Play on the beat” repeats a chord on every beat until you tap another.</p>
         </div>
 
-        <!-- Studio: sketchbook (sketch.js) -->
-        <div id="studio-sketch" class="studio-panel" hidden>
-          <div class="sk-bar">
-            <div class="pill-row" id="skTools" aria-label="Brush">
-              <button type="button" class="pill" data-tool="crayon">Crayon</button>
-              <button type="button" class="pill" data-tool="marker">Marker</button>
-              <button type="button" class="pill" data-tool="pencil">Pencil</button>
-              <button type="button" class="pill" data-tool="eraser">Eraser</button>
-            </div>
-            <div class="sk-colors" id="skColors" aria-label="Colour"></div>
-            <label class="dm-vol">Size<input type="range" id="skSize" min="2" max="40" value="10" aria-label="Brush size"></label>
-          </div>
-          <canvas class="sk-canvas" id="skCanvas" aria-label="Drawing paper"></canvas>
-          <div class="pill-row sk-actions">
-            <button type="button" class="pill" id="skUndo">Undo</button>
-            <button type="button" class="pill" id="skNew">New page</button>
-            <label class="pill sk-photo"><input type="file" id="skPhoto" accept="image/*" class="cm-file">Draw on a photo</label>
-            <button type="button" class="pill" id="skShare">Share</button>
-            <button type="button" class="pill active" id="skPost">Post to Community</button>
-            <button type="button" class="cm-link" id="skDelete">Delete</button>
-          </div>
-          <div class="sk-gallery" id="skGallery" aria-label="Your sketches"></div>
-          <p class="cm-note">Sketches save by themselves on this phone. Draw with a finger or an Apple Pencil (it follows pressure).</p>
-        </div>
-
-        <!-- Studio: fidget tools (fidget.js) -->
-        <div id="studio-fidget" class="studio-panel" hidden>
-          <div class="fg-card">
-            <div class="fg-title">Spinner <small>flick it</small></div>
-            <svg class="fg-spinner" id="fgSpinner" viewBox="0 0 200 200" role="img" aria-label="Fidget spinner">
-              <g stroke="#2D2A3E" stroke-width="4" stroke-linejoin="round">
-                <path d="M100 100 L100 30" stroke-width="34" stroke-linecap="round" stroke="#FF8FB8"/>
-                <path d="M100 100 L39 135" stroke-width="34" stroke-linecap="round" stroke="#7CC8FF"/>
-                <path d="M100 100 L161 135" stroke-width="34" stroke-linecap="round" stroke="#7ED67A"/>
-                <circle cx="100" cy="30" r="22" fill="#FFFAF1"/><circle cx="39" cy="135" r="22" fill="#FFFAF1"/><circle cx="161" cy="135" r="22" fill="#FFFAF1"/>
-                <circle cx="100" cy="100" r="30" fill="#FFD84D"/><circle cx="100" cy="100" r="10" fill="#2D2A3E"/>
-              </g>
-            </svg>
-          </div>
-          <div class="fg-card">
-            <div class="fg-title">Bubble wrap <button type="button" class="cm-link" id="fgRefill">Refill</button></div>
-            <div class="fg-bubbles" id="fgBubbles"></div>
-          </div>
-          <div class="fg-card">
-            <div class="fg-title">Clicky</div>
-            <div class="fg-row">
-              <button type="button" class="fg-switch" aria-pressed="false" aria-label="Switch 1"><span></span></button>
-              <button type="button" class="fg-switch" aria-pressed="true" aria-label="Switch 2"><span></span></button>
-              <button type="button" class="fg-switch" aria-pressed="false" aria-label="Switch 3"><span></span></button>
-              <button type="button" class="fg-clicker" id="fgClicker" aria-label="Click button"></button>
-            </div>
-            <input type="range" class="fg-slider" id="fgSlider" min="0" max="100" value="50" aria-label="Click slider">
-          </div>
-          <div class="fg-card fg-blob-card">
-            <div class="fg-title">Squish <small>press and hold</small></div>
-            <div class="fg-blob" id="fgBlob" role="button" tabindex="0" aria-label="Squishy blob"><span>◕‿◕</span></div>
-          </div>
-          <p class="cm-note">Feels best with sound on. Haptics work in the iPhone app and on most Android phones; on iPhone Safari they need iOS 18.</p>
-        </div>
-
         <!-- Studio: voice recorder -->
         <div id="studio-voice" class="studio-panel" hidden>
           <button type="button" class="vc-rec" id="vcRec">Record</button>
@@ -786,6 +726,80 @@
         </div>
         <div class="cm-status" id="cmStatus" aria-live="polite"></div>
         <ul class="cm-feed" id="cmFeed"></ul>
+      </div>
+    </section>
+
+    <!-- Sketchbook (2026-10-12): its own page, not part of the music Studio. -->
+    <section class="page" id="page-4" role="tabpanel" aria-labelledby="dot-4" aria-label="Sketchbook">
+      <div class="page-inner tool-page">
+        <h2 class="pillar-title display">Sketchbook</h2>
+        <!-- Studio: sketchbook (sketch.js) -->
+        <div id="studio-sketch" class="studio-panel">
+          <div class="sk-bar">
+            <div class="pill-row" id="skTools" aria-label="Brush">
+              <button type="button" class="pill" data-tool="crayon">Crayon</button>
+              <button type="button" class="pill" data-tool="marker">Marker</button>
+              <button type="button" class="pill" data-tool="pencil">Pencil</button>
+              <button type="button" class="pill" data-tool="eraser">Eraser</button>
+            </div>
+            <div class="sk-colors" id="skColors" aria-label="Colour"></div>
+            <label class="dm-vol">Size<input type="range" id="skSize" min="2" max="40" value="10" aria-label="Brush size"></label>
+          </div>
+          <canvas class="sk-canvas" id="skCanvas" aria-label="Drawing paper"></canvas>
+          <div class="pill-row sk-actions">
+            <button type="button" class="pill" id="skUndo">Undo</button>
+            <button type="button" class="pill" id="skNew">New page</button>
+            <label class="pill sk-photo"><input type="file" id="skPhoto" accept="image/*" class="cm-file">Draw on a photo</label>
+            <button type="button" class="pill" id="skShare">Share</button>
+            <button type="button" class="pill active" id="skPost">Post to Community</button>
+            <button type="button" class="cm-link" id="skDelete">Delete</button>
+          </div>
+          <div class="sk-gallery" id="skGallery" aria-label="Your sketches"></div>
+          <p class="cm-note">Sketches save by themselves on this phone. Draw with a finger or an Apple Pencil (it follows pressure).</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Fidget tools (2026-10-12): their own page. -->
+    <section class="page" id="page-5" role="tabpanel" aria-labelledby="dot-5" aria-label="Fidget tools">
+      <div class="page-inner tool-page">
+        <h2 class="pillar-title display">Fidget</h2>
+        <!-- Studio: fidget tools (fidget.js) -->
+        <div id="studio-fidget" class="studio-panel">
+          <div class="fg-card">
+            <div class="fg-title">Spinner <small>flick it</small></div>
+            <svg class="fg-spinner" id="fgSpinner" viewBox="0 0 200 200" role="img" aria-label="Fidget spinner">
+              <g stroke="#2D2A3E" stroke-width="4" stroke-linejoin="round">
+                <path d="M100 100 L100 30" stroke-width="34" stroke-linecap="round" stroke="#FF8FB8"/>
+                <path d="M100 100 L39 135" stroke-width="34" stroke-linecap="round" stroke="#7CC8FF"/>
+                <path d="M100 100 L161 135" stroke-width="34" stroke-linecap="round" stroke="#7ED67A"/>
+                <circle cx="100" cy="30" r="22" fill="#FFFAF1"/><circle cx="39" cy="135" r="22" fill="#FFFAF1"/><circle cx="161" cy="135" r="22" fill="#FFFAF1"/>
+                <circle cx="100" cy="100" r="30" fill="#FFD84D"/><circle cx="100" cy="100" r="10" fill="#2D2A3E"/>
+              </g>
+            </svg>
+          </div>
+          <div class="fg-card">
+            <div class="fg-title">Bubble wrap <button type="button" class="cm-link" id="fgRefill">Refill</button></div>
+            <div class="fg-bubbles" id="fgBubbles"></div>
+          </div>
+          <div class="fg-card">
+            <div class="fg-title">Clicky</div>
+            <div class="fg-row">
+              <button type="button" class="fg-switch" aria-pressed="false" aria-label="Switch 1"><span></span></button>
+              <button type="button" class="fg-switch" aria-pressed="true" aria-label="Switch 2"><span></span></button>
+              <button type="button" class="fg-switch" aria-pressed="false" aria-label="Switch 3"><span></span></button>
+              <button type="button" class="fg-clicker" id="fgClicker" aria-label="Click button"></button>
+            </div>
+            <input type="range" class="fg-slider" id="fgSlider" min="0" max="100" value="50" aria-label="Click slider">
+          </div>
+          <div class="fg-card fg-blob-card">
+            <div class="fg-title">Squish <small>press and hold</small></div>
+            <div class="fg-blob" id="fgBlob" role="button" tabindex="0" aria-label="Squishy blob"><span>◕‿◕</span></div>
+          </div>
+          <p class="cm-note">Feels best with sound on. Haptics work in the iPhone app and on most Android phones; on iPhone Safari they need iOS 18.</p>
+        </div>
+
       </div>
     </section>
 
@@ -1038,6 +1052,7 @@
 <script src="shared/navigationBridge.js"></script>
 <script src="exifgps.js"></script>
 <script src="socialvalidation.js"></script>
+<script src="scrolllock.js"></script>
 <script src="app.js"></script>
 <script src="account.js"></script>
 <script src="community.js"></script>
