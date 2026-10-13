@@ -67,11 +67,22 @@
     this._showCaption(text);
     if (!this.supported || this.muted) return Promise.resolve();
     this.am.ensureCtx();
+    // Soften background sound and instruments while a direction is spoken,
+    // then bring them back (2026-10-13: designed earlier, never wired up —
+    // the voice used to talk over full-volume rain/music).
+    const am = this.am;
+    const dip = () => { try { am.duck("ambient", 0.35, 250); am.duck("instrument", 0.5, 250); } catch (e) { /* no audio yet */ } };
+    const back = () => { try { am.restore("ambient", 600); am.restore("instrument", 600); } catch (e) { /* ok */ } };
     return new Promise((resolve) => {
       const u = new SpeechSynthesisUtterance(text);
       u.rate = (typeof AuditoryRegulation !== "undefined") ? AuditoryRegulation.computeSpeechRate(this.am.regulationMode) : 1.0;
-      u.onend = () => resolve();
-      u.onerror = () => resolve();
+      let done = false;
+      const finish = () => { if (done) return; done = true; back(); resolve(); };
+      u.onend = finish;
+      u.onerror = finish;
+      // Safety net: some engines never fire onend — never leave sound dipped.
+      setTimeout(finish, Math.max(4000, text.split(/\s+/).length * 600));
+      dip();
       window.speechSynthesis.speak(u);
     });
   };
