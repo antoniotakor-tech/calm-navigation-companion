@@ -233,10 +233,11 @@ async function fetchCalmRoute({ start, end, peakWindows, safetyMode, specialEven
   // weighting for anyway. Defaults to foot for callers that don't specify.
   url.searchParams.set("profile", ghProfile || "foot");
   url.searchParams.set("algorithm", "alternative_route");
-  url.searchParams.set("max_paths", "3");
+  url.searchParams.set("max_paths", "5"); // score every realistic candidate, not just two
   url.searchParams.set("max_weight_factor", "2.0");
   url.searchParams.set("max_share_factor", "0.7");
-  url.searchParams.append("details", "road_class");
+  // Real per-stretch map data for the weighted calm score (calmscore.js).
+  ["road_class", "surface", "max_speed", "lanes", "road_environment", "crossing"].forEach((d) => url.searchParams.append("details", d));
   url.searchParams.set("points_encoded", "false");
   url.searchParams.set("locale", "en");
 
@@ -282,6 +283,7 @@ async function fetchCalmRoute({ start, end, peakWindows, safetyMode, specialEven
       // the user on right now" from their nearest route-point index, instead
       // of only having the route-wide breakdown summary above.
       roadClassSegments: rc || [],
+      details: path.details || {},
       steps: (path.instructions || []).map((instr) => ({
         text: instr.text,
         distanceM: instr.distance,
@@ -311,8 +313,21 @@ async function fetchCalmRoute({ start, end, peakWindows, safetyMode, specialEven
     }
   }
 
+  // Weighted 0–10 calm score (2026-10-13): noise, crowd, smoothness,
+  // intersections, sensory — weights in calmscore.js; the safety toggle
+  // shifts those weights. Missing data is excluded + reweighted and logged.
+  if (typeof CalmScore !== "undefined") {
+    scored.forEach((p, i) => {
+      const s = CalmScore.scoreRoute({ coordinates: p.coordinates, details: p.details, steps: p.steps, greenPct: p.greenPct }, { safetyMode, peak });
+      p.calm10 = s.score; p.calmFactors = s.factors; p.dataGaps = s.dataGaps;
+      CalmScore.logGaps(`route ${i + 1}/${scored.length}`, s);
+    });
+  }
   const fastest = scored.reduce((a, b) => (a.timeMs < b.timeMs ? a : b));
-  const calmest = scored.reduce((a, b) => (a.calmScore > b.calmScore ? a : b));
+  const rankOf = (p) => (p.calm10 != null ? p.calm10 : null);
+  const calmest = scored.every((p) => rankOf(p) != null)
+    ? scored.reduce((a, b) => (rankOf(a) >= rankOf(b) ? a : b))
+    : scored.reduce((a, b) => (a.calmScore > b.calmScore ? a : b)); // no detail data: previous road-class method
 
   return {
     mode: "live",
@@ -322,6 +337,7 @@ async function fetchCalmRoute({ start, end, peakWindows, safetyMode, specialEven
     specialEvent,
     calm: calmest,
     fastest,
+    candidates: scored.length,
     extraMinutes: Math.max(0, Math.round((calmest.timeMs - fastest.timeMs) / 60000)),
     note: null,
   };

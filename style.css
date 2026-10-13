@@ -2524,3 +2524,5 @@ html.has-plus .plus-only::after { display: none; }
 .lg-dot { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--surface); box-shadow: 0 0 0 1px var(--edge-strong, var(--line)); flex: none; }
 .lg-photo { width: 16px; height: 16px; border-radius: 5px; background: var(--crayon-blue, #7CC8FF); border: 2px solid var(--ink); flex: none; }
 .lg-flower { width: 16px; height: 16px; flex: none; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cg fill='%23FF8FB8' stroke='%232D2A3E' stroke-width='1.6'%3E%3Ccircle cx='12' cy='6.5' r='3.2'/%3E%3Ccircle cx='17.2' cy='10.3' r='3.2'/%3E%3Ccircle cx='15.2' cy='16.4' r='3.2'/%3E%3Ccircle cx='8.8' cy='16.4' r='3.2'/%3E%3Ccircle cx='6.8' cy='10.3' r='3.2'/%3E%3C/g%3E%3Ccircle cx='12' cy='12' r='2.4' fill='%23FFD84D'/%3E%3C/svg%3E") center/100% no-repeat; }
+.rc-score { margin-top: 4px; font-size: .78rem; font-weight: 700; color: var(--calm); }
+#fastScore { color: var(--muted); }

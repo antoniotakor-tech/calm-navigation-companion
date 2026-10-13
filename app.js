@@ -1792,6 +1792,13 @@
     document.getElementById("fastTime").textContent = fmtMin(result.fastest.timeMs);
     document.getElementById("fastDist").textContent = fmtDist(result.fastest.distanceM);
     renderBar(document.getElementById("calmBar"), result.calm.breakdownPct);
+    // Weighted calm score out of 10 on each card (2026-10-13).
+    [["calmScore", result.calm], ["fastScore", result.fastest]].forEach(([id, p]) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = p && p.calm10 != null ? `Calm ${p.calm10.toFixed(1)}/10` : "";
+      el.title = p && p.calmFactors ? Object.entries(p.calmFactors).filter(([, v]) => v != null).map(([k, v]) => `${k}: ${v}`).join(" · ") : "";
+    });
     renderBar(document.getElementById("fastBar"), result.fastest.breakdownPct);
     renderGreenMeasurement(document.getElementById("calmGreen"), result.calm.greenPct);
     renderGreenMeasurement(document.getElementById("fastGreen"), result.fastest.greenPct);
