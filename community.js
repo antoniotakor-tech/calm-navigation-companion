@@ -76,7 +76,16 @@
   // A FRESH, precise fix: never reuse a cached position (that's how a post
   // ended up far from where it was made). Listens for up to 10 s and keeps
   // the most accurate reading, finishing early once it's within 25 m.
-  function locate() {
+  // ask=false (the feed): never raises a permission prompt — it just uses the
+  // map centre unless location was already allowed. ask=true (sharing a spot):
+  // explains why first, then asks (2026-10-13).
+  async function locate(ask) {
+    const P = window.CalmPermissions;
+    if (P) {
+      const st = ask ? await P.requestLocation() : await P.locationState();
+      if (st === "denied") throw new Error("Location is off for this app — drag the map to the spot, or allow location in your phone's Settings.");
+      if (st !== "granted") throw new Error("No problem — drag the map to the spot instead.");
+    }
     return new Promise((resolve, reject) => {
       if (!navigator.geolocation) return reject(new Error("This device can't share its location."));
       let best = null, done = false;
@@ -94,7 +103,7 @@
           if (!best || fix.accuracy < best.accuracy) best = fix;
           if (best.accuracy <= 25) finish();
         },
-        (e) => { if (e.code === 1) { done = true; navigator.geolocation.clearWatch(id); clearTimeout(timer); reject(new Error("Allow location for this app so your post is pinned where you are — or drag the map to the spot.")); } },
+        (e) => { if (e.code === 1) { if (P) P.markLocationDenied(); done = true; navigator.geolocation.clearWatch(id); clearTimeout(timer); reject(new Error("Allow location for this app so your post is pinned where you are — or drag the map to the spot.")); } },
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
       const timer = setTimeout(finish, 10000);
@@ -587,7 +596,7 @@
       showPickMap();
     } else {
       note.textContent = "Finding where you are…";
-      locate().then((f) => { if (!composerFix) { composerFix = { ...f, source: "gps" }; } if (composerKind !== "route") renderWhere(); })
+      locate(true).then((f) => { if (!composerFix) { composerFix = { ...f, source: "gps" }; } if (composerKind !== "route") renderWhere(); })
         .catch((err) => { if (composerKind !== "route") note.textContent = err.message; });
     }
   }
@@ -626,7 +635,7 @@
     e.preventDefault();
     const route = app.currentRoute();
     if (composerKind !== "route" && !composerFix) {
-      try { composerFix = await locate(); } catch (err) { $("cmComposerError").textContent = err.message; return; }
+      try { composerFix = await locate(true); } catch (err) { $("cmComposerError").textContent = err.message; return; }
     }
     const post = {
       kind: composerKind,

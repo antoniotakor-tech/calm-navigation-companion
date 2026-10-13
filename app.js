@@ -704,25 +704,6 @@
   let userPoint = null;
   let cityContext = null;
   let locateAttempted = false;
-  async function ensureUserLocation() {
-    if (locateAttempted) return;
-    locateAttempted = true;
-    if (NavBridge.isNative) {
-      const status = await Capacitor.Plugins.CalmNavBackground.getPermissionStatus();
-      if (status.foreground !== "granted") {
-        const req = await Capacitor.Plugins.CalmNavBackground.requestForegroundLocationPermission();
-        if (!req.granted) return; // denied — autocomplete still works globally, just without nearby bias
-      }
-    }
-    try {
-      const fix = await NavBridge.location.getCurrentPosition();
-      userPoint = { lat: fix.lat, lon: fix.lon };
-      const ctx = await resolveCityContext({ point: userPoint });
-      if (ctx) cityContext = ctx;
-    } catch (e) {
-      // denied or unavailable: leave userPoint/cityContext null
-    }
-  }
   function getUserContext() {
     // No GPS fix (desktop, location not granted yet)? Bias toward wherever
     // the map is showing instead of nowhere (2026-10-10): otherwise a street
@@ -746,17 +727,13 @@
   // the passive biasing fetch above), with reverse geocoding for a readable
   // label that never blocks on failure.
   async function useCurrentLocationForStart() {
-    if (NavBridge.isNative) {
-      const status = await Capacitor.Plugins.CalmNavBackground.getPermissionStatus();
-      if (status.foreground !== "granted") {
-        const req = await Capacitor.Plugins.CalmNavBackground.requestForegroundLocationPermission();
-        if (!req.granted) return null;
-      }
-    }
+    if (NavBridge.isNative && (await CalmPermissions.locationState()) !== "granted") return null;
     let fix;
     try {
       fix = await NavBridge.location.getCurrentPosition();
+      CalmPermissions.markLocationGranted();
     } catch (e) {
+      if (e && e.code === 1) CalmPermissions.markLocationDenied();
       return null;
     }
     const point = { lat: fix.lat, lon: fix.lon };
@@ -1241,8 +1218,7 @@
     if (!endInput.value.trim()) showNearbySuggestions();
     updateClearDestinationVisibility();
   });
-  startInput.addEventListener("focus", ensureUserLocation);
-  endInput.addEventListener("focus", ensureUserLocation);
+  // No location prompt on focus any more (2026-10-13) — asked on "Find calm route".
 
   // ---- Start from where you actually are (2026-09-03) ------------------
   // The start field used to open hardcoded to Amsterdam Centraal, so anyone
@@ -1259,6 +1235,9 @@
     const untouched = () =>
       !startSelectedResult && startInput.value === CONFIG.DEFAULT_START.label;
     if (!untouched()) return;
+    // Never prompt on load (2026-10-13): only fill in silently when the user
+    // already allowed location on an earlier visit.
+    if ((await CalmPermissions.locationState()) !== "granted") return;
     startInput.placeholder = "Finding your location…";
     let here = null;
     try {
@@ -1665,6 +1644,24 @@
     if (!endInput.value.trim()) {
       endInput.focus();
       return;
+    }
+    // Location is first asked here, on "Find calm route" (2026-10-13) — and
+    // only matters when the start is still the untouched default.
+    const startUntouched = !startSelectedResult && (!startInput.value.trim() || startInput.value === CONFIG.DEFAULT_START.label);
+    if (startUntouched) {
+      const perm = await CalmPermissions.requestLocation();
+      const here = perm === "granted" ? await useCurrentLocationForStart() : null;
+      if (here) {
+        resolvedStart = here; startInput.value = here.label; startSelectedResult = here;
+        showUserDotAt(here);
+      } else {
+        const why = perm === "dismissed" ? "No problem — type where you're starting from."
+          : "Location is off, so type where you're starting from (or allow location for this app in your phone's Settings).";
+        showError(why);
+        startInput.value = ""; startInput.placeholder = "Where are you starting?";
+        startInput.focus();
+        return;
+      }
     }
     isSearching = true;
     findBtn.disabled = true;
@@ -2817,7 +2814,7 @@
     }
   }
 
-  startNavBtn.addEventListener("click", () => { usingSimulatedGps = false; startNavigation(); });
+  startNavBtn.addEventListener("click", async () => { usingSimulatedGps = false; await CalmPermissions.beforeNotificationNeed(); startNavigation(); });
   simBtn.addEventListener("click", () => { usingSimulatedGps = true; startNavigation(); });
   // A user-initiated Stop/Done means "this trip is over": return to a clean
   // planning screen. Previously the finished route's results card (time,
