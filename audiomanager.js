@@ -51,9 +51,11 @@
       // playback (audible regardless of the switch), which is what a
       // navigation voice + deliberate soundscapes actually are. Safe no-op
       // on browsers without navigator.audioSession.
-      try {
-        if (navigator.audioSession) navigator.audioSession.type = "playback";
-      } catch (e) { /* older iOS / other browsers — keep default session */ }
+      // 2026-10-13: "playback" PAUSES the user's own music (Spotify, Apple
+      // Music) as soon as any app sound starts — and people want their own
+      // music on while they walk. Now a choice: "Keep my music playing"
+      // (default on) uses "ambient", which mixes; off uses "playback".
+      if (window.CalmAudioMix) window.CalmAudioMix.apply();
       this.ctx = new (window.AudioContext || window.webkitAudioContext)();
       this.master = this.ctx.createGain();
       this.master.gain.value = 0.8;

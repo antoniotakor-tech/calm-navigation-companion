@@ -54,4 +54,16 @@
   ["touchend", "pointerup", "keydown"].forEach((ev) => document.addEventListener(ev, reviveAll, { capture: true, passive: true }));
   document.addEventListener("visibilitychange", () => { if (!document.hidden) setTimeout(reviveAll, 200); });
   window.CalmAudioKeepAlive = { reviveAll };
+
+  // Mix with the user's own music (2026-10-13). iOS: "ambient" plays along
+  // with Spotify/Apple Music (but obeys the silent switch); "playback"
+  // pauses them (but ignores the switch). Applied before any sound starts.
+  const MIX_KEY = "calmAudio.mixWithMusic.v1";
+  const CalmAudioMix = {
+    enabled() { try { return localStorage.getItem(MIX_KEY) !== "0"; } catch (e) { return true; } },
+    set(on) { try { localStorage.setItem(MIX_KEY, on ? "1" : "0"); } catch (e) {} CalmAudioMix.apply(); },
+    apply() { try { if (navigator.audioSession) navigator.audioSession.type = CalmAudioMix.enabled() ? "ambient" : "playback"; } catch (e) {} },
+  };
+  window.CalmAudioMix = CalmAudioMix;
+  CalmAudioMix.apply();
 })();

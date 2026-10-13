@@ -222,6 +222,7 @@
   async function finishRecording() {
     clearInterval(recTimer);
     stream.getTracks().forEach((t) => t.stop());
+    if (window.CalmAudioMix) setTimeout(() => CalmAudioMix.apply(), 300); // mic off: back to mixing with your music
     if (withBeat) { stopDrums(); if (master) master.gain.value = pattern.volume; }
     $("vcRec").classList.remove("recording");
     $("vcRec").textContent = "Record";

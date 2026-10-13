@@ -77,9 +77,10 @@ class NavigationForegroundService : Service() {
         }
         engine.onSpeakEnd = {
             if (allowAmbient) ambientNoise.restore()
-            // Transient focus is released automatically by the system once
-            // playback stops for AUDIOFOCUS_GAIN_TRANSIENT; explicit
-            // abandon isn't required between individual utterances.
+            // Give focus back after every sentence so the user's own music
+            // (Spotify etc.) comes straight back up (2026-10-13) — focus is
+            // NOT released automatically, and holding it kept music paused.
+            abandonAudioFocus()
         }
         locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -202,7 +203,7 @@ class NavigationForegroundService : Service() {
             .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
             .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
             .build()
-        val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+        val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
             .setAudioAttributes(attributes)
             .setOnAudioFocusChangeListener { focusChange ->
                 // A phone call or another app took priority — surfaced so

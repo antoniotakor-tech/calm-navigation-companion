@@ -346,6 +346,7 @@ final class NavigationEngine: NSObject {
     private func reallySpeak(_ text: String) {
         guard !muted, !text.isEmpty else { return }
         duckAmbientForSpeech()
+        duckOtherAppsForSpeech()
         let utterance = AVSpeechUtterance(string: text)
         utterance.voice = AVSpeechSynthesisVoice(language: AVSpeechSynthesisVoice.currentLanguageCode())
         speechSynthesizer.speak(utterance)
@@ -494,7 +495,9 @@ final class NavigationEngine: NSObject {
     private func configureAudioSession() {
         let session = AVAudioSession.sharedInstance()
         do {
-            try session.setCategory(.playback, mode: .voicePrompt, options: [.duckOthers, .mixWithOthers])
+            // Mix only — the user's own music plays at full volume between
+            // directions; it is ducked just while a sentence is spoken (2026-10-13).
+            try session.setCategory(.playback, mode: .voicePrompt, options: [.mixWithOthers])
             try session.setActive(true)
         } catch {
             emit("error", ["message": "Audio session configuration failed: \(error.localizedDescription)"])
@@ -582,6 +585,18 @@ final class NavigationEngine: NSObject {
         ambientPlayer = nil
         ambientEngine = nil
         ambientEQ = nil
+    }
+
+    private var unduckWork: DispatchWorkItem?
+    private func duckOtherAppsForSpeech() {
+        let session = AVAudioSession.sharedInstance()
+        try? session.setCategory(.playback, mode: .voicePrompt, options: [.duckOthers, .mixWithOthers])
+        unduckWork?.cancel()
+        let work = DispatchWorkItem {
+            try? session.setCategory(.playback, mode: .voicePrompt, options: [.mixWithOthers])
+        }
+        unduckWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4.0, execute: work)
     }
 
     private func duckAmbientForSpeech() {

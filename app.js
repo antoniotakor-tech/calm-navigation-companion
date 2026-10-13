@@ -133,6 +133,11 @@
     }
   });
 
+  const mixMusicToggle = document.getElementById("mixMusicToggle");
+  if (mixMusicToggle && window.CalmAudioMix) {
+    mixMusicToggle.checked = CalmAudioMix.enabled();
+    mixMusicToggle.addEventListener("change", () => CalmAudioMix.set(mixMusicToggle.checked));
+  }
   const reducedMotionToggle = document.getElementById("reducedMotionToggle");
   const highContrastToggle = document.getElementById("highContrastToggle");
 
