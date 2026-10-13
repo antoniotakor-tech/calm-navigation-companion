@@ -23,6 +23,7 @@
   let feedMode = "near";
   let composerKind = "spot";
   let composerPhotos = [];
+  let composerFromSketch = false;
   let composerFix = null; // { lat, lon, accuracy?, source: "gps" | "photo" | "map" }
   let pickMap = null;
   let feedCenter = null;
@@ -369,13 +370,23 @@
       img.alt = `${p.title} — photo ${i + 1}`;
       strip.appendChild(img);
     }
-    const close = make("button", "cm-lightbox-close", "×");
+    // A clearly visible "Back" (2026-10-13): the old faint white × vanished
+    // on a white drawing, so people couldn't get out. Tapping the picture,
+    // Escape and the phone's own back gesture also close it.
+    const close = make("button", "cm-lightbox-close", "← Back");
     close.type = "button";
-    close.setAttribute("aria-label", "Close photos");
-    const done = () => { ov.remove(); document.removeEventListener("keydown", onKey); };
+    close.setAttribute("aria-label", "Close");
+    let closed = false;
+    const done = (fromHistory) => {
+      if (closed) return; closed = true;
+      ov.remove(); document.removeEventListener("keydown", onKey); window.removeEventListener("popstate", onPop);
+      if (!fromHistory && history.state && history.state.cmLightbox) history.back();
+    };
     const onKey = (e) => { if (e.key === "Escape") done(); };
-    close.addEventListener("click", done);
-    ov.addEventListener("click", (e) => { if (e.target === ov || e.target === strip) done(); });
+    const onPop = () => done(true);
+    try { history.pushState({ cmLightbox: true }, ""); window.addEventListener("popstate", onPop); } catch (e) {}
+    close.addEventListener("click", () => done());
+    ov.addEventListener("click", (e) => { if (e.target !== close) done(); });
     document.addEventListener("keydown", onKey);
     ov.append(strip, close);
     document.body.appendChild(ov);
@@ -407,11 +418,16 @@
   // A layer of post markers on a map: photo bubbles (or a flower / clock),
   // reloaded for whatever area the map shows. Used twice: on the main map
   // and on the Community tab's own map.
+  // Drawings show as a small paper icon (2026-10-13) — a full drawing on
+  // the map was far too big; tap it to see the drawing and where it was left.
   function postMarker(map, p) {
-    const el = make("button", "cm-map-marker" + (p.hasPhoto ? " cm-map-photo" : ""));
+    const asPhoto = p.hasPhoto && !p.drawing;
+    const el = make("button", "cm-map-marker" + (asPhoto ? " cm-map-photo" : "") + (p.drawing ? " cm-map-drawing" : ""));
     el.type = "button";
-    el.setAttribute("aria-label", `${KIND_LABEL[p.kind]}: ${p.title}`);
-    if (p.hasPhoto) {
+    el.setAttribute("aria-label", `${p.drawing ? "Drawing" : KIND_LABEL[p.kind]}: ${p.title}`);
+    if (p.drawing) {
+      el.innerHTML = CalmIcons.html("paper");
+    } else if (asPhoto) {
       const img = make("img");
       img.src = photoUrl(p, 0);
       img.alt = "";
@@ -422,7 +438,7 @@
       el.style.color = AVATAR_COLORS[p.author.avatar] || AVATAR_COLORS.rose;
     }
     el.addEventListener("click", (e) => { e.stopPropagation(); openPopup(map, p); });
-    return new maplibregl.Marker({ element: el, anchor: p.hasPhoto ? "bottom" : "center" }).setLngLat([p.lon, p.lat]).addTo(map);
+    return new maplibregl.Marker({ element: el, anchor: asPhoto ? "bottom" : "center" }).setLngLat([p.lon, p.lat]).addTo(map);
   }
   function openPopup(map, p) {
     const box = make("div", "cm-pop");
@@ -651,6 +667,7 @@
     if (!me || !me.profile) { openProfileForm(); $("cmProfileError").textContent = "Create your profile first, then you can share."; return; }
     $("cmComposerForm").reset();
     composerPhotos = [];
+    composerFromSketch = false;
     composerFix = null;
     renderThumbs();
     $("cmComposerError").textContent = "";
@@ -689,6 +706,7 @@
       body: $("cmBodyInput").value,
       lat: composerFix ? composerFix.lat : NaN, lon: composerFix ? composerFix.lon : NaN,
       photos: composerPhotos,
+      drawing: composerFromSketch && composerPhotos.length > 0,
     };
     if (composerKind === "route" && route) {
       post.route = route.coordinates;
@@ -800,7 +818,7 @@
     window.addEventListener("calmsketch:post", (e) => {
       app.goToPage(3);
       openComposer();
-      if ($("cmComposer").classList.contains("open")) addPhotos([new File([e.detail], "sketch.jpg", { type: "image/jpeg" })]);
+      if ($("cmComposer").classList.contains("open")) { composerFromSketch = true; addPhotos([new File([e.detail], "sketch.jpg", { type: "image/jpeg" })]); }
     });
     $("cmViewerClose").addEventListener("click", () => { $("cmProfileViewer").classList.remove("open"); window.CalmStudio && CalmStudio.stop(); });
     document.querySelectorAll("[data-feed]").forEach((b) => b.addEventListener("click", () => {

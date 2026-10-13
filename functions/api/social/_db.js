@@ -22,6 +22,8 @@ export async function ensureSocialTables(db) {
   for (const s of stmts) await db.prepare(s).bind().run();
   // Profile picture (2026-10-13): a small square JPEG data URL, served by /api/social/avatar/:id.
   try { await db.prepare("ALTER TABLE profiles ADD COLUMN pic TEXT").bind().run(); } catch (e) { /* already there */ }
+  // Posts made from the Sketchbook show as a small paper icon on the map (2026-10-13).
+  try { await db.prepare("ALTER TABLE posts ADD COLUMN drawing INTEGER NOT NULL DEFAULT 0").bind().run(); } catch (e) { /* already there */ }
   ready = true;
 }
 
@@ -54,13 +56,14 @@ export function publicPost(row, profile) {
     route: row.route_json ? JSON.parse(row.route_json) : null,
     eventAt: row.event_at || null,
     hasPhoto: !!row.has_photo,
+    drawing: !!row.drawing,
     photoCount: row.has_photo ? (row.photo_count || 1) : 0,
     createdAt: row.created_at,
     author: { id: row.author_key, nickname: profile ? profile.nickname : row.nickname || "Someone", avatar: profile ? profile.avatar : row.avatar || "rose", pic: picUrl(row.author_key, profile ? profile : row), plus: !!(profile ? profile.plus : row.plus) },
   };
 }
 
-export const POST_COLUMNS = "p.id, p.author_key, p.kind, p.title, p.body, p.lat, p.lon, p.route_json, p.event_at, (p.photo IS NOT NULL) AS has_photo, (CASE WHEN p.photo LIKE '[%' THEN json_array_length(p.photo) ELSE 1 END) AS photo_count, p.created_at, pr.nickname, pr.avatar, (pr.pic IS NOT NULL) AS has_pic, pr.updated_at, " +
+export const POST_COLUMNS = "p.id, p.author_key, p.kind, p.title, p.body, p.lat, p.lon, p.route_json, p.event_at, (p.photo IS NOT NULL) AS has_photo, p.drawing, (CASE WHEN p.photo LIKE '[%' THEN json_array_length(p.photo) ELSE 1 END) AS photo_count, p.created_at, pr.nickname, pr.avatar, (pr.pic IS NOT NULL) AS has_pic, pr.updated_at, " +
   "(SELECT a.plan = 'plus' AND (a.plan_until IS NULL OR a.plan_until > CAST(strftime('%s','now') AS INTEGER) * 1000) FROM accounts a WHERE a.owner_hash = p.owner_hash) AS plus";
 
 export function publicTrack(r) {

@@ -98,7 +98,7 @@
     if (photos.length > LIMITS.photos) return { valid: false, error: `Up to ${LIMITS.photos} photos per post.` };
     if (!photos.every(isPhotoDataUrl)) return { valid: false, error: "One of the photos is too large or not an image." };
     if (photos.reduce((n, p) => n + p.length, 0) > LIMITS.photosTotalChars) return { valid: false, error: "Those photos are too large together — try fewer." };
-    return { valid: true, value: { kind, title, body: text, lat, lon, route, eventAt, photos } };
+    return { valid: true, value: { kind, title, body: text, lat, lon, route, eventAt, photos, drawing: body.drawing === true && photos.length > 0 } };
   }
 
   // ---- songs on profiles (voice recording + effect + beat recipe) ----

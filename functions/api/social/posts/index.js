@@ -42,8 +42,8 @@ export async function onRequestPost({ request, env }) {
   if (recent && recent.c >= limit) return jsonError(isPlus(who.account) ? "That's the most posts for today — come back tomorrow." : `That's ${limit} posts today — come back tomorrow, or get Calm+ for more.`, 429);
   const v = check.value, id = crypto.randomUUID();
   await env.DB.prepare(
-    `INSERT INTO posts (id, owner_hash, author_key, kind, title, body, lat, lon, route_json, event_at, photo, created_at, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'visible')`
-  ).bind(id, who.ownerHash, who.authorKey, v.kind, v.title, v.body, v.lat, v.lon, v.route ? JSON.stringify(v.route) : null, v.eventAt, v.photos.length ? JSON.stringify(v.photos) : null, now).run();
-  return jsonResponse({ post: publicPost({ id, author_key: who.authorKey, kind: v.kind, title: v.title, body: v.body, lat: v.lat, lon: v.lon, route_json: v.route ? JSON.stringify(v.route) : null, event_at: v.eventAt, has_photo: v.photos.length > 0, photo_count: v.photos.length, created_at: now }, { ...profile, plus: isPlus(who.account) }) }, 201);
+    `INSERT INTO posts (id, owner_hash, author_key, kind, title, body, lat, lon, route_json, event_at, photo, created_at, status, drawing)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'visible', ?)`
+  ).bind(id, who.ownerHash, who.authorKey, v.kind, v.title, v.body, v.lat, v.lon, v.route ? JSON.stringify(v.route) : null, v.eventAt, v.photos.length ? JSON.stringify(v.photos) : null, now, v.drawing ? 1 : 0).run();
+  return jsonResponse({ post: publicPost({ id, author_key: who.authorKey, kind: v.kind, title: v.title, body: v.body, lat: v.lat, lon: v.lon, route_json: v.route ? JSON.stringify(v.route) : null, event_at: v.eventAt, has_photo: v.photos.length > 0, photo_count: v.photos.length, drawing: v.drawing, created_at: now }, { ...profile, plus: isPlus(who.account) }) }, 201);
 }

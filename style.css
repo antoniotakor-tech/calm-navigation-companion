@@ -1870,7 +1870,7 @@ body.nav-away .nav-back-btn { display: flex; align-items: center; }
 .cm-map-wrap { position: relative; margin-bottom: 14px; }
 .cm-map { height: 46vh; min-height: 260px; max-height: 420px; border-radius: 20px; overflow: hidden; border: 1px solid var(--line); }
 .cm-map-hint { position: absolute; left: 10px; top: 10px; padding: 5px 10px; border-radius: 999px; background: var(--glass); font-size: .78rem; pointer-events: none; }
-.cm-map-photo { width: 48px; height: 48px; padding: 0; border-radius: 14px; overflow: hidden; background: #fff; border: 3px solid #fff; }
+.cm-map-photo { width: 36px; height: 36px; padding: 0; border-radius: 11px; overflow: hidden; background: #fff; border: 3px solid #fff; }
 .cm-map-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .cm-map-photo::after { content: ""; position: absolute; left: 50%; bottom: -8px; transform: translateX(-50%); border: 6px solid transparent; border-top-color: #fff; }
 .cm-map-marker { position: relative; overflow: visible; }
@@ -2560,3 +2560,10 @@ body[data-page="0"] .bloom-petals { display: none !important; }
 .cm-pic-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 4px 0; }
 .cm-pic-row .pill { cursor: pointer; }
 .cm-pic-preview { width: 56px; height: 56px; }
+
+/* Drawings on the map: a small paper icon (2026-10-13) */
+.cm-map-marker.cm-map-drawing { width: 34px; height: 34px; color: var(--ink); }
+.cm-map-marker.cm-map-drawing .ci { width: 20px; height: 20px; }
+/* Lightbox "Back": solid and readable over any picture, white drawings included */
+.cm-lightbox-close { width: auto !important; padding: 0 16px; border-radius: 22px !important; background: var(--surface) !important; color: var(--ink) !important; border: 2px solid var(--ink) !important; font: inherit; font-size: 1rem !important; font-weight: 700; box-shadow: 2px 3px 0 rgba(0,0,0,.35); left: 14px; right: auto !important; }
+.cm-lightbox-strip img { cursor: zoom-out; }
