@@ -941,6 +941,20 @@
 
     <!-- Moved here from a footer under the map (2026-10-09) so the map can
          use the full screen height, like Google/Apple Maps. -->
+    <h2>Report a problem or idea</h2>
+    <form class="fb-form" id="fbForm">
+      <div class="pill-row" id="fbKinds" role="radiogroup" aria-label="Type">
+        <button type="button" class="pill active" data-kind="bug">Something's wrong</button>
+        <button type="button" class="pill" data-kind="idea">An idea</button>
+        <button type="button" class="pill" data-kind="other">Other</button>
+      </div>
+      <textarea id="fbText" rows="4" maxlength="2000" placeholder="What happened? What were you trying to do?" aria-label="Your message"></textarea>
+      <input type="text" id="fbContact" maxlength="120" placeholder="Email (optional, only if you'd like a reply)" aria-label="Email (optional)">
+      <p class="desc">We add the app version, the screen you're on and your device type, never your location.</p>
+      <button type="submit" class="pill active" id="fbSend">Send</button>
+      <div class="cm-note" id="fbMsg" role="status"></div>
+    </form>
+
     <h2>About &amp; privacy</h2>
     <p class="desc" style="margin:-6px 0 8px;">Your last 5 routes and any pinned places are saved only on this device — nothing about them is ever sent anywhere, including to this app's own servers.</p>
     <p class="desc" style="margin:0 0 8px;"><a href="/privacy.html" target="_blank" rel="noopener">Read the full privacy policy</a> · <a href="mailto:antoniotakor@icloud.com">Contact / report a problem</a></p>
@@ -1124,6 +1138,7 @@
 <script src="fidget.js"></script>
 <script src="weatherdoodles.js"></script>
 <script src="departures.js"></script>
+<script src="feedback.js"></script>
 <script>
   // Skipped inside the native Capacitor shell: the app ships all assets
   // natively already, and WKWebView's service-worker support is unreliable —
