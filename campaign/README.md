@@ -15,6 +15,32 @@ Everything for the first paid test. **This folder is not deployed** (the deploy 
 
 To rebuild after changing a slogan or a spot: `python3 campaign/tools/build.py`
 
+## Videos (`video/`)
+
+| File | What it is |
+|---|---|
+| `video-1-calm-way.mp4` | The first Reel (published on Instagram, silent) |
+| `video-4-satisfying.mp4` | Fidget: bubble wrap, spinner, clicky, squish → "Also finds you a calmer way home." → end card |
+| `video-5-fastest-vs-calmest.mp4` | Real routes Dam → Vondelpark: fastest (36 min, calm 6.9/10) draws first, then calmest (39 min, calm 7.5/10) → "You choose." → end card |
+| `*.en.srt`, `*.nl.srt` | Captions, English and Dutch |
+| `contact-sheet.png` | 4 frames per video (1, 4, 5) |
+| `src/` | The real app captures the videos are built from, plus the exact route points (`routes-dam-vondelpark.json`) |
+
+All: 1080 × 1920, 30 fps, H.264 + AAC, 15 s, ~9–12 MB. Text stays between 150 px from the top and 250 px from the bottom.
+
+**How they are made:** there is no Playwright or ffmpeg on this machine, so the pipeline is:
+1. Capture the live app at iPhone size (390 × 844, 2×) in the preview browser: real taps on bubbles, a real flick of the spinner, real switches and squish, and a real route search.
+2. `video/render.html` builds each 15 s video from those captures. Only the spinner disc turns between captures, the way it does in the app. The route lines are drawn from the app's own route points, so they are not edited or exaggerated.
+3. Audio is rendered offline: video 4 uses the app's own fidget sound recipes (pop, tick, clack, squish from `fidget.js`) over a soft kalimba bed; video 5 is a short piece played on the app's own `KalimbaEngine`. No outside music.
+4. The browser encodes H.264 video and AAC audio and saves the MP4 through a local-only helper (`tools/sink.py`).
+
+**To regenerate video 4 or 5:**
+1. In Claude Code's preview, start the **ad-render** server (it serves the app folder on port 8744 and saves into `campaign/video/`).
+2. Open `http://localhost:8744/campaign/video/render.html`.
+3. In the browser console run `await __render('v4')` or `await __render('v5')`. Run `await __frames()` to redo the frame strips.
+
+**New route or new captures:** search a route in the live app at 390 × 844, hide the route layers on screen only, take a screenshot as `src/route-base.jpg`, and export the projected points of `CalmApp.currentRoute()` (calm) and the `route-fast` source (fast) into the JSON. Pick start and end points where the two routes really differ.
+
 ## How sticker tracking works
 
 Each QR code opens a short link like `calm-navigation-companion.pages.dev/go/ams-canal`. That page shows "Opening Calm Companion…" for half a second, then opens the app with UTM tags. Cloudflare Web Analytics counts visits **per path**, so you'll see how many people scanned at the canal, the park, the café or the bike racks, without cookies.

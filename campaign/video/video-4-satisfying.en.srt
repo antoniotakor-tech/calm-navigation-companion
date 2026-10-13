@@ -1,0 +1,12 @@
+1
+00:00:00,100 --> 00:00:03,000
+For when your hands need something to do.
+
+2
+00:00:11,100 --> 00:00:13,000
+Also finds you a calmer way home.
+
+3
+00:00:13,000 --> 00:00:15,000
+Calm Companion · calm-navigation-companion.pages.dev
+

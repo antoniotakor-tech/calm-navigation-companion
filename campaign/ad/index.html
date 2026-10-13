@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Calm Companion ad render</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gaegu:wght@700&family=Atkinson+Hyperlegible:wght@700&display=swap">
+<style>body{margin:0;background:#222;color:#eee;font:14px system-ui} canvas{width:270px;height:480px;display:block;margin:12px;border:1px solid #555}</style>
+</head><body>
+<canvas id="c" width="1080" height="1920"></canvas>
+<div id="log">loading…</div>
+<script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/build/mp4-muxer.js"></script>
+<script>
+// Calm Companion — 15 s vertical ad (1080x1920, 30 fps). Rendered frame by frame (deterministic),
+// encoded with WebCodecs H.264 and muxed to MP4. Local tool, never deployed.
+const W = 1080, H = 1920, FPS = 30, DUR = 15;
+const c = document.getElementById('c'), g = c.getContext('2d');
+const INK = '#2D2A3E', PAPER = '#FFFAF1';
+const img = {};
+const load = (k, src) => new Promise(r => { const i = new Image(); i.onload = () => { img[k] = i; r(); }; i.src = src; });
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const ease = t => 1 - Math.pow(1 - clamp(t), 3);
+const back = t => { t = clamp(t); const s = 1.7; return 1 + (s + 1) * Math.pow(t - 1, 3) + s * Math.pow(t - 1, 2); };
+const local = (t, a, b) => clamp((t - a) / (b - a));
+
+function rr(x, y, w, h, r) { g.beginPath(); g.roundRect(x, y, w, h, r); }
+function card(x, y, w, h, fill = '#fff', r = 40) {
+  g.fillStyle = INK; rr(x + 12, y + 14, w, h, r); g.fill();
+  g.fillStyle = fill; rr(x, y, w, h, r); g.fill(); g.lineWidth = 8; g.strokeStyle = INK; g.stroke();
+}
+function text(s, x, y, size, color = INK, font = 'Gaegu', weight = 700, align = 'center') {
+  g.font = `${weight} ${size}px "${font}"`; g.fillStyle = color; g.textAlign = align; g.textBaseline = 'middle'; g.fillText(s, x, y);
+}
+function titleCard(lines, y, t, fill = '#fff', size = 96) {
+  const a = ease(t), h = lines.length * size * 1.05 + 70;
+  g.save(); g.globalAlpha = a; g.translate(0, (1 - a) * 40);
+  card(80, y, W - 160, h, fill);
+  lines.forEach((l, i) => text(l, W / 2, y + 35 + size * 0.55 + i * size * 1.05, size));
+  g.restore();
+}
+function cloud(x, y, s) {
+  g.fillStyle = '#fff'; g.strokeStyle = INK; g.lineWidth = 7;
+  const parts = [[-55, 10, 50], [0, -18, 66], [60, 10, 50]];
+  parts.forEach(([dx, dy, r]) => { g.beginPath(); g.arc(x + dx * s, y + dy * s, r * s, 0, 7); g.fill(); g.stroke(); });
+  parts.forEach(([dx, dy, r]) => { g.beginPath(); g.arc(x + dx * s, y + dy * s, r * s - 6, 0, 7); g.fill(); });
+}
+function flower(x, y, r, col) {
+  g.lineWidth = Math.max(4, r / 5); g.strokeStyle = INK;
+  for (let k = 0; k < 5; k++) { const a = -Math.PI / 2 + k * 2 * Math.PI / 5; g.fillStyle = col; g.beginPath(); g.arc(x + Math.cos(a) * r * 1.2, y + Math.sin(a) * r * 1.2, r, 0, 7); g.fill(); g.stroke(); }
+  g.fillStyle = '#FFD84D'; g.beginPath(); g.arc(x, y, r * 0.8, 0, 7); g.fill(); g.stroke();
+}
+function phone(im, x, y, w, zoom = 1, ox = 0.5, oy = 0.4) {
+  const h = w * 1212 / 560;
+  g.fillStyle = INK; rr(x + 14, y + 18, w, h, 56); g.fill();
+  g.save(); rr(x, y, w, h, 56); g.clip(); g.fillStyle = PAPER; g.fillRect(x, y, w, h);
+  const dw = w * zoom, dh = h * zoom; g.drawImage(im, x - (dw - w) * ox, y - (dh - h) * oy, dw, dh); g.restore();
+  g.lineWidth = 10; g.strokeStyle = INK; rr(x, y, w, h, 56); g.stroke();
+  return h;
+}
+function amanda(x, y, size, t = 1) {
+  const s = back(t); if (s <= 0) return;
+  g.save(); g.translate(x, y + size / 2); g.scale(s, s); g.drawImage(img.amanda, -size / 2, -size, size, size); g.restore();
+}
+function paper(bg = PAPER, lines = '#E3E8F2') {
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  g.strokeStyle = lines; g.lineWidth = 3; for (let y = 120; y < H; y += 72) { g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); }
+}
+
+const scenes = [
+  { a: 0, b: 3, draw(t, T) {          // 1 · the feeling
+    g.fillStyle = '#7CC8FF'; g.fillRect(0, 0, W, H);
+    cloud(220 + T * 18, 260, 1.2); cloud(820 - T * 14, 200, 0.9); cloud(560 + T * 10, 1500, 1.3);
+    g.fillStyle = '#7ED67A'; rr(-60, 1560, W + 120, 500, 160); g.fill(); g.lineWidth = 9; g.strokeStyle = INK; g.stroke();
+    [[160, 1680, '#FF86B5'], [340, 1760, '#B58CFF'], [760, 1740, '#FFD84D'], [930, 1660, '#FF86B5']].forEach(f => flower(f[0], f[1], 34, f[2]));
+    titleCard(['The city feels', 'like too much?'], 420, local(T, 0.1, 0.7));
+    amanda(W / 2, 1180, 640, local(T, 0.9, 1.6));
+  }},
+  { a: 3, b: 7.5, draw(t, T) {        // 2 · the calmer way
+    g.fillStyle = '#FFD84D'; g.fillRect(0, 0, W, H);
+    const h = phone(img.map, 250, 640, 580, 1 + 0.12 * t, 0.45, 0.45);
+    // calm route drawing itself over the map
+    const pts = [[330, 1700], [400, 1520], [520, 1420], [560, 1220], [680, 1100], [740, 900]];
+    const total = local(T, 0.6, 3.6) * (pts.length - 1);
+    g.lineWidth = 22; g.lineCap = 'round'; g.strokeStyle = '#FF9F43'; g.setLineDash([34, 26]); g.beginPath(); g.moveTo(...pts[0]);
+    for (let i = 1; i <= Math.ceil(total); i++) { const p = pts[i - 1], q = pts[i], f = Math.min(1, total - (i - 1)); g.lineTo(p[0] + (q[0] - p[0]) * f, p[1] + (q[1] - p[1]) * f); }
+    g.stroke(); g.setLineDash([]);
+    g.fillStyle = '#7ED67A'; g.beginPath(); g.arc(330, 1700, 30, 0, 7); g.fill(); g.lineWidth = 8; g.strokeStyle = INK; g.stroke();
+    if (total >= pts.length - 1.05) flower(740, 900, 34, '#FF86B5');
+    titleCard(['It finds the', 'quieter way'], 300, local(T, 0, 0.5));
+  }},
+  { a: 7.5, b: 10.5, draw(t, T) {     // 3 · sounds
+    g.fillStyle = '#B58CFF'; g.fillRect(0, 0, W, H);
+    g.strokeStyle = '#7CC8FF'; g.lineWidth = 12; g.lineCap = 'round';
+    for (let i = 0; i < 40; i++) { const x = (i * 137) % W, y = ((i * 211) % H + T * 900) % H; g.beginPath(); g.moveTo(x, y); g.lineTo(x - 12, y + 46); g.stroke(); }
+    phone(img.sound, 250, 640, 580, 1.08, 0.5, 0.25);
+    titleCard(['Turn the city down'], 330, local(T, 0, 0.5), '#FFD84D');
+    text('Rain · Stream · Soft noise', W / 2, 560, 52, '#fff', 'Atkinson Hyperlegible');
+  }},
+  { a: 10.5, b: 13, draw(t, T) {      // 4 · calm spots
+    g.fillStyle = '#FBE0E8'; g.fillRect(0, 0, W, H);
+    const s = 900 * (1 + 0.05 * t);
+    g.drawImage(img.places, (W - s) / 2, 640 + (900 - s) / 2, s, s);
+    g.lineWidth = 8; g.strokeStyle = INK; g.strokeRect((W - s) / 2, 640 + (900 - s) / 2, s, s);
+    titleCard(['Find calm spots', 'near you'], 300, local(T, 0, 0.5));
+  }},
+  { a: 13, b: 15, draw(t, T) {        // 5 · end card
+    paper();
+    g.strokeStyle = '#F2B8C6'; g.lineWidth = 6; g.beginPath(); g.moveTo(110, 0); g.lineTo(110, H); g.stroke();
+    amanda(W / 2, 760, 620, local(T, 0, 0.7));
+    text('Calm Companion', W / 2, 1180, 128);
+    text('The calm navigation app', W / 2, 1290, 58, '#5D5873', 'Atkinson Hyperlegible');
+    const a = ease(local(T, 0.6, 1.1)); g.save(); g.globalAlpha = a;
+    card(W / 2 - 230, 1380, 460, 120, '#FFD84D', 60); text('Link in bio', W / 2, 1442, 72);
+    g.restore();
+  }},
+];
+
+function drawAt(sec) {
+  for (let i = 0; i < scenes.length; i++) {
+    const s = scenes[i];
+    if (sec >= s.a && sec < s.b || (i === scenes.length - 1 && sec >= s.a)) {
+      const T = sec - s.a, t = T / (s.b - s.a);
+      s.draw(t, T);
+      // quick crossfade from the previous scene in the first 0.25 s
+      if (i > 0 && T < 0.25) { g.save(); g.globalAlpha = 1 - T / 0.25; scenes[i - 1].draw(1, scenes[i - 1].b - scenes[i - 1].a); g.restore(); }
+      return;
+    }
+  }
+}
+
+async function render() {
+  const log = m => document.getElementById('log').textContent = m;
+  await Promise.all([load('map', '/welcome/img/map.jpg'), load('sound', '/welcome/img/sound.jpg'), load('amanda', 'amanda.png'), load('places', 'calm-places.png')]);
+  await document.fonts.load('700 96px Gaegu'); await document.fonts.load('700 52px "Atkinson Hyperlegible"');
+  const config = { codec: 'avc1.640028', width: W, height: H, bitrate: 6_000_000, framerate: FPS, avc: { format: 'avc' } };
+  const sup = await VideoEncoder.isConfigSupported(config);
+  if (!sup.supported) { log('H.264 encoding not supported here'); window.__result = 'unsupported'; return; }
+  const muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: 'avc', width: W, height: H, frameRate: FPS }, fastStart: 'in-memory' });
+  const enc = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: e => { window.__result = 'error ' + e.message; } });
+  enc.configure(config);
+  const frames = FPS * DUR;
+  for (let i = 0; i < frames; i++) {
+    drawAt(i / FPS);
+    const f = new VideoFrame(c, { timestamp: Math.round(i * 1e6 / FPS), duration: Math.round(1e6 / FPS) });
+    enc.encode(f, { keyFrame: i % 60 === 0 }); f.close();
+    while (enc.encodeQueueSize > 8) await new Promise(r => setTimeout(r, 5));
+    if (i % 30 === 0) log(`frame ${i}/${frames}`);
+  }
+  await enc.flush(); muxer.finalize();
+  const buf = muxer.target.buffer;
+  const r = await fetch('/save?name=calm-ad-15s.mp4', { method: 'POST', body: buf });
+  drawAt(14.2); const cover = await new Promise(res => c.toBlob(res, 'image/png'));
+  await fetch('/save?name=calm-ad-cover.png', { method: 'POST', body: cover });
+  window.__result = `saved ${buf.byteLength} bytes (${r.status})`; log(window.__result);
+}
+window.__render = render;
+</script>
+</body></html>

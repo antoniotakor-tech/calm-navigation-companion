@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Calm Companion video render (4 + 5)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gaegu:wght@700&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<style>body{margin:0;background:#222;color:#eee;font:14px system-ui} canvas{width:270px;height:480px;display:block;margin:12px;border:1px solid #555}</style>
+</head><body>
+<canvas id="c" width="1080" height="1920"></canvas><div id="log">ready</div>
+<script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/build/mp4-muxer.js"></script>
+<script src="/kalimbaengine.js"></script>
+<script>
+// Renders campaign videos 4 ("Satisfying") and 5 ("Fastest vs. calmest") from REAL app captures
+// in ./src (iPhone 390x844 viewport, 2x). Audio = the app's own sound recipes (fidget pops/clicks/
+// squish, copied from fidget.js) + the app's KalimbaEngine, rendered offline so it is frame-exact.
+// 1080x1920, 30 fps, H.264 + AAC MP4. Local tool only. Usage: await __render('v4') / ('v5').
+const W = 1080, H = 1920, FPS = 30, DUR = 15, SR = 48000;
+const SAFE_TOP = 150, SAFE_BOTTOM = H - 250;
+const c = document.getElementById('c'), g = c.getContext('2d');
+const INK = '#2D2A3E', CREAM = '#FFFAF1', URL_TXT = 'calm-navigation-companion.pages.dev';
+const img = {};
+const load = (k, src) => new Promise((r, j) => { const i = new Image(); i.onload = () => { img[k] = i; r(); }; i.onerror = () => j(src); i.src = src; });
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const ease = t => 1 - Math.pow(1 - clamp(t), 3);
+const inOut = t => { t = clamp(t); return t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; };
+const local = (t, a, b) => clamp((t - a) / (b - a));
+
+// ---------- drawing helpers ----------
+function rr(x, y, w, h, r) { g.beginPath(); g.roundRect(x, y, w, h, r); }
+// Full-bleed app capture: 780x1688 screenshot scaled to 1080 wide, vertical window centred on cy (screenshot px).
+function shot(key, cy, zoom = 1, alpha = 1) {
+  const im = img[key], s = (W / im.width) * zoom;
+  const dw = im.width * s, dh = im.height * s;
+  let y = H / 2 - cy * s; y = Math.min(0, Math.max(H - dh, y));
+  g.save(); g.globalAlpha = alpha; g.drawImage(im, (W - dw) / 2, y, dw, dh); g.restore();
+  return { s, x: (W - dw) / 2, y };
+}
+function pill(lines, y, t = 1, size = 76) {
+  const a = ease(t); if (a <= 0) return;
+  g.font = `700 ${size}px Gaegu`;
+  const w = Math.min(W - 120, Math.max(...lines.map(l => g.measureText(l).width)) + 110);
+  const h = lines.length * size * 1.1 + 56, x = (W - w) / 2;
+  y = clamp(y, SAFE_TOP, SAFE_BOTTOM - h);
+  g.save(); g.globalAlpha = a; g.translate(0, (1 - a) * 30);
+  g.fillStyle = INK; rr(x + 10, y + 12, w, h, h / 2.2); g.fill();
+  g.fillStyle = CREAM; rr(x, y, w, h, h / 2.2); g.fill(); g.lineWidth = 7; g.strokeStyle = INK; g.stroke();
+  g.fillStyle = INK; g.textAlign = 'center'; g.textBaseline = 'middle';
+  lines.forEach((l, i) => g.fillText(l, W / 2, y + 28 + size * 0.55 + i * size * 1.1));
+  g.restore();
+}
+function endCard(t) {
+  g.fillStyle = CREAM; g.fillRect(0, 0, W, H);
+  g.strokeStyle = '#E3E8F2'; g.lineWidth = 3; for (let y = 120; y < H; y += 72) { g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); }
+  g.strokeStyle = '#F2B8C6'; g.lineWidth = 6; g.beginPath(); g.moveTo(110, 0); g.lineTo(110, H); g.stroke();
+  const s = 0.6 + 0.4 * ease(t * 1.6);
+  g.save(); g.translate(W / 2, 900); g.scale(s, s); g.drawImage(img.amanda, -300, -560, 600, 600); g.restore();
+  g.fillStyle = INK; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = '700 128px Gaegu'; g.fillText('Calm Companion', W / 2, 1060);
+  g.font = '700 50px "Atkinson Hyperlegible"'; g.fillStyle = '#5D5873'; g.fillText('The calm navigation app', W / 2, 1160);
+  const a = ease(local(t, .25, .6)); g.save(); g.globalAlpha = a;
+  g.fillStyle = INK; rr(W / 2 - 440 + 10, 1240 + 12, 880, 110, 55); g.fill();
+  g.fillStyle = '#FFD84D'; rr(W / 2 - 440, 1240, 880, 110, 55); g.fill(); g.lineWidth = 7; g.strokeStyle = INK; g.stroke();
+  g.fillStyle = INK; g.font = '700 40px "Atkinson Hyperlegible"'; g.fillText(URL_TXT, W / 2, 1297);
+  g.restore();
+}
+function fade(sec) { // 0.25 s fade from/to black-ish cream at the very start/end
+  const a = Math.max(1 - sec / 0.25, (sec - (DUR - 0.25)) / 0.25);
+  if (a > 0) { g.save(); g.globalAlpha = clamp(a); g.fillStyle = CREAM; g.fillRect(0, 0, W, H); g.restore(); }
+}
+
+// ---------- VIDEO 4 · Satisfying ----------
+const SPIN = { cx: 390, cy: 895, r: 252 };           // spinner centre/radius in the capture (screenshot px)
+function spinPatch(key, cy, angle) {                    // rotate only the spinner disc of the real capture
+  const v = shot(key, cy);
+  const cx = v.x + SPIN.cx * v.s, cyy = v.y + SPIN.cy * v.s, R = SPIN.r * v.s;
+  g.save(); g.beginPath(); g.arc(cx, cyy, R, 0, 7); g.clip();
+  g.translate(cx, cyy); g.rotate(angle); g.translate(-cx, -cyy); shot(key, cy); g.restore();
+}
+function drawV4(sec) {
+  if (sec < 3) {                                       // bubble wrap being popped (real states 0 -> 5 -> 17)
+    const k = sec < 1 ? 'b0' : sec < 2 ? 'b5' : 'b17';
+    shot(k, 1000, 1.02 + 0.03 * (sec / 3));
+    pill(['For when your hands', 'need something to do.'], 1520, local(sec, .1, .6), 70);
+  } else if (sec < 5) {                                // spinner, fast
+    const t = sec - 3, ang = 9.5 * t - 0.6 * t * t;
+    spinPatch('s245', 895, ang);
+  } else if (sec < 7) {                                // clicky: switches flip off -> on
+    shot(sec < 5.9 ? 'b0' : 'click', sec < 5.9 ? 1500 : 1000, 1.05);
+  } else if (sec < 9) {                                // squish: rest -> pressed -> rest
+    const t = sec - 7; shot(t > 0.5 && t < 1.4 ? 'sqp' : 'sqr', 1150, 1.05);
+  } else if (sec < 11) {                               // spinner again, slowing down
+    const t = sec - 9, ang = 4 * t - 0.8 * t * t;
+    spinPatch('s158', 895, ang);
+  } else if (sec < 13) {
+    shot('routeCard', 760, 1.0);
+    pill(['Also finds you a', 'calmer way home.'], 1450, local(sec, 11.1, 11.6), 74);
+  } else endCard(local(sec, 13, 15));
+  fade(sec);
+}
+// Real fidget sound recipes from fidget.js, scheduled at exact times.
+function fidgetSound(ctx, out, kind, t) {
+  const gn = ctx.createGain(); gn.connect(out); const o = ctx.createOscillator();
+  if (kind === 'pop') { o.type = 'triangle'; o.frequency.setValueAtTime(700 + Math.random() * 300, t); o.frequency.exponentialRampToValueAtTime(120, t + 0.06); gn.gain.setValueAtTime(0.25, t); gn.gain.exponentialRampToValueAtTime(0.001, t + 0.08); }
+  else if (kind === 'tick') { o.type = 'square'; o.frequency.value = 2200; gn.gain.setValueAtTime(0.04, t); gn.gain.exponentialRampToValueAtTime(0.001, t + 0.012); }
+  else if (kind === 'clack') { o.type = 'square'; o.frequency.setValueAtTime(900, t); o.frequency.exponentialRampToValueAtTime(300, t + 0.02); gn.gain.setValueAtTime(0.12, t); gn.gain.exponentialRampToValueAtTime(0.001, t + 0.035); }
+  else { o.type = 'sine'; o.frequency.setValueAtTime(kind === 'squish-in' ? 260 : 180, t); o.frequency.exponentialRampToValueAtTime(kind === 'squish-in' ? 140 : 320, t + 0.12); gn.gain.setValueAtTime(0.18, t); gn.gain.exponentialRampToValueAtTime(0.001, t + 0.15); }
+  o.connect(gn); o.start(t); o.stop(t + 0.2);
+}
+
+// ---------- VIDEO 5 · Fastest vs calmest ----------
+let ROUTES = null;
+function polyPart(pts, frac, map, color, width, dash) {
+  if (frac <= 0) return;
+  const P = pts.map(([x, y]) => [map.x + x * 2 * map.s, map.y + y * 2 * map.s]);
+  let len = 0; const seg = []; for (let i = 1; i < P.length; i++) { const d = Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]); seg.push(d); len += d; }
+  let left = len * clamp(frac);
+  g.save(); g.lineWidth = width; g.lineCap = 'round'; g.lineJoin = 'round'; g.strokeStyle = color; if (dash) g.setLineDash(dash);
+  g.beginPath(); g.moveTo(...P[0]);
+  for (let i = 1; i < P.length && left > 0; i++) { const f = Math.min(1, left / seg[i - 1]); g.lineTo(P[i - 1][0] + (P[i][0] - P[i - 1][0]) * f, P[i - 1][1] + (P[i][1] - P[i - 1][1]) * f); left -= seg[i - 1]; }
+  g.stroke(); g.restore();
+}
+function tag(text, x, y, bg, t = 1) {
+  const a = ease(t); if (a <= 0) return;
+  g.font = '700 46px "Atkinson Hyperlegible"'; const w = g.measureText(text).width + 60;
+  g.save(); g.globalAlpha = a;
+  g.fillStyle = INK; rr(x + 6, y + 8, w, 84, 42); g.fill();
+  g.fillStyle = bg; rr(x, y, w, 84, 42); g.fill(); g.lineWidth = 6; g.strokeStyle = INK; g.stroke();
+  g.fillStyle = INK; g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillText(text, x + 30, y + 44); g.restore();
+}
+function drawV5(sec) {
+  if (sec >= 13.2) { endCard(local(sec, 13.2, 15)); fade(sec); return; }
+  const zoom = 1.0 + 0.04 * clamp(sec / 13);
+  const map = shot('routeBase', 1000, zoom);
+  const fastF = inOut(local(sec, 3.2, 7.4)), calmF = inOut(local(sec, 8.2, 11.6));
+  // fastest: the app's own colour (#FF5C8A, dashed), calmest: the app's green (#3DBE7A)
+  polyPart(ROUTES.fastPts, fastF, map, '#FFFFFF', 22, null);
+  polyPart(ROUTES.fastPts, fastF, map, '#FF5C8A', 14, [26, 22]);
+  polyPart(ROUTES.calmPts, calmF, map, '#FFFFFF', 26, null);
+  polyPart(ROUTES.calmPts, calmF, map, '#3DBE7A', 16, null);
+  if (sec < 3) pill(['Same trip.', 'Two ways.'], 1430, local(sec, .1, .6), 84);
+  else if (sec < 8) { pill(['Fastest.'], 1480, local(sec, 3.1, 3.5), 92); tag('36 min · Calm 6.9/10', 120, 1250, '#FFD3DF', local(sec, 4, 4.5)); }
+  else if (sec < 12) { pill(['Calmest.'], 1480, local(sec, 8.1, 8.5), 92); tag('36 min · Calm 6.9/10', 120, 1150, '#FFD3DF', 1); tag('39 min · Calm 7.5/10', 120, 1250, '#D9F5E3', local(sec, 9.5, 10)); }
+  else { pill(['You choose.'], 1480, local(sec, 12.05, 12.4), 92); tag('36 min · Calm 6.9/10', 120, 1150, '#FFD3DF', 1); tag('39 min · Calm 7.5/10', 120, 1250, '#D9F5E3', 1); }
+  g.save(); g.font = '700 34px "Atkinson Hyperlegible"'; g.fillStyle = INK; g.textAlign = 'left';
+  g.globalAlpha = .9; g.fillText('Dam → Vondelpark, Amsterdam · walking', 120, 1080); g.restore();
+  fade(sec);
+}
+
+// ---------- audio (offline, frame-exact) ----------
+async function buildAudio(which) {
+  const off = new OfflineAudioContext(2, SR * DUR, SR);
+  const master = off.createGain(); master.connect(off.destination);
+  master.gain.setValueAtTime(0, 0); master.gain.linearRampToValueAtTime(1, 0.6);
+  master.gain.setValueAtTime(1, DUR - 1.2); master.gain.linearRampToValueAtTime(0, DUR - 0.05);
+  const kbus = off.createGain(); kbus.connect(master);
+  // The app's KalimbaEngine, pointed at the offline context. currentTime is proxied so each
+  // pluck lands exactly where we schedule it.
+  let T = 0;
+  const proxy = new Proxy(off, { get: (t, p) => p === 'currentTime' ? T : (typeof t[p] === 'function' ? t[p].bind(t) : t[p]) });
+  const kal = new KalimbaEngine({ ensureCtx() {}, ctx: proxy, getBus: () => kbus });
+  kal.setKey('C');
+  const pluck = (time, tine, vel) => { T = time; kal.pluck(tine, vel); };
+  if (which === 'v4') {
+    kbus.gain.value = 0.45;
+    // soft kalimba bed: slow pentatonic arpeggio (0.75 s per note)
+    const arp = [4, 6, 8, 6, 5, 7, 9, 7, 4, 6, 8, 10, 9, 7, 6, 5, 4, 6, 8, 6];
+    arp.forEach((n, i) => pluck(0.2 + i * 0.75, n, 0.32));
+    const fx = off.createGain(); fx.gain.value = 1.0; fx.connect(master);
+    [0.35, 0.6, 0.85, 1.15, 1.4, 1.62, 1.85, 2.05, 2.25, 2.45, 2.6, 2.75, 2.9].forEach(t => fidgetSound(off, fx, 'pop', t));
+    for (let t = 3.05, gap = 0.035; t < 5; t += gap, gap *= 1.07) fidgetSound(off, fx, 'tick', t);  // spinner ticks slowing
+    [5.9, 6.25, 6.6].forEach(t => fidgetSound(off, fx, 'clack', t));
+    fidgetSound(off, fx, 'squish-in', 7.5); fidgetSound(off, fx, 'squish-out', 8.4);
+    for (let t = 9.05, gap = 0.06; t < 11; t += gap, gap *= 1.09) fidgetSound(off, fx, 'tick', t);
+    pluck(11.0, 8, 0.6); pluck(11.4, 10, 0.55); pluck(13.2, 7, 0.6); pluck(13.6, 9, 0.6); pluck(14.0, 11, 0.55);
+  } else {
+    kbus.gain.value = 0.6;
+    // a calm 15 s kalimba piece in C pentatonic: intro, a hurried figure for "Fastest",
+    // a slower, open figure for "Calmest", and a resolving phrase for the end card.
+    const notes = [
+      [0.2, 4, .5], [0.95, 6, .45], [1.7, 8, .5], [2.45, 7, .45],
+      [3.2, 8, .5], [3.55, 9, .45], [3.9, 10, .5], [4.25, 9, .45], [4.6, 8, .5], [4.95, 9, .45], [5.3, 10, .5], [5.65, 11, .5], [6.0, 10, .45], [6.35, 9, .45], [6.7, 8, .5], [7.05, 7, .45], [7.4, 6, .5],
+      [8.2, 4, .5], [9.0, 6, .5], [9.8, 8, .55], [10.6, 7, .5], [11.4, 9, .55],
+      [12.1, 8, .5], [12.6, 6, .5], [13.2, 4, .6], [13.25, 8, .4], [14.0, 7, .45]
+    ];
+    notes.forEach(([t, n, v]) => pluck(t, n, v));
+  }
+  return off.startRendering();
+}
+
+async function encode(which, drawFn, name) {
+  const log = m => document.getElementById('log').textContent = m;
+  const audio = await buildAudio(which);
+  const muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(),
+    video: { codec: 'avc', width: W, height: H, frameRate: FPS },
+    audio: { codec: 'aac', numberOfChannels: 2, sampleRate: SR }, fastStart: 'in-memory' });
+  const venc = new VideoEncoder({ output: (ch, m) => muxer.addVideoChunk(ch, m), error: e => { throw e; } });
+  venc.configure({ codec: 'avc1.640028', width: W, height: H, bitrate: 7_000_000, framerate: FPS });
+  const aenc = new AudioEncoder({ output: (ch, m) => muxer.addAudioChunk(ch, m), error: e => { throw e; } });
+  aenc.configure({ codec: 'mp4a.40.2', sampleRate: SR, numberOfChannels: 2, bitrate: 160000 });
+  const L = audio.getChannelData(0), R = audio.getChannelData(1), CH = 1024;
+  for (let i = 0; i < L.length; i += CH) {
+    const n = Math.min(CH, L.length - i), buf = new Float32Array(n * 2); buf.set(L.subarray(i, i + n), 0); buf.set(R.subarray(i, i + n), n);
+    const ad = new AudioData({ format: 'f32-planar', sampleRate: SR, numberOfFrames: n, numberOfChannels: 2, timestamp: Math.round(i * 1e6 / SR), data: buf });
+    aenc.encode(ad); ad.close();
+  }
+  for (let i = 0; i < FPS * DUR; i++) {
+    drawFn(i / FPS);
+    const f = new VideoFrame(c, { timestamp: Math.round(i * 1e6 / FPS), duration: Math.round(1e6 / FPS) });
+    venc.encode(f, { keyFrame: i % 60 === 0 }); f.close();
+    while (venc.encodeQueueSize > 8) await new Promise(r => setTimeout(r, 5));
+    if (i % 30 === 0) log(`${name}: frame ${i}`);
+  }
+  await venc.flush(); await aenc.flush(); muxer.finalize();
+  const buf = muxer.target.buffer;
+  const r = await fetch('/save?name=' + name, { method: 'POST', body: buf });
+  return { name, bytes: buf.byteLength, status: r.status };
+}
+async function frames(drawFn, times, name) {     // 4 frames side by side for the contact sheet
+  const sheet = document.createElement('canvas'); sheet.width = 4 * 270; sheet.height = 480; const sg = sheet.getContext('2d');
+  for (let i = 0; i < times.length; i++) { drawFn(times[i]); sg.drawImage(c, i * 270, 0, 270, 480); }
+  const blob = await new Promise(r => sheet.toBlob(r, 'image/png'));
+  await fetch('/save?name=' + name, { method: 'POST', body: blob });
+}
+async function setup() {
+  await Promise.all([
+    load('b0', 'src/fidget-bubbles-0.jpg'), load('b5', 'src/fidget-bubbles-5.jpg'), load('b17', 'src/fidget-bubbles-17.jpg'),
+    load('s245', 'src/fidget-spin-245.jpg'), load('s158', 'src/fidget-spin-158.jpg'), load('click', 'src/fidget-clicky-on.jpg'),
+    load('sqr', 'src/fidget-squish-rest.jpg'), load('sqp', 'src/fidget-squish-pressed.jpg'),
+    load('routeBase', 'src/route-base.jpg'), load('routeCard', 'src/route-card.jpg'), load('amanda', 'src/amanda.png')]);
+  ROUTES = await (await fetch('src/routes-dam-vondelpark.json')).json();
+  await document.fonts.load('700 80px Gaegu'); await document.fonts.load('700 46px "Atkinson Hyperlegible"');
+}
+window.__render = async (which) => {
+  await setup();
+  if (which === 'v4') return encode('v4', drawV4, 'video-4-satisfying.mp4');
+  if (which === 'v5') return encode('v5', drawV5, 'video-5-fastest-vs-calmest.mp4');
+};
+window.__frames = async () => { await setup(); await frames(drawV4, [1.5, 4, 8, 14], 'frames-4.png'); await frames(drawV5, [1.5, 6, 11, 14.5], 'frames-5.png'); return 'ok'; };
+window.drawV4 = drawV4; window.drawV5 = drawV5;
+</script>
+</body></html>
