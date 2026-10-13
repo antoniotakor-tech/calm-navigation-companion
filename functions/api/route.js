@@ -30,6 +30,10 @@ export async function onRequestGet(context) {
   }
 
   const incoming = new URL(request.url);
+  // ?calm=1 (2026-10-13): ask GraphHopper for a calm-weighted route with a
+  // FIXED server-side custom model (main roads strongly avoided, foot/cycle
+  // paths and quiet streets preferred). The client can't send its own model.
+  if (incoming.searchParams.get("calm") === "1") return calmRoute(incoming, env);
   const upstream = new URL("https://graphhopper.com/api/1/route");
   for (const key of ALLOWED_PARAMS) {
     for (const value of incoming.searchParams.getAll(key)) {
@@ -53,4 +57,39 @@ export async function onRequestGet(context) {
     status: resp.status,
     headers: { "content-type": "application/json", "cache-control": "no-store", ...CORS_HEADERS },
   });
+}
+
+
+const CALM_MODEL = {
+  priority: [
+    { if: "road_class == MOTORWAY || road_class == TRUNK", multiply_by: "0.05" },
+    { else_if: "road_class == PRIMARY", multiply_by: "0.25" },
+    { else_if: "road_class == SECONDARY", multiply_by: "0.4" },
+    { else_if: "road_class == TERTIARY", multiply_by: "0.7" },
+    { else_if: "road_class == FOOTWAY || road_class == PATH || road_class == PEDESTRIAN || road_class == CYCLEWAY || road_class == LIVING_STREET", multiply_by: "1" },
+    { else: "", multiply_by: "0.9" },
+  ],
+  distance_influence: 30,
+};
+
+async function calmRoute(incoming, env) {
+  const points = incoming.searchParams.getAll("point").slice(0, 2).map((p) => p.split(",").map(Number).reverse()); // [lon,lat]
+  const profile = incoming.searchParams.get("profile") === "bike" ? "bike" : "foot";
+  if (points.length !== 2 || points.flat().some((n) => !Number.isFinite(n))) {
+    return new Response(JSON.stringify({ error: "Two points are required." }), { status: 400, headers: { "content-type": "application/json", ...CORS_HEADERS } });
+  }
+  const body = {
+    points, profile, "ch.disable": true, custom_model: CALM_MODEL,
+    points_encoded: false, locale: "en", instructions: true,
+    details: incoming.searchParams.getAll("details").filter((d) => /^[a-z_]{2,30}$/.test(d)).slice(0, 8),
+  };
+  let resp;
+  try {
+    resp = await fetch("https://graphhopper.com/api/1/route?key=" + encodeURIComponent(env.GRAPHHOPPER_API_KEY), {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
+    });
+  } catch (e) {
+    return new Response(JSON.stringify({ error: "Upstream routing service unreachable." }), { status: 502, headers: { "content-type": "application/json", ...CORS_HEADERS } });
+  }
+  return new Response(await resp.text(), { status: resp.status, headers: { "content-type": "application/json", "cache-control": "no-store", ...CORS_HEADERS } });
 }

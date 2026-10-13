@@ -257,6 +257,20 @@ async function fetchCalmRoute({ start, end, peakWindows, safetyMode, specialEven
     return buildDemoRoute(start, end, peak, night, safetyMode, "Routing service returned an error — showing a demo route instead.", specialEvent);
   }
   const data = await resp.json();
+  // Extra candidate (2026-10-13): GraphHopper's alternatives often return a
+  // single path for walks, so also fetch one calm-weighted route (server-side
+  // custom model, see functions/api/route.js ?calm=1). Optional — any failure
+  // just leaves the normal candidates.
+  try {
+    const cu = new URL(url.toString());
+    cu.searchParams.set("calm", "1");
+    const cr = await fetchWithTimeout(cu.toString(), requestTimeoutMs);
+    if (cr.ok) {
+      const cd = await cr.json();
+      const extra = (cd.paths || []).filter((p) => p.points && !(data.paths || []).some((q) => Math.abs(q.distance - p.distance) < 15));
+      if (extra.length) data.paths = (data.paths || []).concat(extra);
+    }
+  } catch (e) { /* calm candidate is a bonus */ }
   if (!data.paths || !data.paths.length) {
     return buildDemoRoute(start, end, peak, night, safetyMode, "No route found — showing a demo route instead.", specialEvent);
   }

@@ -46,6 +46,8 @@
   const BIG_ROADS = new Set(["primary", "secondary", "trunk", "motorway"]);
   const CROSSING_COST = { traffic_signals: 1.5, marked: 0.6, unmarked: 0.5, railway: 0.9, uncontrolled: 0.5, informal: 0.4 };
   const PEAK_CROWD_PENALTY = 1.5; // applied to busy road types during rush hour
+  const INTERSECTION_COST_PER_KM = 0.8; // points lost per (weighted) crossing per km
+  const TURN_COST_PER_KM = 0.25;        // points lost per turn per km
   // ==========================================================================
 
   const has = (v) => v !== undefined && v !== null && v !== "missing" && v !== "None" && v !== "";
@@ -106,7 +108,9 @@
     }
     const turns = (path.steps || []).filter((s) => s && s.sign != null && s.sign !== 0 && s.sign !== 4 && s.sign !== 5).length;
     if (Array.isArray(d.crossing) || (path.steps && path.steps.length)) {
-      intersections = clamp(10 - (crossingCost / km) * 1.6 - (turns / km) * 0.6);
+      // Calibrated on real city walks (≈5 crossings/km in central Amsterdam → ~4/10;
+      // ≈1–2/km on quiet routes → 8–9/10).
+      intersections = clamp(10 - (crossingCost / km) * INTERSECTION_COST_PER_KM - (turns / km) * TURN_COST_PER_KM);
     }
     // smoothness: how often the road type changes (continuity)
     let changes = 0;
