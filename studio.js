@@ -533,7 +533,22 @@
     document.querySelectorAll("#chModes [data-chmode]").forEach((x) => x.classList.toggle("active", x.dataset.chmode === (chordState.mode || "hold")));
     $("chVol").value = Math.round(chordState.volume * 100);
   }
-  $("chKeys").addEventListener("click", (e) => { const b = e.target.closest("[data-chkey]"); if (b) { chordState.key = b.dataset.chkey; saveChords(); buildChords(); } });
+  // One key for the whole Studio (2026-10-13): Kalimba and Chords follow
+  // each other. (A exists only for Chords; picking it leaves the Kalimba as is.)
+  let syncingKey = false;
+  function setChordKey(k) { if (!KEYS.hasOwnProperty(k) || chordState.key === k) return; chordState.key = k; saveChords(); buildChords(); }
+  $("chKeys").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-chkey]");
+    if (!b) return;
+    setChordKey(b.dataset.chkey);
+    const kb = document.querySelector(`#kalimbaKeyRow [data-key="${b.dataset.chkey}"]`);
+    if (kb && !kb.classList.contains("active") && !syncingKey) { syncingKey = true; kb.click(); syncingKey = false; }
+  });
+  const kalimbaKeys = document.getElementById("kalimbaKeyRow");
+  if (kalimbaKeys) kalimbaKeys.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-key]");
+    if (b && !syncingKey) setChordKey(b.dataset.key);
+  });
   $("chSounds").addEventListener("click", (e) => { const b = e.target.closest("[data-chsound]"); if (b) { chordState.sound = b.dataset.chsound; saveChords(); buildChords(); } });
   $("chModes").addEventListener("click", (e) => {
     const b = e.target.closest("[data-chmode]");
