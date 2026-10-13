@@ -1668,6 +1668,9 @@
       }
     }
     isSearching = true;
+    // Close any open address suggestions — they stayed on top of the route
+    // result after tapping Find (bug sweep 2026-10-13).
+    for (const id of ["startAcList", "endAcList"]) { const el = document.getElementById(id); if (el) el.style.display = "none"; }
     findBtn.disabled = true;
     findBtn.classList.add("loading");
     findBtnLabel.textContent = "Finding your calm route…";
