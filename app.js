@@ -3656,7 +3656,13 @@
         img.src = info.photo;
       } else showMiniMap();
     }).catch(showMiniMap);
-    return new maplibregl.Popup({ closeButton: true, offset: 14, maxWidth: "290px", className: "place-card-popup" }).setLngLat([place.lon, place.lat]).setDOMContent(wrap);
+    const popup = new maplibregl.Popup({ closeButton: true, offset: 14, maxWidth: "290px", className: "place-card-popup", anchor: "bottom" }).setLngLat([place.lon, place.lat]).setDOMContent(wrap);
+    // Slide the map so the whole card fits on screen (it was cut off near the edges).
+    popup.on("open", () => {
+      const h = map.getContainer().clientHeight;
+      map.easeTo({ center: [place.lon, place.lat], offset: [0, Math.min(170, h * 0.3)], duration: 350 });
+    });
+    return popup;
   }
 
   function buildGoHerePopup(lngLat, name, note) {
