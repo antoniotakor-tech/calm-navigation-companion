@@ -4403,6 +4403,10 @@
   let currentPage = 0;
   let scrollRAF = null;
 
+  // Page position relative to the pager, not the offset parent: on wide
+  // screens the pager is centred, and raw offsetLeft overshot by that margin
+  // — tapping "Draw" landed on Fidget (bug sweep 2026-10-13).
+  function pageScrollX(i) { return pages[i].offsetLeft - pages[0].offsetLeft; }
   function goToPage(i, smooth) {
     i = Math.max(0, Math.min(pages.length - 1, i));
     if (appShellEl.classList.contains("nav-fullscreen")) {
@@ -4414,13 +4418,13 @@
       // which endNavigation() always goes through.
       pagesWrap.style.scrollSnapType = "none";
       pagesWrap.style.scrollBehavior = "auto";
-      pagesWrap.scrollLeft = pages[i].offsetLeft;
+      pagesWrap.scrollLeft = pageScrollX(i);
       requestAnimationFrame(syncActivePageToScroll);
       return;
     }
     pagesWrap.style.scrollSnapType = "";
     pagesWrap.style.scrollBehavior = "";
-    pagesWrap.scrollTo({ left: pages[i].offsetLeft, behavior: smooth === false ? "auto" : "smooth" });
+    pagesWrap.scrollTo({ left: pageScrollX(i), behavior: smooth === false ? "auto" : "smooth" });
   }
 
   // The two off-screen pages stay in the DOM (scroll-snap needs them there),
