@@ -349,8 +349,7 @@
     trySet("transit-ride-line", "line-color", getVar("--sky"));
     trySet("transit-walk-line", "line-color", getVar("--muted"));
     trySet("user-accuracy-fill", "fill-color", getVar("--sky"));
-    trySet("poi-circles", "circle-color", ["match", ["get", "kind"], "shop", getVar("--sky"), "transit", getVar("--calm"), getVar("--accent")]);
-    trySet("poi-circles", "circle-stroke-color", getVar("--surface"));
+    if (map.getSource("pois")) addPoiIcons(); // recolour the doodles for the theme
     trySet("calmspot-circles", "circle-color", getVar("--calm-spot"));
     trySet("calmspot-circles", "circle-stroke-color", getVar("--surface"));
     // Flow's route-glow underlayer follows the theme live, so switching
@@ -1996,6 +1995,13 @@
   // Google/Apple Maps' arrow button: one tap shows the blue dot (with its
   // accuracy ring) and flies the map there. Planning screen only.
   const locateBtn = document.getElementById("locateBtn");
+  const mapKeyBtn = document.getElementById("mapKeyBtn"), mapKey = document.getElementById("mapKey");
+  mapKeyBtn.addEventListener("click", () => {
+    if (map.loaded() && !map.getSource("pois")) ensurePoiLayer(); // so the key has its icons
+    mapKey.hidden = !mapKey.hidden;
+    mapKeyBtn.setAttribute("aria-expanded", String(!mapKey.hidden));
+  });
+  map.on("click", () => { if (!mapKey.hidden) { mapKey.hidden = true; mapKeyBtn.setAttribute("aria-expanded", "false"); } });
   const mapWrapEl = document.getElementById("mapWrap");
   // Keep the button riding just above the results card, whatever its height.
   if (typeof ResizeObserver !== "undefined") {
@@ -3608,13 +3614,16 @@
   function ensurePoiLayer() {
     if (map.getSource("pois")) return;
     map.addSource("pois", { type: "geojson", data: EMPTY_FC });
+    // Dots used to be plain coloured circles — "too random" (2026-10-13).
+    // Each kind now has its own little doodle (cup, bag, bus, leaf) that
+    // matches the legend, so you can read the map without tapping.
+    addPoiIcons();
     map.addLayer({
-      id: "poi-circles", type: "circle", source: "pois",
-      paint: {
-        "circle-radius": ["interpolate", ["linear"], ["zoom"], 14, 3, 17, 5.5],
-        "circle-color": ["match", ["get", "kind"], "shop", getVar("--sky"), "transit", getVar("--calm"), getVar("--accent")],
-        "circle-stroke-width": 1.5,
-        "circle-stroke-color": getVar("--surface"),
+      id: "poi-circles", type: "symbol", source: "pois",
+      layout: {
+        "icon-image": ["match", ["get", "kind"], "shop", "poi-shop", "transit", "poi-transit", "calm", "poi-calm", "poi-food"],
+        "icon-size": ["interpolate", ["linear"], ["zoom"], 14, 0.45, 17, 0.75],
+        "icon-allow-overlap": true,
       },
     });
     map.on("click", "poi-circles", (e) => {
@@ -3899,6 +3908,31 @@
       maxLat: snap(Math.min(b.getNorth(), c.lat + HALF), true),
       maxLon: snap(Math.min(b.getEast(), c.lng + HALF), true),
     };
+  }
+
+  function addPoiIcons() {
+    const draw = {
+      food(c) { c.moveTo(-7, -4); c.lineTo(7, -4); c.lineTo(5, 7); c.lineTo(-5, 7); c.closePath(); c.moveTo(7, -1); c.arc(8.5, 1.5, 2.5, -Math.PI / 2, Math.PI / 2); },
+      shop(c) { c.rect(-7, -3, 14, 10); c.moveTo(-3, -3); c.arc(0, -3, 3, Math.PI, 0); },
+      transit(c) { c.rect(-6, -7, 12, 13); c.moveTo(-6, 0); c.lineTo(6, 0); c.moveTo(-3, 6); c.lineTo(-3, 8); c.moveTo(3, 6); c.lineTo(3, 8); },
+      calm(c) { c.moveTo(-6, 6); c.quadraticCurveTo(-7, -7, 7, -7); c.quadraticCurveTo(7, 7, -6, 6); c.moveTo(-6, 6); c.lineTo(3, -3); },
+    };
+    const colors = { food: getVar("--accent"), shop: getVar("--sky"), transit: getVar("--calm"), calm: getVar("--calm-spot") };
+    for (const kind of Object.keys(draw)) {
+      const id = "poi-" + kind, px = 48, cv = document.createElement("canvas");
+      cv.width = cv.height = px;
+      const c = cv.getContext("2d");
+      c.translate(px / 2, px / 2); c.scale(px / 26, px / 26);
+      c.beginPath(); c.arc(0, 0, 12, 0, Math.PI * 2);
+      c.fillStyle = getVar("--surface") || "#fff"; c.fill();
+      c.lineWidth = 1.8; c.strokeStyle = colors[kind] || "#888"; c.stroke();
+      c.beginPath(); draw[kind](c);
+      c.lineWidth = 1.6; c.lineJoin = c.lineCap = "round"; c.stroke();
+      const img = c.getImageData(0, 0, px, px);
+      if (map.hasImage(id)) map.updateImage(id, img); else map.addImage(id, img, { pixelRatio: 2 });
+      // the map key shows the exact same doodle
+      document.querySelectorAll(".mk-" + kind).forEach((el) => { el.style.backgroundImage = `url(${cv.toDataURL()})`; el.classList.add("mk-img"); });
+    }
   }
 
   function renderPois(pois) {
@@ -4404,6 +4438,7 @@
     // the caller. It can't any more. (2026-09-09)
     if (!Number.isFinite(i)) i = currentPageOr0();
     i = Math.max(0, Math.min(pages.length - 1, i));
+    document.body.dataset.page = String(i); // petals stay off the map page (2026-10-13)
     pages.forEach((p, idx) => {
       const inactive = idx !== i;
       p.toggleAttribute("inert", inactive);

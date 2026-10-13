@@ -2534,3 +2534,22 @@ html.has-plus .plus-only::after { display: none; }
 .perm-explain-actions { display: flex; gap: 10px; justify-content: flex-end; }
 .perm-explain-actions button { min-height: 44px; padding: 0 16px; border-radius: 14px; border: 2px solid var(--ink, #222); background: transparent; color: inherit; font: inherit; }
 .perm-explain-actions .perm-ok { background: var(--accent, #4a7c59); color: #fff; }
+
+/* Map key (2026-10-13) — sits above the locate button */
+.map-key-btn { bottom: calc(var(--sheet-h, 0px) + 74px + env(safe-area-inset-bottom, 0px)); color: var(--ink-soft); }
+.map-key { position: absolute; right: 68px; z-index: 20; bottom: calc(var(--sheet-h, 0px) + 18px + env(safe-area-inset-bottom, 0px));
+  max-width: 250px; padding: 12px 14px; background: var(--surface); color: var(--ink); border: 2px solid var(--ink); border-radius: 16px 20px 14px 18px; box-shadow: 3px 3px 0 var(--ink); font-size: .9rem; }
+.map-key ul { list-style: none; margin: 6px 0; padding: 0; display: grid; gap: 6px; }
+.map-key li { display: flex; align-items: center; gap: 8px; }
+.map-key small { color: var(--muted); display: block; line-height: 1.3; }
+.mk { width: 18px; height: 18px; flex: none; border-radius: 50%; border: 2px solid currentColor; background: var(--surface) center/12px no-repeat; }
+.mk-flower { border: none; background: radial-gradient(circle, #f6c945 0 3px, transparent 3.5px), radial-gradient(circle at 50% 15%, var(--calm-spot) 0 4px, transparent 4.5px), radial-gradient(circle at 50% 85%, var(--calm-spot) 0 4px, transparent 4.5px), radial-gradient(circle at 15% 50%, var(--calm-spot) 0 4px, transparent 4.5px), radial-gradient(circle at 85% 50%, var(--calm-spot) 0 4px, transparent 4.5px); }
+.mk-spot { background: var(--calm-spot); border-color: var(--surface); box-shadow: 0 0 0 1px var(--ink-soft); }
+.mk-food { color: var(--accent); }
+.mk-shop { color: var(--sky); }
+.mk-transit { color: var(--calm); }
+.app-shell.nav-fullscreen .map-key-btn, .app-shell.nav-fullscreen .map-key { display: none; }
+/* Drifting petals are decoration for the tool pages — never over the map,
+   where a coloured speck reads as a place (2026-10-13). */
+body[data-page="0"] .bloom-petals { display: none !important; }
+.mk.mk-img { border: none; background-size: 18px 18px; }
