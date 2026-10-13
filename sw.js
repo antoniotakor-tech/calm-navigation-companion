@@ -78,7 +78,7 @@
 // v55 (2026-10-12): nearest-branch search via the geocoder (Overpass refused it from Cloudflare).
 // v56 (2026-10-12): calm-place recommendations + "How calm was it?" learning.
 // v57 (2026-10-12): curated calm spots keep their own category.
-const CACHE_NAME = "calm-companion-v98";
+const CACHE_NAME = "calm-companion-v99";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -97,6 +97,7 @@ const APP_SHELL = [
   "/weatherdoodles.js",
   "/departures.js",
   "/feedback.js",
+  "/tips.js",
   "/placeinfo.js",
   "/voicefx.js",
   "/exifgps.js",

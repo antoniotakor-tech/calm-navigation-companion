@@ -942,6 +942,17 @@
 
     <!-- Moved here from a footer under the map (2026-10-09) so the map can
          use the full screen height, like Google/Apple Maps. -->
+    <h2>Support the maker</h2>
+    <div class="tip-card" id="tipCard">
+      <p class="desc">Calm Companion is made by one person, with no ads and no tracking. If it helps you, a small tip keeps it going. It unlocks nothing — it's just a thank-you.</p>
+      <div class="pill-row tip-row">
+        <button type="button" class="pill" data-tip="1">€1</button>
+        <button type="button" class="pill active" data-tip="3">€3</button>
+        <button type="button" class="pill" data-tip="5">€5</button>
+      </div>
+      <div class="cm-note" id="tipMsg" role="status"></div>
+    </div>
+
     <h2>Report a problem or idea</h2>
     <form class="fb-form" id="fbForm">
       <div class="pill-row" id="fbKinds" role="radiogroup" aria-label="Type">
@@ -1140,6 +1151,7 @@
 <script src="weatherdoodles.js"></script>
 <script src="departures.js"></script>
 <script src="feedback.js"></script>
+<script src="tips.js"></script>
 <script>
   // Skipped inside the native Capacitor shell: the app ships all assets
   // natively already, and WKWebView's service-worker support is unreliable —
