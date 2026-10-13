@@ -27,3 +27,9 @@ test("name matching ignores accents and filler words", () => {
   assert.equal(P.nameScore("Library", "Town hall"), 0);
   assert.deepEqual(P.typeText("library")[0], "Public library");
 });
+
+test("a café never borrows the photo of the famous building it sits next to", () => {
+  const pages = [{ title: "Royal Palace of Amsterdam", lat: 52.37311, lon: 4.89221 }];
+  assert.equal(P.bestArticle({ name: "Bar Centrale", lat: 52.3731, lon: 4.8922, type: "bar" }, pages), null);
+  assert.equal(P.bestArticle({ name: "Garden", lat: 52.3731, lon: 4.8922, type: "garden" }, pages).title, "Royal Palace of Amsterdam");
+});

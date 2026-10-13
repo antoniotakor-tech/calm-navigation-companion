@@ -63,13 +63,18 @@
    * or (no name match) the single article sitting right on the spot (< 35 m).
    * pages: [{ title, lat, lon, ... }]
    */
+  // Everyday venues (cafés, shops, bars, stops) must match by NAME — sitting
+  // on the same spot as a famous building isn't enough (a café on a square
+  // would otherwise get the square's article and photo).
+  const EVERYDAY = new Set(["cafe", "restaurant", "fast_food", "bar", "pub", "ice_cream", "bakery", "shop", "grocery", "supermarket", "clothes", "stop", "bus", "railway", "tram", "subway"]);
   function bestArticle(place, pages) {
+    const strict = EVERYDAY.has(place.type);
     let best = null, bestScore = 0;
     (pages || []).forEach((p) => {
       if (p.lat == null) return;
       const d = distM(place, p);
       const s = nameScore(place.name, p.title);
-      const score = s >= 0.5 && d < 300 ? s + (1 - d / 300) * 0.2 : (d < 35 ? 0.4 : 0);
+      const score = s >= 0.5 && d < 300 ? s + (1 - d / 300) * 0.2 : (!strict && d < 35 ? 0.4 : 0);
       if (score > bestScore) { bestScore = score; best = p; }
     });
     return best;
@@ -96,7 +101,7 @@
     const img = pages.map((p) => p.imageinfo && p.imageinfo[0]).find((i) => i && i.thumburl && /\.(jpe?g|png|webp)$/i.test(i.url));
     if (!img) return null;
     const artist = ((img.extmetadata && img.extmetadata.Artist && img.extmetadata.Artist.value) || "").replace(/<[^>]+>/g, "").trim();
-    return { photo: img.thumburl, credit: artist ? `Photo: ${artist.slice(0, 40)} · Wikimedia Commons` : "Photo: Wikimedia Commons", link: img.descriptionurl };
+    return { photo: img.thumburl, credit: `Photo taken near here${artist ? " · " + artist.slice(0, 40) : ""} · Wikimedia Commons`, link: img.descriptionurl };
   }
   // Panoramax: free, open street-level photos (growing across Europe).
   async function streetPhoto(place) {
@@ -105,7 +110,7 @@
     const f = d.features && d.features[0];
     const a = f && f.assets;
     const href = a && ((a.sd && a.sd.href) || (a.thumb && a.thumb.href));
-    return href ? { photo: href, credit: "Street photo: Panoramax (open data)" } : null;
+    return href ? { photo: href, credit: "Street view near here · Panoramax (open data)" } : null;
   }
   // Photos people shared in the app's Community at this spot.
   async function communityPhoto(place, apiBase) {
