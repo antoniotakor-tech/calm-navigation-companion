@@ -22,6 +22,8 @@ To rebuild after changing a slogan or a spot: `python3 campaign/tools/build.py`
 | `video-1-calm-way.mp4` | The first Reel (published on Instagram, silent) |
 | `video-4-satisfying.mp4` | Fidget: bubble wrap, spinner, clicky, squish → "Also finds you a calmer way home." → end card |
 | `video-5-fastest-vs-calmest.mp4` | Real routes Dam → Vondelpark: fastest (36 min, calm 6.9/10) draws first, then calmest (39 min, calm 7.5/10) → "You choose." → end card |
+| `video-1-calm-way-jazz.mp4` | Video 1 with a soft swung jazz track made from the app's own instruments |
+| `video-6-make-music.mp4` | Studio: make a beat → loop chords → kalimba on top → keep the layers, save as a song → end card |
 | `*.en.srt`, `*.nl.srt` | Captions, English and Dutch |
 | `contact-sheet.png` | 4 frames per video (1, 4, 5) |
 | `src/` | The real app captures the videos are built from, plus the exact route points (`routes-dam-vondelpark.json`) |
@@ -34,10 +36,13 @@ All: 1080 × 1920, 30 fps, H.264 + AAC, 15 s, ~9–12 MB. Text stays between 150
 3. Audio is rendered offline: video 4 uses the app's own fidget sound recipes (pop, tick, clack, squish from `fidget.js`) over a soft kalimba bed; video 5 is a short piece played on the app's own `KalimbaEngine`. No outside music.
 4. The browser encodes H.264 video and AAC audio and saves the MP4 through a local-only helper (`tools/sink.py`).
 
-**To regenerate video 4 or 5:**
+**To regenerate video 4, 5 or 6:**
 1. In Claude Code's preview, start the **ad-render** server (it serves the app folder on port 8744 and saves into `campaign/video/`).
 2. Open `http://localhost:8744/campaign/video/render.html`.
-3. In the browser console run `await __render('v4')` or `await __render('v5')`. Run `await __frames()` to redo the frame strips.
+3. In the browser console run `await __render('v4')`, `('v5')` or `('v6')`. Run `await __frames()` / `await __frames6()` to redo the frame strips. Set `window.__vbr = 4_500_000` first to keep a file under 10 MB.
+4. Video 1 with jazz: open `http://localhost:8744/campaign/ad/` and run `await __render()`.
+
+**Music:** `video/appsound.js` holds offline copies of the app's own drum voices, chord synth and kalimba engine. `AppSound.jazz(15)` (video 1) and `AppSound.studioDemo(15)` (video 6) compose with them, and every track is normalised to -1 dBFS.
 
 **New route or new captures:** search a route in the live app at 390 × 844, hide the route layers on screen only, take a screenshot as `src/route-base.jpg`, and export the projected points of `CalmApp.currentRoute()` (calm) and the `route-fast` source (fast) into the JSON. Pick start and end points where the two routes really differ.
 

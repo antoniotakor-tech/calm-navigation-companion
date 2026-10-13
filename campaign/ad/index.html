@@ -6,6 +6,8 @@
 <canvas id="c" width="1080" height="1920"></canvas>
 <div id="log">loading…</div>
 <script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/build/mp4-muxer.js"></script>
+<script src="/kalimbaengine.js"></script>
+<script src="/campaign/video/appsound.js"></script>
 <script>
 // Calm Companion — 15 s vertical ad (1080x1920, 30 fps). Rendered frame by frame (deterministic),
 // encoded with WebCodecs H.264 and muxed to MP4. Local tool, never deployed.
@@ -128,10 +130,14 @@ async function render() {
   const log = m => document.getElementById('log').textContent = m;
   await Promise.all([load('map', '/welcome/img/map.jpg'), load('sound', '/welcome/img/sound.jpg'), load('amanda', 'amanda.png'), load('places', 'calm-places.png')]);
   await document.fonts.load('700 96px Gaegu'); await document.fonts.load('700 52px "Atkinson Hyperlegible"');
-  const config = { codec: 'avc1.640028', width: W, height: H, bitrate: 6_000_000, framerate: FPS, avc: { format: 'avc' } };
+  const config = { codec: 'avc1.640028', width: W, height: H, bitrate: 5_000_000, framerate: FPS, avc: { format: 'avc' } };
   const sup = await VideoEncoder.isConfigSupported(config);
   if (!sup.supported) { log('H.264 encoding not supported here'); window.__result = 'unsupported'; return; }
-  const muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: 'avc', width: W, height: H, frameRate: FPS }, fastStart: 'in-memory' });
+  const audio = await AppSound.jazz(DUR); const SR = AppSound.SR;
+  const muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: 'avc', width: W, height: H, frameRate: FPS }, audio: { codec: 'aac', numberOfChannels: 2, sampleRate: SR }, fastStart: 'in-memory' });
+  const aenc = new AudioEncoder({ output: (ch, m) => muxer.addAudioChunk(ch, m), error: e => { window.__result = 'audio error ' + e.message; } });
+  aenc.configure({ codec: 'mp4a.40.2', sampleRate: SR, numberOfChannels: 2, bitrate: 160000 });
+  { const L = audio.getChannelData(0), R = audio.getChannelData(1); for (let i = 0; i < L.length; i += 1024) { const n = Math.min(1024, L.length - i), b = new Float32Array(n * 2); b.set(L.subarray(i, i + n), 0); b.set(R.subarray(i, i + n), n); const ad = new AudioData({ format: 'f32-planar', sampleRate: SR, numberOfFrames: n, numberOfChannels: 2, timestamp: Math.round(i * 1e6 / SR), data: b }); aenc.encode(ad); ad.close(); } }
   const enc = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: e => { window.__result = 'error ' + e.message; } });
   enc.configure(config);
   const frames = FPS * DUR;
@@ -142,11 +148,11 @@ async function render() {
     while (enc.encodeQueueSize > 8) await new Promise(r => setTimeout(r, 5));
     if (i % 30 === 0) log(`frame ${i}/${frames}`);
   }
-  await enc.flush(); muxer.finalize();
+  await enc.flush(); await aenc.flush(); muxer.finalize();
   const buf = muxer.target.buffer;
-  const r = await fetch('/save?name=calm-ad-15s.mp4', { method: 'POST', body: buf });
+  const r = await fetch('/save?name=video-1-calm-way-jazz.mp4', { method: 'POST', body: buf });
   drawAt(14.2); const cover = await new Promise(res => c.toBlob(res, 'image/png'));
-  await fetch('/save?name=calm-ad-cover.png', { method: 'POST', body: cover });
+  await fetch('/save?name=cover-1.png', { method: 'POST', body: cover });
   window.__result = `saved ${buf.byteLength} bytes (${r.status})`; log(window.__result);
 }
 window.__render = render;

@@ -1,0 +1,20 @@
+1
+00:00:00,100 --> 00:00:04,000
+Make a beat.
+
+2
+00:00:04,100 --> 00:00:08,500
+Loop some chords.
+
+3
+00:00:08,600 --> 00:00:11,500
+Play kalimba on top.
+
+4
+00:00:11,600 --> 00:00:13,200
+Keep the layers you like. Save it as a song.
+
+5
+00:00:13,200 --> 00:00:15,000
+Calm Companion · calm-navigation-companion.pages.dev
+
