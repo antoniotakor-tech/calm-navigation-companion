@@ -31,7 +31,8 @@
   const api = {
     session: () => ls.get(SESSION_KEY),
     account: () => account,
-    isPlus: () => !!account && account.plan === "plus",
+    // Calm+ via the web account (Stripe) OR Apple In-App Purchase in the iPhone app.
+    isPlus: () => (!!account && account.plan === "plus") || !!(window.CalmStore && window.CalmStore.ownsPlus()),
     supported: () => !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.create),
     onChange: (fn) => listeners.push(fn),
   };
@@ -138,7 +139,16 @@
     try { billing = await post("/api/billing", { action: "config" }); } catch (e) { /* offline: keep default */ }
     render();
   }
+  const NATIVE = !!(window.CalmStore && window.CalmStore.available);
   async function buy(plan) {
+    if (NATIVE) {
+      try {
+        const r = await window.CalmStore.buyPlus();
+        if (r.ok) { render(); window.PlusGate && PlusGate.mark(); app.toast("Welcome to Calm+ — thank you ♥"); }
+        else if (r.pending) $("acMsg").textContent = "Waiting for approval (Ask to Buy).";
+      } catch (err) { $("acMsg").textContent = err.message || "Purchase didn't go through."; }
+      return;
+    }
     if (!api.session()) { $("acMsg").textContent = "First add a passkey, so Calm+ is yours on every device."; return; }
     try { location.href = (await post("/api/billing", { session: api.session(), action: "checkout", plan })).url; }
     catch (err) { $("acMsg").textContent = err.message; }
@@ -242,10 +252,13 @@
     }
     // Calm+ card
     const plus = api.isPlus();
-    $("plusBuy").hidden = plus || !billing.enabled;
+    $("plusBuy").hidden = plus || !(billing.enabled || NATIVE);
     $("plusManage").hidden = !(plus && account && account.billing);
     $("plusActive").hidden = !plus;
-    $("plusSoon").hidden = plus || billing.enabled;
+    $("plusSoon").hidden = plus || billing.enabled || NATIVE;
+    if ($("plusRestore")) $("plusRestore").hidden = !NATIVE || plus;
+    // iPhone app v1: passkey accounts need Apple "associated domains" — hidden for now.
+    if (NATIVE) $("accountBox").hidden = true;
     $("plusNotify").textContent = ls.get("calmAccount.notified.v1") ? "We'll let you know ✓" : "Notify me when it opens";
     $("plusNotify").disabled = !!ls.get("calmAccount.notified.v1");
     const once = billing.prices && billing.prices.once;
@@ -261,6 +274,14 @@
     $("plusOnce").addEventListener("click", () => buy("once"));
     $("plusManage").addEventListener("click", manage);
     $("plusNotify").addEventListener("click", notifyMe);
+    if ($("plusRestore")) $("plusRestore").addEventListener("click", async () => {
+      try { const owned = await window.CalmStore.restore(); render(); window.PlusGate && PlusGate.mark(); app.toast(owned ? "Calm+ restored ♥" : "No Calm+ purchase found on this Apple ID"); }
+      catch (err) { $("acMsg").textContent = "Couldn't restore — try again."; }
+    });
+    if (NATIVE) {
+      window.CalmStore.onChange(() => { render(); window.PlusGate && PlusGate.mark(); });
+      window.CalmStore.products().then((list) => { const p = list.find((x) => /calmplus/.test(x.id)); if (p) $("plusOnce").textContent = "Get Calm+ · " + p.price + " once"; }).catch(() => {});
+    }
     $("plusClose").addEventListener("click", () => setPlusHidden(true));
     $("plusReopen").addEventListener("click", () => setPlusHidden(false));
     wireSwipe($("plusCard"));

@@ -8,6 +8,15 @@
     const b = e.target.closest("[data-tip]");
     if (!b) return;
     b.disabled = true;
+    // iPhone app: tips go through Apple In-App Purchase (App Store 3.1.1).
+    if (window.CalmStore && window.CalmStore.available) {
+      try {
+        const r = await window.CalmStore.tip(Number(b.dataset.tip));
+        msg.textContent = r.ok ? "Thank you so much ♥" : (r.pending ? "Waiting for approval." : "");
+      } catch (err) { msg.textContent = "The tip didn't go through."; }
+      b.disabled = false;
+      return;
+    }
     try {
       const base = (window.CalmApp && CalmApp.apiBaseUrl) || "";
       const res = await fetch(base + "/api/billing", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "tip", amount: Number(b.dataset.tip) }) });

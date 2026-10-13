@@ -2,12 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CAPACITOR_DEBUG</key>
+	<key>CAPACITOR_DEBUG</key>
 	<string>$(CAPACITOR_DEBUG)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>Calm Companion</string>
+	<string>Calm Companion</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -20,10 +20,40 @@
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.calmnav.companion</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>calmnav</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Calm Companion uses the camera only when you choose "Take photo" to add a picture to a post or draw on it in the Sketchbook.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Allowing location access all the time lets Calm Companion keep guiding you with the screen locked or the app in the background. You can still navigate with the screen on if you'd rather not grant this.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Calm Companion uses your location to show your position on the map and give turn-by-turn directions while you're using the app.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Calm Companion uses the microphone only when you tap Record in the Studio, to record your voice over your beat. Recordings stay on your phone unless you share them.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Lets you save your sketches and songs to your phone.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Calm Companion opens your photo library only when you choose a picture to post or to draw on. Location data is removed before anything is shared.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>audio</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
@@ -47,25 +77,5 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Calm Companion uses your location to show your position on the map and give turn-by-turn directions while you're using the app.</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Allowing location access all the time lets Calm Companion keep guiding you with the screen locked or the app in the background. You can still navigate with the screen on if you'd rather not grant this.</string>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>location</string>
-		<string>audio</string>
-	</array>
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleURLName</key>
-			<string>com.calmnav.companion</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>calmnav</string>
-			</array>
-		</dict>
-	</array>
 </dict>
 </plist>

@@ -13,49 +13,20 @@ WWW_DIR="www"
 rm -rf "$WWW_DIR"
 mkdir -p "$WWW_DIR"
 
-# Root-level app files. config.js is included (it holds no secret — see its
-# own header comment); config.example.js, .dev.vars*, and anything under
-# functions/ (server-side only) are deliberately never copied here.
-FILES=(
-  index.html
-  app.js
-  style.css
-  config.js
-  manifest.json
-  sw.js
-  navlogic.js
-  navsim.js
-  routing.js
-  searchranking.js
-  geocodingservice.js
-  autocompletecontroller.js
-  audioregulation.js
-  prefs.js
-  audiomanager.js
-  ambientengine.js
-  voicequeue.js
-  voiceengine.js
-  effectsengine.js
-  haptics.js
-  patternlibrary.js
-  hapticmanager.js
-  gestureengine.js
-  feedbackengine.js
-  echovalidation.js
-  kalimbaengine.js
-  kalimbacontroller.js
-  echorecorder.js
-  explorationtracker.js
-  echomarkerclustering.js
-  flowtheme.js
-  icon-192.png
-  icon-512.png
-  apple-touch-icon.png
-  favicon-32.png
-)
-
-for f in "${FILES[@]}"; do
+# Root-level app files: every .js/.html/.css/.json/.png/.svg/.ttf at the
+# project root EXCEPT tests, config examples and dev files (2026-10-13 — the
+# old hand-kept list had silently fallen weeks behind the web app, so the
+# iPhone build would have shipped without Community, Studio, Sketch, Fidget…).
+shopt -s nullglob
+for f in *.js *.html *.css *.json *.png *.svg *.ttf *.webmanifest; do
+  case "$f" in
+    *.test.js|*.test.mjs|config.example.js|package.json|package-lock.json|capacitor.config.json|tsconfig*.json) continue ;;
+  esac
   cp "$f" "$WWW_DIR/$f"
+done
+# Static asset folders the pages reference.
+for dir in assets; do
+  [ -d "$dir" ] && cp -R "$dir" "$WWW_DIR/$dir"
 done
 
 # shared/, web/, native/ — the Capacitor-aware logic layer added on top of
