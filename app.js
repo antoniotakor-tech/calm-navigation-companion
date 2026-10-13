@@ -3626,7 +3626,23 @@
     wrap.append(photo, body);
     const [k] = PlaceInfo.typeText(place.type);
     kind.textContent = k;
-    PlaceInfo.lookup(place).then((info) => {
+    // Last-resort picture: a live mini-map of the exact spot (never an empty card).
+    const showMiniMap = () => {
+      photo.classList.remove("loading");
+      photo.innerHTML = "";
+      photo.classList.add("is-map");
+      const box = document.createElement("div");
+      box.className = "place-card-minimap";
+      photo.appendChild(box);
+      try {
+        const mm = new maplibregl.Map({ container: box, style: map.getStyle(), center: [place.lon, place.lat], zoom: 17.5, interactive: false, attributionControl: false });
+        const pin = document.createElement("div");
+        pin.className = "place-card-pin";
+        pin.innerHTML = flowerSvg(BLOOM_COLORS[place.name.length % BLOOM_COLORS.length], 2);
+        new maplibregl.Marker({ element: pin }).setLngLat([place.lon, place.lat]).addTo(mm);
+      } catch (e) { /* tiles unavailable: keep the doodle */ }
+    };
+    PlaceInfo.lookup(place, { apiBase: apiBaseUrl }).then((info) => {
       kind.textContent = info.kind;
       if (!note) why.textContent = info.kindNote;
       if (info.summary) summary.textContent = info.summary;
@@ -3636,10 +3652,10 @@
         const img = new Image();
         img.alt = place.name;
         img.onload = () => { photo.classList.remove("loading"); photo.innerHTML = ""; photo.appendChild(img); };
-        img.onerror = () => photo.classList.remove("loading");
+        img.onerror = showMiniMap;
         img.src = info.photo;
-      } else photo.classList.remove("loading");
-    }).catch(() => photo.classList.remove("loading"));
+      } else showMiniMap();
+    }).catch(showMiniMap);
     return new maplibregl.Popup({ closeButton: true, offset: 14, maxWidth: "290px", className: "place-card-popup" }).setLngLat([place.lon, place.lat]).setDOMContent(wrap);
   }
 

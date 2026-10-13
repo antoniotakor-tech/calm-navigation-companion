@@ -86,17 +86,37 @@
     }));
     return bestArticle(place, pages);
   }
-  async function commonsPhoto(place) {
-    const url = `https://commons.wikimedia.org/w/api.php?action=query&generator=geosearch&ggsnamespace=6&ggscoord=${place.lat.toFixed(5)}%7C${place.lon.toFixed(5)}&ggsradius=50&ggslimit=5&prop=imageinfo&iiprop=url%7Cextmetadata&iiurlwidth=640&format=json&origin=*`;
+  async function commonsPhoto(place, radius) {
+    const url = `https://commons.wikimedia.org/w/api.php?action=query&generator=geosearch&ggsnamespace=6&ggscoord=${place.lat.toFixed(5)}%7C${place.lon.toFixed(5)}&ggsradius=${radius || 50}&ggslimit=8&prop=imageinfo%7Ccoordinates&iiprop=url%7Cextmetadata&iiurlwidth=640&format=json&origin=*`;
     const d = await (await fetch(url)).json();
-    const pages = Object.values((d.query && d.query.pages) || {});
+    // nearest photo first
+    const pages = Object.values((d.query && d.query.pages) || {}).sort((a, b) =>
+      (a.coordinates ? distM(place, { lat: a.coordinates[0].lat, lon: a.coordinates[0].lon }) : 1e9) -
+      (b.coordinates ? distM(place, { lat: b.coordinates[0].lat, lon: b.coordinates[0].lon }) : 1e9));
     const img = pages.map((p) => p.imageinfo && p.imageinfo[0]).find((i) => i && i.thumburl && /\.(jpe?g|png|webp)$/i.test(i.url));
     if (!img) return null;
     const artist = ((img.extmetadata && img.extmetadata.Artist && img.extmetadata.Artist.value) || "").replace(/<[^>]+>/g, "").trim();
     return { photo: img.thumburl, credit: artist ? `Photo: ${artist.slice(0, 40)} · Wikimedia Commons` : "Photo: Wikimedia Commons", link: img.descriptionurl };
   }
+  // Panoramax: free, open street-level photos (growing across Europe).
+  async function streetPhoto(place) {
+    const url = `https://api.panoramax.xyz/api/search?place_position=${place.lon.toFixed(6)},${place.lat.toFixed(6)}&place_distance=0-60&limit=1`;
+    const d = await (await fetch(url)).json();
+    const f = d.features && d.features[0];
+    const a = f && f.assets;
+    const href = a && ((a.sd && a.sd.href) || (a.thumb && a.thumb.href));
+    return href ? { photo: href, credit: "Street photo: Panoramax (open data)" } : null;
+  }
+  // Photos people shared in the app's Community at this spot.
+  async function communityPhoto(place, apiBase) {
+    const d = await (await fetch(`${apiBase || ""}/api/social/posts?lat=${place.lat.toFixed(4)}&lon=${place.lon.toFixed(4)}&radius=500`)).json();
+    const p = (d.posts || []).filter((x) => x.hasPhoto).sort((a, b) => distM(place, a) - distM(place, b))[0];
+    return p && distM(place, p) < 40 ? { photo: `${apiBase || ""}/api/social/photo/${encodeURIComponent(p.id)}?i=0`, credit: `Photo shared by ${p.author.nickname} in Community` } : null;
+  }
+
   /** -> { kind, kindNote, photo?, credit?, summary?, url? } */
-  async function lookup(place) {
+  async function lookup(place, opts) {
+    opts = opts || {};
     const key = place.name + "|" + place.lat.toFixed(4) + "," + place.lon.toFixed(4);
     if (cache.has(key)) return cache.get(key);
     const [kind, kindNote] = typeText(place.type);
@@ -110,7 +130,18 @@
         if (a) { Object.assign(out, { photo: a.photo, summary: a.summary, url: a.url, credit: a.photo ? "Photo: Wikipedia" : null }); break; }
       } catch (e) { /* try next */ }
     }
-    if (!out.photo) { try { Object.assign(out, await commonsPhoto(place) || {}); } catch (e) { /* no photo */ } }
+    // Wider photo search, best source first; the card shows a live mini-map
+    // when every source comes up empty, so there is always a picture.
+    const tries = [
+      () => commonsPhoto(place, 60),
+      () => communityPhoto(place, opts.apiBase),
+      () => streetPhoto(place),
+      () => commonsPhoto(place, 150),
+    ];
+    for (const t of tries) {
+      if (out.photo) break;
+      try { const r = await t(); if (r) Object.assign(out, r); } catch (e) { /* next source */ }
+    }
     cache.set(key, out);
     return out;
   }
