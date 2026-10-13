@@ -2046,7 +2046,10 @@
     prefs.set({ audio: { captionsEnabled: e.target.checked } });
   });
 
-  const DEV_SIMULATION = !!CONFIG.DEV_SIMULATION || /[?&]simulate=1\b/.test(location.search);
+  // Dev-only GPS simulator (2026-10-13): never on the public site — only on
+  // the developer's own machine (localhost), via ?simulate=1 or config.js.
+  const IS_LOCAL_DEV = /^(localhost|127\.0\.0\.1|\[::1\]|.+\.localhost)$/.test(location.hostname);
+  const DEV_SIMULATION = IS_LOCAL_DEV && (!!CONFIG.DEV_SIMULATION || /[?&]simulate=1\b/.test(location.search));
   if (DEV_SIMULATION) simBtn.style.display = "inline-flex";
 
   let navState = null;          // NavLogic state object (route, stepIdx, offRouteStreak, ...)
@@ -4470,6 +4473,18 @@
   // ---------------------------------------------------------------------
   // Initial render
   // ---------------------------------------------------------------------
+  // First-time hint for the weather doodles (2026-10-13); dismissed for good.
+  (function () {
+    const tip = document.getElementById("weatherTip");
+    if (!tip) return;
+    let seen = false;
+    try { seen = localStorage.getItem("calmHint.weatherDoodles.v1") === "1"; } catch (e) { /* storage blocked: show once per visit */ }
+    if (!seen) setTimeout(() => { tip.hidden = false; }, 2500);
+    document.getElementById("weatherTipClose").addEventListener("click", () => {
+      tip.hidden = true;
+      try { localStorage.setItem("calmHint.weatherDoodles.v1", "1"); } catch (e) { /* ok */ }
+    });
+  })();
   window.addEventListener("load", () => {
     map.resize();
     goToPage(0, false);

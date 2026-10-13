@@ -46,6 +46,7 @@
     <div>
       <h1 class="display">Calm Companion</h1>
       <div class="tagline" id="pageTagline">calm routing</div>
+      <p class="app-subtitle">Calmer ways to get around, plus music, sketching and calm spots to discover.</p>
     </div>
     <div class="top-actions">
       <button class="icon-btn" id="themeToggle" aria-label="Toggle theme" title="Toggle light/dark">
@@ -88,6 +89,10 @@
                birds and flowers drifting over the map. Decorative only:
                pointer-events none, aria-hidden, off during navigation and
                under Reduced Motion they stand still. -->
+          <div class="weather-tip" id="weatherTip" role="note" hidden>
+            <span>These doodles show the real weather and time of day where you are.</span>
+            <button type="button" id="weatherTipClose" aria-label="Got it">Got it</button>
+          </div>
           <div class="map-doodles" aria-hidden="true">
             <svg width="0" height="0" style="position:absolute">
               <filter id="crayon"><feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="3"><animate attributeName="seed" values="3;7;11;3" dur="0.9s" repeatCount="indefinite" calcMode="discrete"/></feTurbulence><feDisplacementMap in="SourceGraphic" scale="3.2"/></filter>
@@ -669,6 +674,16 @@
         <div class="cm-map-wrap">
           <div class="cm-map" id="cmMap" aria-label="Community map: photos and calm places people shared"></div>
           <div class="cm-map-hint">Photos and places people shared — tap one</div>
+          <details class="cm-legend">
+            <summary>What do these mean?</summary>
+            <ul>
+              <li><span class="lg-dot" style="background:var(--accent)"></span> Cafés, food &amp; other places</li>
+              <li><span class="lg-dot" style="background:var(--sky)"></span> Shops</li>
+              <li><span class="lg-dot" style="background:var(--calm)"></span> Public transport stops</li>
+              <li><span class="lg-photo"></span> A post someone shared (with photo)</li>
+              <li><span class="lg-flower"></span> A post without a photo</li>
+            </ul>
+          </details>
         </div>
         <div class="cm-profile-card" id="cmProfileCard">
           <div class="cm-avatar" id="cmMyAvatar" aria-hidden="true"></div>
