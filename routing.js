@@ -257,20 +257,36 @@ async function fetchCalmRoute({ start, end, peakWindows, safetyMode, specialEven
     return buildDemoRoute(start, end, peak, night, safetyMode, "Routing service returned an error — showing a demo route instead.", specialEvent);
   }
   const data = await resp.json();
-  // Extra candidate (2026-10-13): GraphHopper's alternatives often return a
-  // single path for walks, so also fetch one calm-weighted route (server-side
-  // custom model, see functions/api/route.js ?calm=1). Optional — any failure
-  // just leaves the normal candidates.
+  // Extra candidates (2026-10-13): GraphHopper's free plan often returns a
+  // single walking path (and doesn't allow custom calm models), so when there
+  // are fewer than 2 candidates, also route through a gentle detour point on
+  // each side of the straight line (±15% of the trip length). Every candidate
+  // is then scored by the same weighted calm formula. Optional: failures just
+  // leave the normal candidates (and cost no more than 2 extra requests).
   try {
-    const cu = new URL(url.toString());
-    cu.searchParams.set("calm", "1");
-    const cr = await fetchWithTimeout(cu.toString(), requestTimeoutMs);
-    if (cr.ok) {
-      const cd = await cr.json();
-      const extra = (cd.paths || []).filter((p) => p.points && !(data.paths || []).some((q) => Math.abs(q.distance - p.distance) < 15));
-      if (extra.length) data.paths = (data.paths || []).concat(extra);
+    if (!data.paths || data.paths.length < 2) {
+      const dLat = end.lat - start.lat, dLon = end.lon - start.lon;
+      const mid = { lat: (start.lat + end.lat) / 2, lon: (start.lon + end.lon) / 2 };
+      const vias = [0.15, -0.15].map((k) => ({ lat: mid.lat - dLon * k, lon: mid.lon + dLat * k }));
+      const extras = await Promise.all(vias.map(async (v) => {
+        const vu = new URL(url.toString());
+        vu.searchParams.delete("point");
+        vu.searchParams.delete("algorithm"); vu.searchParams.delete("max_paths");
+        vu.searchParams.delete("max_weight_factor"); vu.searchParams.delete("max_share_factor");
+        [start, v, end].forEach((p) => vu.searchParams.append("point", `${p.lat},${p.lon}`));
+        try { const vr = await fetchWithTimeout(vu.toString(), requestTimeoutMs); return vr.ok ? (await vr.json()).paths || [] : []; } catch (e) { return []; }
+      }));
+      const base = (data.paths || [])[0];
+      extras.flat().forEach((p) => {
+        if (!p.points) return;
+        if (base && p.distance > base.distance * 1.6) return; // too long a detour to be realistic
+        if ((data.paths || []).some((q) => Math.abs(q.distance - p.distance) < 15)) return;
+        // via-point routes include a "waypoint reached" instruction — drop it
+        p.instructions = (p.instructions || []).filter((s) => s.sign !== 5);
+        (data.paths = data.paths || []).push(p);
+      });
     }
-  } catch (e) { /* calm candidate is a bonus */ }
+  } catch (e) { /* extra candidates are a bonus */ }
   if (!data.paths || !data.paths.length) {
     return buildDemoRoute(start, end, peak, night, safetyMode, "No route found — showing a demo route instead.", specialEvent);
   }
