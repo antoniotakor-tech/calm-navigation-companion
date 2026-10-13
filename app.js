@@ -2557,7 +2557,7 @@
     lastFixLatLng = [lat, lon];
 
     if (!navState) return;
-    const info = NavLogic.processFix(navState, { lat, lon, speedMps: speed, headingDeg: heading });
+    const info = NavLogic.processFix(navState, { lat, lon, speedMps: speed, headingDeg: heading, accuracyM: accuracy });
 
     const effectiveHeading = updateUserMarker(lat, lon, accuracy, info.heading);
     if (followMode) panCameraTo(lat, lon, effectiveHeading);

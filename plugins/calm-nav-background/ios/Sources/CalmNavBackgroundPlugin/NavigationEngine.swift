@@ -372,11 +372,24 @@ final class NavigationEngine: NSObject {
     }
 
     private func nearestRouteIndex(lat: Double, lon: Double, coordinates: [NavRouteGeometryPoint]) -> (index: Int, distanceM: Double) {
+        // Distance to the route LINE, not its points (2026-10-13, mirrors
+        // navlogic.js): walking on a long straight segment between two far-
+        // apart points used to count as off route and trigger a reroute.
         var minDist = Double.infinity
         var idx = 0
-        for (i, p) in coordinates.enumerated() {
-            let d = haversineM(lat1: lat, lon1: lon, lat2: p.lat, lon2: p.lon)
-            if d < minDist { minDist = d; idx = i }
+        let kx = 111320.0 * cos(lat * .pi / 180), ky = 110540.0
+        for i in 0..<coordinates.count {
+            let ax = (coordinates[i].lon - lon) * kx, ay = (coordinates[i].lat - lat) * ky
+            var d = (ax * ax + ay * ay).squareRoot(), near = i
+            if i + 1 < coordinates.count {
+                let bx = (coordinates[i + 1].lon - lon) * kx, by = (coordinates[i + 1].lat - lat) * ky
+                let dx = bx - ax, dy = by - ay, len2 = dx * dx + dy * dy
+                let t = len2 > 0 ? max(0, min(1, -(ax * dx + ay * dy) / len2)) : 0
+                let sx = ax + t * dx, sy = ay + t * dy
+                let seg = (sx * sx + sy * sy).squareRoot()
+                if seg < d { d = seg; near = t > 0.5 ? i + 1 : i }
+            }
+            if d < minDist { minDist = d; idx = near }
         }
         return (idx, minDist)
     }
@@ -484,7 +497,7 @@ final class NavigationEngine: NSObject {
             durationMs: (path["time"] as? Double) ?? 0,
             geometry: geometry,
             maneuvers: maneuvers,
-            thresholds: thresholds ?? NavRouteThresholds(arriveStepM: 18, arriveDestM: 20, offRouteM: 35, offRouteStreakNeeded: 3, headingMinSpeedMps: 0.6)
+            thresholds: thresholds ?? NavRouteThresholds(arriveStepM: 18, arriveDestM: 20, offRouteM: 45, offRouteStreakNeeded: 5, headingMinSpeedMps: 0.6)
         )
     }
 

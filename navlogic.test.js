@@ -66,8 +66,8 @@ test("processFix: a fix right on the route with no nearby maneuver just reports 
 test("processFix: a single off-route fix does not trigger a reroute — needs OFF_ROUTE_STREAK_NEEDED consecutive fixes", () => {
   const route = { coordinates: [[4.90, 52.36], [4.92, 52.38]], steps: [{ text: "Continue", interval: [0, 1] }] };
   const navState = NavLogic.createNavState(route);
-  // Far from the route line (roughly 500m+ away).
-  const farFix = { lat: 52.36 + 0.005, lon: 4.90 + 0.005 };
+  // Far from the route LINE (≈500 m to the side; the old test point sat on the line itself).
+  const farFix = { lat: 52.36 + 0.005, lon: 4.90 - 0.005 };
   const info = NavLogic.processFix(navState, farFix);
   assert.equal(info.shouldReroute, false);
   assert.equal(navState.offRouteStreak, 1);
@@ -76,7 +76,7 @@ test("processFix: a single off-route fix does not trigger a reroute — needs OF
 test("processFix: sustained off-route fixes (streak) do trigger shouldReroute", () => {
   const route = { coordinates: [[4.90, 52.36], [4.92, 52.38]], steps: [{ text: "Continue", interval: [0, 1] }] };
   const navState = NavLogic.createNavState(route);
-  const farFix = { lat: 52.36 + 0.01, lon: 4.90 + 0.01 };
+  const farFix = { lat: 52.36 + 0.01, lon: 4.90 - 0.01 };
   let info;
   for (let i = 0; i < NavLogic.THRESHOLDS.OFF_ROUTE_STREAK_NEEDED; i++) {
     info = NavLogic.processFix(navState, farFix);
@@ -225,4 +225,23 @@ test("destinationPoint: zero distance returns (approximately) the same point", (
   const dest = NavLogic.destinationPoint(52.37, 4.90, 123, 0);
   assert.ok(Math.abs(dest.lat - 52.37) < 1e-9);
   assert.ok(Math.abs(dest.lon - 4.90) < 1e-9);
+});
+
+test("processFix: walking ON the route between two far-apart points is not off route (2026-10-13)", () => {
+  // one straight 1.4 km segment — the midpoint is ~700 m from either point
+  const route = { coordinates: [[4.90, 52.36], [4.92, 52.36]], steps: [{ text: "Continue", interval: [0, 1] }] };
+  const navState = NavLogic.createNavState(route);
+  for (let i = 0; i < 10; i++) NavLogic.processFix(navState, { lat: 52.36 + 0.0002, lon: 4.91 }); // ~22 m to the side: other sidewalk
+  assert.equal(navState.offRouteStreak, 0);
+  assert.equal(navState.state, NavLogic.NavState.NAVIGATING);
+});
+
+test("processFix: a fuzzy GPS fix widens the off-route margin", () => {
+  const route = { coordinates: [[4.90, 52.36], [4.92, 52.36]], steps: [{ text: "Continue", interval: [0, 1] }] };
+  const navState = NavLogic.createNavState(route);
+  const sideFix = { lat: 52.36 + 0.0005, lon: 4.91 }; // ~55 m off
+  NavLogic.processFix(navState, { ...sideFix, accuracyM: 45 }); // ±45 m → margin 67 m
+  assert.equal(navState.offRouteStreak, 0);
+  NavLogic.processFix(navState, { ...sideFix, accuracyM: 5 });  // sharp fix → margin 45 m
+  assert.equal(navState.offRouteStreak, 1);
 });

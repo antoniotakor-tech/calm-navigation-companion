@@ -238,11 +238,22 @@ class NavEngine(private val context: Context) {
     }
 
     private fun nearestRouteIndex(lat: Double, lon: Double, coordinates: List<NavRouteGeometryPoint>): Pair<Int, Double> {
+        // Distance to the route LINE, not its points (2026-10-13, mirrors
+        // navlogic.js) — no more reroutes while walking on a long straight.
         var minDist = Double.POSITIVE_INFINITY
         var idx = 0
+        val kx = 111320.0 * Math.cos(Math.toRadians(lat)); val ky = 110540.0
         for (i in coordinates.indices) {
-            val d = haversineM(lat, lon, coordinates[i].lat, coordinates[i].lon)
-            if (d < minDist) { minDist = d; idx = i }
+            val ax = (coordinates[i].lon - lon) * kx; val ay = (coordinates[i].lat - lat) * ky
+            var d = Math.hypot(ax, ay); var near = i
+            if (i + 1 < coordinates.size) {
+                val bx = (coordinates[i + 1].lon - lon) * kx; val by = (coordinates[i + 1].lat - lat) * ky
+                val dx = bx - ax; val dy = by - ay; val len2 = dx * dx + dy * dy
+                val t = if (len2 > 0) Math.max(0.0, Math.min(1.0, -(ax * dx + ay * dy) / len2)) else 0.0
+                val seg = Math.hypot(ax + t * dx, ay + t * dy)
+                if (seg < d) { d = seg; near = if (t > 0.5) i + 1 else i }
+            }
+            if (d < minDist) { minDist = d; idx = near }
         }
         return Pair(idx, minDist)
     }

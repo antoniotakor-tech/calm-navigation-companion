@@ -38,11 +38,20 @@
     // Meters from the route's own point cloud before a fix counts as
     // "off route". Set well above typical urban GPS error (~10-20m) so a
     // single noisy reading doesn't read as a real deviation.
-    OFF_ROUTE_M: 35,
+    // 2026-10-13: 35 → 45 m, and measured to the route LINE (see
+    // nearestRouteIndex) — the other side of the street, a wide square or a
+    // parallel sidewalk is still "on route". Widened further by the fix's
+    // own reported GPS accuracy (see OFF_ROUTE_ACCURACY_FACTOR).
+    OFF_ROUTE_M: 45,
+    // A fix reporting ±40 m of error can't prove you left a route 45 m wide:
+    // the off-route margin is at least this × the fix's accuracy (max 100 m).
+    OFF_ROUTE_ACCURACY_FACTOR: 1.5,
+    OFF_ROUTE_MAX_M: 100,
     // Require this many CONSECUTIVE off-route fixes before triggering a
     // reroute. This is the actual "don't reroute from one bad reading" rule —
     // at a ~2s fix interval this is a few seconds of sustained drift.
-    OFF_ROUTE_STREAK_NEEDED: 3,
+    // 3 → 5 (2026-10-13): ~10 s of sustained drift, not a few seconds.
+    OFF_ROUTE_STREAK_NEEDED: 5,
     // Below this speed, a bearing derived from two consecutive GPS fixes is
     // noise (standing still with GPS jitter looks like "movement" otherwise),
     // so movement-derived heading is only trusted above this pace.
@@ -130,22 +139,35 @@
   // point density GraphHopper returns for a walking/biking route this is
   // accurate to within a couple of meters — well inside OFF_ROUTE_M's margin.
   function nearestRouteDistanceM(lat, lon, coordinates) {
-    let min = Infinity;
-    for (let i = 0; i < coordinates.length; i++) {
-      const d = haversineM(lat, lon, coordinates[i][1], coordinates[i][0]);
-      if (d < min) min = d;
-    }
-    return min;
+    return nearestRouteIndex(lat, lon, coordinates).distanceM;
+  }
+  function offRouteMarginM(accuracyM) {
+    const acc = Number(accuracyM);
+    if (!Number.isFinite(acc) || acc <= 0) return THRESHOLDS.OFF_ROUTE_M;
+    return Math.min(THRESHOLDS.OFF_ROUTE_MAX_M, Math.max(THRESHOLDS.OFF_ROUTE_M, acc * THRESHOLDS.OFF_ROUTE_ACCURACY_FACTOR));
   }
 
   // Same walk, but also returns which point index was closest — this is
   // what lets the audio layer answer "what kind of street is the user on
   // right now" via roadClassAt() below, instead of only a route-wide summary.
+  // Distance is to the route LINE — every segment between two points — not
+  // to the points themselves (2026-10-13). On a long straight street the
+  // points can be 100 m+ apart, so walking exactly on the route halfway
+  // between two of them used to read as "50 m off route" and reroute.
   function nearestRouteIndex(lat, lon, coordinates) {
     let min = Infinity, idx = 0;
+    const kx = 111320 * Math.cos(toRad(lat)), ky = 110540; // metres per degree here
     for (let i = 0; i < coordinates.length; i++) {
-      const d = haversineM(lat, lon, coordinates[i][1], coordinates[i][0]);
-      if (d < min) { min = d; idx = i; }
+      const ax = (coordinates[i][0] - lon) * kx, ay = (coordinates[i][1] - lat) * ky;
+      let d = Math.hypot(ax, ay), nearIdx = i;
+      if (i + 1 < coordinates.length) {
+        const bx = (coordinates[i + 1][0] - lon) * kx, by = (coordinates[i + 1][1] - lat) * ky;
+        const dx = bx - ax, dy = by - ay, len2 = dx * dx + dy * dy;
+        const t = len2 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / len2)) : 0;
+        const seg = Math.hypot(ax + t * dx, ay + t * dy);
+        if (seg < d) { d = seg; nearIdx = t > 0.5 ? i + 1 : i; }
+      }
+      if (d < min) { min = d; idx = nearIdx; }
     }
     return { index: idx, distanceM: min };
   }
@@ -200,7 +222,7 @@
   // outside the object it's given — no DOM, no globals, no I/O. That's what
   // makes it unit-testable without a browser.
   function processFix(navState, fix) {
-    const { lat, lon, speedMps, headingDeg } = fix;
+    const { lat, lon, speedMps, headingDeg, accuracyM } = fix;
     const route = navState.route;
 
     let derivedHeading = headingDeg != null ? headingDeg : null;
@@ -213,7 +235,7 @@
     const nearest = nearestRouteIndex(lat, lon, route.coordinates);
     const distToRoute = nearest.distanceM;
     const currentRoadClass = roadClassAt(route, nearest.index);
-    if (distToRoute > THRESHOLDS.OFF_ROUTE_M) {
+    if (distToRoute > offRouteMarginM(accuracyM)) {
       navState.offRouteStreak++;
     } else {
       navState.offRouteStreak = 0;
