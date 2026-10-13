@@ -2588,3 +2588,21 @@ body[data-page="0"] .bloom-petals { display: none !important; }
 .loop-layer small { color: var(--muted); font-variant-numeric: tabular-nums; }
 .loop-layer .pill.small { padding: 4px 10px; min-height: 34px; font-size: .85rem; }
 .loop-layer .pill.loop-del.sure { background: #E85D75; color: #fff; }
+
+/* Rain drips from the clouds (2026-10-13): .dd-cloud is now a box that drifts,
+   holding the cloud shape and its own drops. */
+.dd-cloud-shape { display: block; width: 100%; height: auto; overflow: visible; }
+.dd-cloud3 { display: none; top: 300px; width: 120px; animation: dd-drift-rev 85s linear infinite; animation-delay: -30s; }
+.map-doodles:not([data-precip="none"]) .dd-cloud3 { display: block; }
+.map-doodles[data-wind="windy"] .dd-cloud3 { animation-duration: 26s; }
+.dd-drips { display: none; position: absolute; left: 10%; right: 10%; top: 62%; height: 40vh; overflow: hidden; pointer-events: none; }
+.map-doodles:is([data-precip="rain"], [data-precip="drizzle"], [data-precip="storm"]) .dd-drips { display: block; }
+.dd-drips i { position: absolute; top: 0; width: 3px; height: 15px; border-radius: 2px; background: #4DA8FF; opacity: 0; animation: dd-drip 1.1s linear infinite; }
+@keyframes dd-drip { 0% { transform: translateY(0); opacity: 0; } 12% { opacity: .85; } 85% { opacity: .7; } 100% { transform: translateY(38vh); opacity: 0; } }
+.map-doodles[data-precip="drizzle"] .dd-drips i:nth-child(2n) { display: none; }
+.map-doodles[data-precip="drizzle"] .dd-drips i { height: 9px; }
+.map-doodles[data-wind="windy"] .dd-drips i { animation-name: dd-drip-wind; }
+@keyframes dd-drip-wind { 0% { transform: translate(0, 0) rotate(18deg); opacity: 0; } 12% { opacity: .85; } 100% { transform: translate(-12vh, 38vh) rotate(18deg); opacity: 0; } }
+/* the old full-map sheet is now only for storms (a real downpour) */
+.map-doodles:is([data-precip="rain"], [data-precip="drizzle"]) .dd-rain { display: none; }
+@media (prefers-reduced-motion: reduce) { .dd-drips { display: none !important; } }

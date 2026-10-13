@@ -28,6 +28,32 @@
     s.style.top = (14 + ((i * 23) % 48)) + "%";
     s.style.animationDelay = (-i * 0.7) + "s";
   }
+  // Rain falls FROM the clouds (2026-10-13): each cloud is wrapped in a box that
+  // drifts with it and carries its own drips. A third cloud only shows when it
+  // rains, drifting the other way so there's nearly always one on screen.
+  const extra = layer.querySelector(".dd-cloud2");
+  if (extra) {
+    const c3 = extra.cloneNode(true);
+    c3.setAttribute("class", "dd dd-cloud dd-cloud3");
+    extra.after(c3);
+  }
+  layer.querySelectorAll("svg.dd-cloud").forEach((cloud, k) => {
+    const box = document.createElement("div");
+    box.className = cloud.getAttribute("class");
+    cloud.setAttribute("class", "dd-cloud-shape");
+    cloud.replaceWith(box);
+    box.appendChild(cloud);
+    const drips = document.createElement("div");
+    drips.className = "dd-drips";
+    for (let i = 0; i < 9; i++) {
+      const d = document.createElement("i");
+      d.style.left = (12 + ((i * 37 + k * 11) % 76)) + "%";
+      d.style.animationDelay = (-((i * 0.29 + k * 0.17) % 1.3)).toFixed(2) + "s";
+      d.style.animationDuration = (1.05 + ((i * 7 + k) % 5) * 0.09).toFixed(2) + "s";
+      drips.appendChild(d);
+    }
+    box.appendChild(drips);
+  });
   const rain = document.createElement("div");
   rain.className = "dd-rain";
   for (let i = 0; i < 46; i++) {
@@ -85,23 +111,45 @@
     };
   }
 
+  // Whose weather? Where you're LOOKING on the map (2026-10-13): explore
+  // Napoli from Amsterdam and the doodles show Napoli's sky and time of day.
+  // Near your own position it's simply your weather.
+  const FAR_KM = 15;
+  const km = (a, b) => {
+    const dLat = (b.lat - a.lat) * Math.PI / 180, dLon = (b.lon - a.lon) * Math.PI / 180;
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+    return 2 * 6371 * Math.asin(Math.sqrt(h));
+  };
   function where() {
     const app = window.CalmApp;
     const f = app && app.lastFix && app.lastFix();
-    if (f) return { lat: f[0], lon: f[1] };
-    if (app && app.map) { const c = app.map.getCenter(); return { lat: c.lat, lon: c.lng }; }
-    return null;
+    const fix = f ? { lat: f[0], lon: f[1] } : null;
+    if (app && app.map) {
+      const c = app.map.getCenter(), centre = { lat: c.lat, lon: c.lng };
+      if (!fix || km(fix, centre) > FAR_KM) return centre;
+    }
+    return fix;
   }
+  // One forecast per ~10 km cell, kept for 20 minutes, so panning around
+  // doesn't flood the weather service.
+  const cache = new Map();
+  const cellOf = (p) => `${p.lat.toFixed(1)},${p.lon.toFixed(1)}`;
+  let shownCell = null;
 
   async function refresh() {
     const forced = fromQuery();
     if (forced) { apply(forced); return; }
     const p = where();
     if (!p) return;
-    // ~1 km rounding: enough for weather, not enough to identify where someone is.
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${p.lat.toFixed(2)}&longitude=${p.lon.toFixed(2)}&current=weather_code,wind_speed_10m,is_day,cloud_cover&daily=sunrise,sunset&timezone=auto&forecast_days=1`;
+    const cell = cellOf(p), hit = cache.get(cell);
+    if (hit && Date.now() - hit.at < REFRESH_MS) { if (cell !== shownCell) { shownCell = cell; apply(WeatherMood.fromForecast(hit.data)); } return; }
+    // ~10 km cell centre: enough for weather, not enough to identify where someone is.
+    const [la, lo] = cell.split(",");
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}&current=weather_code,wind_speed_10m,is_day,cloud_cover&daily=sunrise,sunset&timezone=auto&forecast_days=1`;
     try {
       const data = await (await fetch(url)).json();
+      if (!data || !data.current) throw new Error("no forecast");
+      cache.set(cell, { at: Date.now(), data }); shownCell = cell;
       apply(WeatherMood.fromForecast(data));
       try { localStorage.setItem("calmWeather.last.v1", JSON.stringify({ at: Date.now(), data })); } catch (e) { /* storage off */ }
     } catch (e) {
@@ -116,7 +164,12 @@
   }
 
   // Start once the map exists (so we know roughly where you are).
-  const start = () => { refresh(); setInterval(refresh, REFRESH_MS); };
+  const start = () => {
+    refresh(); setInterval(refresh, REFRESH_MS);
+    const map = window.CalmApp && window.CalmApp.map;
+    let t = null;
+    if (map && map.on) map.on("moveend", () => { clearTimeout(t); t = setTimeout(refresh, 1200); });
+  };
   if (window.CalmApp) setTimeout(start, 1500); else window.addEventListener("calmapp:ready", () => setTimeout(start, 1500), { once: true });
   document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
 })();
