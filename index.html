@@ -719,7 +719,15 @@
           <input id="cmNameInput" type="text" maxlength="24" placeholder="What should people call you?" autocomplete="nickname" />
           <label class="cm-label" for="cmBioInput">About you <span class="cm-hint">(optional)</span></label>
           <input id="cmBioInput" type="text" maxlength="140" placeholder="e.g. Loves quiet canals and early mornings" />
-          <div class="cm-label">Flower</div>
+          <div class="cm-label">Picture <span class="cm-hint">(optional — a photo, a selfie or a drawing)</span></div>
+          <div class="cm-pic-row">
+            <span class="cm-avatar cm-pic-preview" id="cmPicPreview" aria-hidden="true"></span>
+            <label class="pill">Choose photo<input type="file" id="cmPicInput" accept="image/*" hidden></label>
+            <button type="button" class="pill" id="cmPicDrawing">Use my drawing</button>
+            <button type="button" class="cm-link" id="cmPicRemove" hidden>Remove</button>
+          </div>
+          <p class="cm-note">Everyone in Community can see it. No nudity, no other people without their OK.</p>
+          <div class="cm-label">Flower <span class="cm-hint">(shown when there's no picture)</span></div>
           <div class="cm-avatar-row" id="cmAvatarRow" role="radiogroup" aria-label="Profile flower"></div>
           <p class="cm-note">No password or email: your profile is tied to this device. No links, phone numbers or addresses.</p>
           <label class="cm-consent"><input type="checkbox" id="cmAgeOk"> I'm 16 or older and I agree to the <a href="/terms.html" target="_blank" rel="noopener">terms and community rules</a>.</label>
@@ -817,6 +825,7 @@
             <button type="button" class="pill" id="skNew">New page</button>
             <label class="pill sk-photo"><input type="file" id="skPhoto" accept="image/*" class="cm-file">Draw on a photo</label>
             <button type="button" class="pill" id="skShare">Share</button>
+            <button type="button" class="pill" id="skAvatar">Use as profile picture</button>
             <button type="button" class="pill active" id="skPost">Post to Community</button>
             <button type="button" class="cm-link" id="skDelete">Delete</button>
           </div>
@@ -1094,7 +1103,7 @@
   <div class="echo-sheet cm-sheet">
     <div class="cm-profile-card">
       <div class="cm-avatar" id="cmViewerAvatar" aria-hidden="true"></div>
-      <div class="cm-profile-text"><div class="cm-name" id="cmViewerName"></div><div class="cm-bio" id="cmViewerBio"></div></div>
+      <div class="cm-profile-text"><div class="cm-name" id="cmViewerName"></div><div class="cm-bio" id="cmViewerBio"></div><button type="button" class="cm-link" id="cmViewerPicReport" hidden>Report picture</button></div>
     </div>
     <ul class="cm-feed" id="cmViewerFeed"></ul>
     <button type="button" class="close-sheet" id="cmViewerClose">Close</button>

@@ -265,6 +265,11 @@
     if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file] }); return; } catch (e) { if (e.name === "AbortError") return; } }
     const a = document.createElement("a"); a.href = URL.createObjectURL(file); a.download = file.name; a.click();
   });
+  window.CalmSketchImage = () => toBlob("image/jpeg", 0.9);
+  $("skAvatar").addEventListener("click", async () => {
+    const blob = await toBlob("image/jpeg", 0.9);
+    window.dispatchEvent(new CustomEvent("calmsketch:avatar", { detail: blob }));
+  });
   $("skPost").addEventListener("click", async () => {
     const blob = await toBlob("image/jpeg", 0.85);
     window.dispatchEvent(new CustomEvent("calmsketch:post", { detail: blob }));

@@ -118,7 +118,19 @@
   }
 
   // ---- small render helpers ---------------------------------------------------
-  function avatarEl(el, key) {
+  function avatarEl(el, key, pic) {
+    el.classList.toggle("has-pic", !!pic);
+    if (pic) {
+      // Profile picture (2026-10-13): a photo, a selfie or one of your drawings.
+      el.innerHTML = "";
+      const img = document.createElement("img");
+      img.alt = ""; img.loading = "lazy"; img.decoding = "async";
+      img.src = pic.startsWith("data:") ? pic : app.apiBaseUrl + pic;
+      img.onerror = () => avatarEl(el, key); // taken down or gone: back to the flower
+      el.appendChild(img);
+      el.style.background = "";
+      return;
+    }
     el.innerHTML = CalmIcons.html("flower");
     el.style.color = AVATAR_COLORS[key] || AVATAR_COLORS.rose;
     el.style.setProperty("--av", AVATAR_COLORS[key] || AVATAR_COLORS.rose);
@@ -152,7 +164,7 @@
   function renderMyProfile() {
     const p = me && me.profile;
     setTimeout(loadMyMusic, 0);
-    avatarEl($("cmMyAvatar"), p ? p.avatar : "rose");
+    avatarEl($("cmMyAvatar"), p ? p.avatar : "rose", p && p.pic);
     $("cmMyName").textContent = p ? p.nickname : "Your profile";
     $("cmMyBio").textContent = p ? (p.bio || "No bio yet.") : "Create a profile to share calm spots, routes and events.";
     $("cmEditProfileBtn").textContent = p ? "Edit" : "Create";
@@ -160,8 +172,33 @@
   }
 
   let chosenAvatar = "rose";
+  let pendingPic; // undefined = unchanged, null = remove, data URL = new
+  // Any image → a 256 px square JPEG (centre crop), small enough to store.
+  async function squarePic(blob) {
+    const bmp = await createImageBitmap(blob, { imageOrientation: "from-image" }).catch(() => null);
+    if (!bmp) throw new Error("That picture couldn't be opened — try another one.");
+    const side = Math.min(bmp.width, bmp.height), out = 256, cv = document.createElement("canvas");
+    cv.width = cv.height = out;
+    const g = cv.getContext("2d");
+    g.fillStyle = "#fff"; g.fillRect(0, 0, out, out);
+    g.drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side, 0, 0, out, out);
+    let q = 0.85, url = cv.toDataURL("image/jpeg", q);
+    while (url.length > 110000 && q > 0.4) { q -= 0.15; url = cv.toDataURL("image/jpeg", q); }
+    return url;
+  }
+  function renderPicPreview() {
+    const p = me && me.profile;
+    const shown = pendingPic !== undefined ? pendingPic : (p && p.pic);
+    avatarEl($("cmPicPreview"), chosenAvatar, shown || null);
+    $("cmPicRemove").hidden = !shown;
+  }
+  async function usePic(blob) {
+    try { pendingPic = await squarePic(blob); renderPicPreview(); $("cmProfileError").textContent = ""; }
+    catch (e) { $("cmProfileError").textContent = e.message; }
+  }
   function openProfileForm() {
     const p = me && me.profile;
+    pendingPic = undefined;
     $("cmNameInput").value = p ? p.nickname : "";
     $("cmBioInput").value = p ? p.bio : "";
     chosenAvatar = p ? p.avatar : "rose";
@@ -174,10 +211,11 @@
       b.setAttribute("aria-label", key);
       avatarEl(b, key);
       const sync = () => row.querySelectorAll("button").forEach((x) => x.setAttribute("aria-checked", String(x === row.children[S.AVATARS.indexOf(chosenAvatar)])));
-      b.addEventListener("click", () => { chosenAvatar = key; sync(); });
+      b.addEventListener("click", () => { chosenAvatar = key; sync(); renderPicPreview(); });
       row.appendChild(b);
       sync();
     });
+    renderPicPreview();
     $("cmProfileError").textContent = "";
     $("cmAgeOk").checked = !!p; // existing profiles already confirmed
     $("cmProfileForm").hidden = false;
@@ -193,7 +231,8 @@
     if (!check.valid) { $("cmProfileError").textContent = check.error; return; }
     $("cmProfileSave").disabled = true;
     try {
-      setMe(await api("/api/social/me", { token: app.deviceToken(), action: "save", profile: check.value }));
+      const toSave = pendingPic === undefined ? check.value : { ...check.value, pic: pendingPic };
+      setMe(await api("/api/social/me", { token: app.deviceToken(), action: "save", profile: toSave }));
       closeProfileForm();
       app.toast("Profile saved");
     } catch (err) {
@@ -246,7 +285,7 @@
     const who = make("button", "cm-author");
     who.type = "button";
     const av = make("span", "cm-avatar cm-avatar-sm");
-    avatarEl(av, p.author.avatar);
+    avatarEl(av, p.author.avatar, p.author.pic);
     who.append(av, make("span", "cm-author-name", p.author.nickname));
     if (p.author.plus) who.appendChild(make("span", "plus-badge", "Calm+"));
     who.addEventListener("click", () => openViewer(p.author.id));
@@ -560,7 +599,14 @@
     ov.classList.add("open");
     try {
       const data = await api(`/api/social/profile/${encodeURIComponent(id)}`);
-      avatarEl($("cmViewerAvatar"), data.profile.avatar);
+      avatarEl($("cmViewerAvatar"), data.profile.avatar, data.profile.pic);
+      const picRep = $("cmViewerPicReport");
+      picRep.hidden = !data.profile.pic || (me && me.id === id);
+      picRep.onclick = async () => {
+        if (!confirm("Report this profile picture? It will be taken down while we review it.")) return;
+        try { await api(`/api/social/avatar/${encodeURIComponent(id)}`, { reporterToken: app.deviceToken() }); avatarEl($("cmViewerAvatar"), data.profile.avatar); picRep.hidden = true; app.toast("Thanks — the picture is down while we review it"); }
+        catch (e) { app.toast(e.message); }
+      };
       $("cmViewerName").textContent = data.profile.nickname;
       $("cmViewerBio").textContent = data.profile.bio || "";
       if (data.tracks && data.tracks.length) {
@@ -738,6 +784,18 @@
     $("cmKindRow").addEventListener("click", (e) => { const b = e.target.closest("[data-kind]"); if (b) setKind(b.dataset.kind); });
     $("cmCameraInput").addEventListener("change", (e) => { addPhotos(e.target.files); e.target.value = ""; });
     $("cmLibraryInput").addEventListener("change", (e) => { addPhotos(e.target.files); e.target.value = ""; });
+    $("cmPicInput").addEventListener("change", (e) => { if (e.target.files[0]) usePic(e.target.files[0]); e.target.value = ""; });
+    $("cmPicRemove").addEventListener("click", () => { pendingPic = null; renderPicPreview(); });
+    $("cmPicDrawing").addEventListener("click", async () => {
+      const blob = window.CalmSketchImage && await window.CalmSketchImage();
+      if (blob) usePic(blob); else $("cmProfileError").textContent = "Draw something in the Draw tab first.";
+    });
+    // Draw tab → "Use as profile picture"
+    window.addEventListener("calmsketch:avatar", (e) => {
+      app.goToPage(3);
+      openProfileForm();
+      usePic(e.detail);
+    });
     // A drawing from the Sketchbook → a new post with it as the photo.
     window.addEventListener("calmsketch:post", (e) => {
       app.goToPage(3);

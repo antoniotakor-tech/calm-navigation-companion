@@ -120,5 +120,10 @@
     return { valid: true, value: { title, audio: body.audio, ms: Math.round(ms), fx, pattern } };
   }
 
-  return { POST_KINDS, AVATARS, LIMITS, TRACK_LIMITS, validateProfile, validatePost, validateTrack, simplifyRoute, isPhotoDataUrl, cleanText };
+  /** A profile picture: small square image, at most ~90 KB as base64. */
+  function isAvatarDataUrl(v) {
+    return typeof v === "string" && /^data:image\/(jpeg|webp|png);base64,[A-Za-z0-9+/=]+$/.test(v) && v.length <= 120000;
+  }
+
+  return { isAvatarDataUrl, POST_KINDS, AVATARS, LIMITS, TRACK_LIMITS, validateProfile, validatePost, validateTrack, simplifyRoute, isPhotoDataUrl, cleanText };
 });

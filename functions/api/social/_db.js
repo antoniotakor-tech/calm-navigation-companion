@@ -20,6 +20,8 @@ export async function ensureSocialTables(db) {
     "CREATE TABLE IF NOT EXISTS post_reports (post_id TEXT NOT NULL, reporter_hash TEXT NOT NULL, reason TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY (post_id, reporter_hash))",
   ];
   for (const s of stmts) await db.prepare(s).bind().run();
+  // Profile picture (2026-10-13): a small square JPEG data URL, served by /api/social/avatar/:id.
+  try { await db.prepare("ALTER TABLE profiles ADD COLUMN pic TEXT").bind().run(); } catch (e) { /* already there */ }
   ready = true;
 }
 
@@ -39,6 +41,11 @@ export async function identify(body, db) {
   return { ownerHash, authorKey, account: null };
 }
 
+/** URL of someone's profile picture, versioned so a new one isn't cached stale. */
+export function picUrl(authorKey, r) {
+  return r && (r.has_pic || r.pic) ? `/api/social/avatar/${authorKey}?v=${r.updated_at || r.pic_v || 0}` : null;
+}
+
 /** Public shape of a post row — never includes owner_hash or the photo bytes. */
 export function publicPost(row, profile) {
   return {
@@ -49,11 +56,11 @@ export function publicPost(row, profile) {
     hasPhoto: !!row.has_photo,
     photoCount: row.has_photo ? (row.photo_count || 1) : 0,
     createdAt: row.created_at,
-    author: { id: row.author_key, nickname: profile ? profile.nickname : row.nickname || "Someone", avatar: profile ? profile.avatar : row.avatar || "rose", plus: !!(profile ? profile.plus : row.plus) },
+    author: { id: row.author_key, nickname: profile ? profile.nickname : row.nickname || "Someone", avatar: profile ? profile.avatar : row.avatar || "rose", pic: picUrl(row.author_key, profile ? profile : row), plus: !!(profile ? profile.plus : row.plus) },
   };
 }
 
-export const POST_COLUMNS = "p.id, p.author_key, p.kind, p.title, p.body, p.lat, p.lon, p.route_json, p.event_at, (p.photo IS NOT NULL) AS has_photo, (CASE WHEN p.photo LIKE '[%' THEN json_array_length(p.photo) ELSE 1 END) AS photo_count, p.created_at, pr.nickname, pr.avatar, " +
+export const POST_COLUMNS = "p.id, p.author_key, p.kind, p.title, p.body, p.lat, p.lon, p.route_json, p.event_at, (p.photo IS NOT NULL) AS has_photo, (CASE WHEN p.photo LIKE '[%' THEN json_array_length(p.photo) ELSE 1 END) AS photo_count, p.created_at, pr.nickname, pr.avatar, (pr.pic IS NOT NULL) AS has_pic, pr.updated_at, " +
   "(SELECT a.plan = 'plus' AND (a.plan_until IS NULL OR a.plan_until > CAST(strftime('%s','now') AS INTEGER) * 1000) FROM accounts a WHERE a.owner_hash = p.owner_hash) AS plus";
 
 export function publicTrack(r) {
