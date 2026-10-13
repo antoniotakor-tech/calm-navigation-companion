@@ -530,6 +530,23 @@
           <button type="button" class="pill" data-studio="chords" role="tab" aria-selected="false">Chords</button>
           <button type="button" class="pill" data-studio="voice" role="tab" aria-selected="false">Voice</button>
         </div>
+        <!-- Looper (2026-10-13): stays visible on every Studio tab, so you can loop
+             chords and then switch to Kalimba and play on top. -->
+        <section class="loop-bar" id="loopBar" aria-labelledby="loopTitle">
+          <div class="loop-head">
+            <h3 id="loopTitle">Loop</h3>
+            <span class="loop-info" id="loopInfo">2 bars</span>
+            <label class="loop-beat"><input type="checkbox" id="loopBeat" checked> Beat</label>
+          </div>
+          <div class="loop-controls">
+            <button type="button" class="pill" id="loopPlay">Play loop</button>
+            <button type="button" class="pill loop-rec" id="loopRec">Record layer</button>
+            <button type="button" class="pill" id="loopBounce">Save as song</button>
+          </div>
+          <p class="loop-msg" id="loopMsg" role="status" aria-live="polite">Tap Record layer and play chords or kalimba for 2 bars. Then switch instrument and record another layer on top.</p>
+          <p class="loop-empty" id="loopEmpty">No layers yet.</p>
+          <ul class="loop-layers" id="loopLayers" aria-label="Loop layers"></ul>
+        </section>
         <div id="studio-kalimba">
         <div class="kalimba-wrap" id="kalimbaWrap">
           <canvas class="kalimba-canvas" id="kalimbaCanvas" aria-hidden="true"></canvas>
@@ -1217,6 +1234,7 @@
 <script src="community.js"></script>
 <script src="drummachine.js"></script>
 <script src="voicefx.js"></script>
+<script src="looperlogic.js"></script>
 <script src="studio.js"></script>
 <script src="plusgate.js"></script>
 <script src="sketch.js"></script>

@@ -3378,6 +3378,19 @@
   // disclosed battery tradeoff chosen over coupling two independent concerns.
   // ---------------------------------------------------------------------
   const kalimbaEngine = new KalimbaEngine(audioManager);
+  // Studio looper (2026-10-13): tell studio.js about every note you play
+  // live, so it can record kalimba layers. Echo playback (forceCanonicalKey)
+  // is not you playing, so it isn't announced.
+  {
+    const livePluck = kalimbaEngine.pluck.bind(kalimbaEngine);
+    kalimbaEngine.pluck = function (tineIndex, velocity01, forceCanonicalKey) {
+      livePluck(tineIndex, velocity01, forceCanonicalKey);
+      if (!forceCanonicalKey) {
+        try { window.dispatchEvent(new CustomEvent("calmkalimba:pluck", { detail: { tine: tineIndex, v: velocity01 == null ? 0.7 : velocity01, key: kalimbaEngine.getKey() } })); } catch (e) { /* old browsers */ }
+      }
+    };
+    window.CalmKalimba = { audioManager, getKey: () => kalimbaEngine.getKey() };
+  }
   const echoRecorder = new EchoRecorder({
     engine: kalimbaEngine, audioManager, hapticManager,
     onNote: (tineIndex) => triggerFlowReactivePulse(tineIndex),

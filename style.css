@@ -2567,3 +2567,24 @@ body[data-page="0"] .bloom-petals { display: none !important; }
 /* Lightbox "Back": solid and readable over any picture, white drawings included */
 .cm-lightbox-close { width: auto !important; padding: 0 16px; border-radius: 22px !important; background: var(--surface) !important; color: var(--ink) !important; border: 2px solid var(--ink) !important; font: inherit; font-size: 1rem !important; font-weight: 700; box-shadow: 2px 3px 0 rgba(0,0,0,.35); left: 14px; right: auto !important; }
 .cm-lightbox-strip img { cursor: zoom-out; }
+
+/* Studio looper (2026-10-13) */
+.loop-bar { background: var(--card); border: 2.5px solid var(--ink); border-radius: 20px 24px 18px 22px; box-shadow: 3px 4px 0 var(--ink); padding: 12px 14px; margin: 0 0 14px; display: grid; gap: 8px; }
+.loop-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.loop-head h3 { margin: 0; font-family: var(--font-hand, "Gaegu", cursive); font-size: 1.5rem; }
+.loop-info { color: var(--muted); font-size: .9rem; font-variant-numeric: tabular-nums; }
+.loop-beat { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-size: .95rem; }
+.loop-controls { display: flex; gap: 8px; flex-wrap: wrap; }
+.loop-controls .pill { flex: 1 1 auto; }
+.loop-controls .pill.loop-rec.recording { background: #E85D75; color: #fff; border-color: var(--ink); animation: loop-blink 1s ease-in-out infinite; }
+@keyframes loop-blink { 50% { opacity: .7; } }
+@media (prefers-reduced-motion: reduce) { .loop-rec.recording { animation: none; } }
+.loop-msg { margin: 0; font-size: .92rem; color: var(--ink-soft, var(--ink)); }
+.loop-empty { margin: 0; font-size: .9rem; color: var(--muted); }
+.loop-layers { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.loop-layer { display: grid; grid-template-columns: 1fr auto auto auto; align-items: center; gap: 8px; padding: 6px 8px; border: 2px dashed var(--line); border-radius: 14px; }
+.loop-layer.muted .loop-layer-name, .loop-layer.muted small { opacity: .45; text-decoration: line-through; }
+.loop-layer-name { font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+.loop-layer small { color: var(--muted); font-variant-numeric: tabular-nums; }
+.loop-layer .pill.small { padding: 4px 10px; min-height: 34px; font-size: .85rem; }
+.loop-layer .pill.loop-del.sure { background: #E85D75; color: #fff; }

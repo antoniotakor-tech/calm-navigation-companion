@@ -84,23 +84,30 @@
 
   // ---- sequencer (look-ahead scheduler) ------------------------------------------
   let pattern = D.deserialize(localStorage.getItem(PATTERN_KEY) || "") || D.fromPreset("calm");
-  let playing = false, nextTime = 0, step = 0, timer = null;
+  let playing = false, nextTime = 0, step = 0, loopStep = 0, timer = null;
   const queue = []; // [{ step, time }] for the playhead
   function save() { try { localStorage.setItem(PATTERN_KEY, D.serialize(pattern)); } catch (e) { /* storage off */ } }
 
   function schedule() {
     while (nextTime < ctx.currentTime + 0.12) {
-      D.hitsAt(pattern, step).forEach((tr) => VOICES[tr](live(), nextTime));
-      if (latched && step % 4 === 0) startChord(latched.d, nextTime, D.stepSeconds(pattern.bpm) * 3.2);
+      const stepSec = D.stepSeconds(pattern.bpm);
+      if (loopStep === 0) loopAtTop(nextTime);
+      if (loop.beatOn) D.hitsAt(pattern, step).forEach((tr) => VOICES[tr](live(), nextTime));
+      if (latched && step % 4 === 0) {
+        startChord(latched.d, nextTime, stepSec * 3.2);
+        captureChord(DEGREES.indexOf(latched.d), nextTime, stepSec * 3.2);
+      }
+      playLoopStep(loopStep, nextTime, stepSec);
       queue.push({ step, time: nextTime });
-      nextTime += D.stepSeconds(pattern.bpm);
-      step = (step + 1) % D.STEPS;
+      nextTime += stepSec;
+      loopStep = (loopStep + 1) % LL.LOOP_STEPS;
+      step = loopStep % D.STEPS;
     }
   }
   function startDrums() {
     if (playing) return;
     audio();
-    playing = true; step = 0; nextTime = ctx.currentTime + 0.06;
+    playing = true; step = 0; loopStep = 0; nextTime = ctx.currentTime + 0.06;
     schedule();
     timer = setInterval(schedule, 25);
     requestAnimationFrame(drawPlayhead);
@@ -109,6 +116,8 @@
   }
   function stopDrums() {
     playing = false;
+    if (loop.rec || loop.armed) loopMsg(loop.rec ? "Recording stopped before the loop finished, so nothing was added." : "Recording cancelled.");
+    loop.rec = null; loop.armed = false; renderLoop();
     latched = null;
     document.querySelectorAll(".ch-pad.latched").forEach((x) => x.classList.remove("latched"));
     clearInterval(timer);
@@ -163,6 +172,8 @@
     });
   }
   function renderTransport() {
+    if ($("loopPlay")) { $("loopPlay").textContent = playing ? "Stop" : "Play loop"; $("loopPlay").classList.toggle("active", playing); }
+    if ($("loopInfo")) $("loopInfo").textContent = `2 bars · ${pattern.bpm} BPM`;
     $("dmPlay").textContent = playing ? "Stop" : "Play";
     $("dmPlay").classList.toggle("active", playing);
     $("dmBpm").value = pattern.bpm;
@@ -429,18 +440,21 @@
   const saveChords = () => { try { localStorage.setItem(CHORD_KEY, JSON.stringify(chordState)); } catch (e) { /* storage off */ } };
   const midiHz = (m) => 440 * Math.pow(2, (m - 69) / 12);
   let chordBus = null;
+  function makeChordBus(c, dest, volume) {
+    const bus = c.createGain();
+    const lp = c.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 5200;
+    const conv = c.createConvolver();
+    const len = Math.floor(c.sampleRate * 2.2), ir = c.createBuffer(2, len, c.sampleRate);
+    for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.6); }
+    conv.buffer = ir;
+    const wet = c.createGain(); wet.gain.value = 0.28;
+    bus.connect(lp); lp.connect(dest); lp.connect(conv).connect(wet).connect(dest);
+    bus.gain.value = volume;
+    return bus;
+  }
   function chordOut() {
     audio();
-    if (!chordBus) {
-      chordBus = ctx.createGain();
-      const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 5200;
-      const conv = ctx.createConvolver();
-      const len = ctx.sampleRate * 2.2, ir = ctx.createBuffer(2, len, ctx.sampleRate);
-      for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.6); }
-      conv.buffer = ir;
-      const wet = ctx.createGain(); wet.gain.value = 0.28;
-      chordBus.connect(lp); lp.connect(master); lp.connect(conv).connect(wet).connect(master);
-    }
+    if (!chordBus) chordBus = makeChordBus(ctx, master, chordState.volume);
     chordBus.gain.value = chordState.volume;
     return chordBus;
   }
@@ -449,42 +463,51 @@
    * Starts a chord at `when` (default: now). With `dur` it releases itself
    * (used for chords played on the beat); otherwise returns release().
    */
-  function startChord(d, when, dur) {
-    const out = chordOut();
-    const root = 48 + KEYS[chordState.key] + d.semis; // around C3
+  // The chord synth itself, on any audio context (live or offline for "Save as song").
+  // opts: { key, sound } — a loop layer replays chords with the key/sound they were played in.
+  function chordVoices(c, out, d, t, opts) {
+    const root = 48 + KEYS[opts.key] + d.semis; // around C3
     const notes = [root - 12, ...QUAL[d.q].map((i) => root + 12 + i - (root + 12 + i > 76 ? 12 : 0))];
-    const t = Math.max(when || 0, ctx.currentTime);
-    const S = chordState.sound;
+    const S = opts.sound;
     // Quick attacks so a chord sounds the moment you touch it (was 350 ms on Soft pad).
     const atk = S === "pad" ? 0.03 : 0.004, peak = (S === "pad" ? 0.11 : 0.16) / Math.sqrt(notes.length);
     const voices = [];
     notes.forEach((m, k) => {
-      const g = ctx.createGain();
+      const g = c.createGain();
       g.gain.setValueAtTime(0.0001, t);
       g.gain.exponentialRampToValueAtTime(peak * (k === 0 ? 1.2 : 1), t + atk);
       if (S !== "pad") g.gain.exponentialRampToValueAtTime(peak * (S === "pluck" ? 0.05 : 0.35), t + (S === "pluck" ? 0.5 : 1.6));
-      const f = ctx.createBiquadFilter(); f.type = "lowpass";
+      const f = c.createBiquadFilter(); f.type = "lowpass";
       f.frequency.setValueAtTime(S === "pluck" ? 3200 : S === "keys" ? 2600 : 1400, t);
       if (S === "pluck") f.frequency.exponentialRampToValueAtTime(500, t + 0.4);
       f.connect(g).connect(out);
       const types = S === "pad" ? ["sawtooth", "sawtooth"] : S === "keys" ? ["triangle", "sine"] : ["square"];
       types.forEach((type, j) => {
-        const o = ctx.createOscillator();
+        const o = c.createOscillator();
         o.type = type;
         o.frequency.value = midiHz(m);
-        o.detune.value = S === "pad" ? (j ? 9 : -9) : j ? 1200 * 0 : 0;
+        o.detune.value = S === "pad" ? (j ? 9 : -9) : 0;
         o.connect(f); o.start(t);
         voices.push(o);
       });
       voices.push({ g });
     });
-    const release = (at) => {
-      const r = Math.max(at || 0, ctx.currentTime), rel = S === "pad" ? 0.9 : S === "keys" ? 0.5 : 0.25;
+    return (at) => {
+      const r = Math.max(at || 0, c.currentTime), rel = S === "pad" ? 0.9 : S === "keys" ? 0.5 : 0.25;
       voices.forEach((v) => {
         if (v.g) { v.g.gain.cancelScheduledValues(r); v.g.gain.setValueAtTime(Math.max(0.0001, v.g.gain.value), r); v.g.gain.exponentialRampToValueAtTime(0.0001, r + rel); }
         else v.stop(r + rel + 0.05);
       });
     };
+  }
+  /**
+   * Starts a chord at `when` (default: now). With `dur` it releases itself
+   * (used for chords played on the beat and loop layers); otherwise returns release().
+   */
+  function startChord(d, when, dur, opts) {
+    const out = chordOut();
+    const t = Math.max(when || 0, ctx.currentTime);
+    const release = chordVoices(ctx, out, d, t, opts || { key: chordState.key, sound: chordState.sound });
     if (dur) { release(t + dur); return null; }
     return () => release();
   }
@@ -505,7 +528,7 @@
       b.style.setProperty("--pad", D.TRACKS[i % D.TRACKS.length].color);
       b.innerHTML = `<b>${chordName(d)}</b><small>${d.name}</small>`;
       b.setAttribute("aria-label", `Chord ${chordName(d)}`);
-      let release = null;
+      let release = null, pressedAt = 0;
       const down = (e) => {
         e.preventDefault();
         if (chordState.mode === "beat") {
@@ -518,10 +541,14 @@
         }
         if (release) return;
         audio();
-        release = startChord(d, snapTime());
+        pressedAt = snapTime();
+        release = startChord(d, pressedAt);
         b.classList.add("down");
       };
-      const up = () => { if (release) { release(); release = null; } b.classList.remove("down"); };
+      const up = () => {
+        if (release) { release(); release = null; captureChord(i, pressedAt, ctx.currentTime - pressedAt); }
+        b.classList.remove("down");
+      };
       b.addEventListener("pointerdown", down);
       b.addEventListener("pointerup", up);
       b.addEventListener("pointercancel", up);
@@ -560,6 +587,169 @@
   });
   $("chVol").addEventListener("input", (e) => { chordState.volume = Number(e.target.value) / 100; if (chordBus) chordBus.gain.value = chordState.volume; saveChords(); });
 
+  // ---- looper: layers of chords and kalimba over the beat (2026-10-13) -------------
+  // Press Record layer: the next pass of the 2-bar loop records whatever you play
+  // (chord pads, kalimba). It then loops with everything else. Layers can be muted
+  // or deleted, and "Save as song" renders beat + layers into a take.
+  const LL = window.LooperLogic;
+  const LOOP_KEY = "calmStudio.loop.v1";
+  const loop = { layers: LL ? LL.deserialize(localStorage.getItem(LOOP_KEY) || "") : [], beatOn: true, armed: false, rec: null };
+  try { loop.beatOn = localStorage.getItem(LOOP_KEY + ".beat") !== "0"; } catch (e) { /* storage off */ }
+  const saveLoop = () => { try { localStorage.setItem(LOOP_KEY, LL.serialize(loop.layers)); localStorage.setItem(LOOP_KEY + ".beat", loop.beatOn ? "1" : "0"); } catch (e) { /* storage off */ } };
+  const loopMsg = (t) => { if ($("loopMsg")) $("loopMsg").textContent = t; };
+
+  function loopAtTop(t) {
+    if (loop.rec) {                                 // one full pass recorded: keep it
+      const layer = LL.makeLayer(loop.rec.events, Date.now());
+      loop.rec = null;
+      if (layer) { loop.layers = LL.addLayer(loop.layers, layer); saveLoop(); loopMsg(`Added a ${layer.name.toLowerCase()} layer. Record another on top, or save as a song.`); }
+      else loopMsg("Nothing was played, so no layer was added.");
+    }
+    if (loop.armed) {
+      loop.armed = false;
+      loop.rec = { from: t, events: [] };
+      loopMsg("Recording… play chords or kalimba now. It stops by itself after 2 bars.");
+    }
+    renderLoop();
+  }
+  function recPos(time) {
+    if (!loop.rec || !ctx) return null;
+    const stepSec = D.stepSeconds(pattern.bpm), end = loop.rec.from + LL.LOOP_STEPS * stepSec;
+    if (time < loop.rec.from - 0.08 || time >= end) return null;
+    return LL.posInLoop(Math.max(time, loop.rec.from), loop.rec.from, stepSec);
+  }
+  function captureChord(degIndex, startTime, durSec) {
+    const p = recPos(startTime);
+    if (p == null || degIndex < 0 || loop.rec.events.length >= LL.MAX_EVENTS) return;
+    const stepSec = D.stepSeconds(pattern.bpm);
+    loop.rec.events.push({ t: "c", p: LL.quantize(p, 0.5), d: degIndex, len: Math.min(LL.LOOP_STEPS, Math.max(0.5, durSec / stepSec)), s: chordState.sound, key: chordState.key });
+  }
+  window.addEventListener("calmkalimba:pluck", (e) => {
+    if (!loop.rec || !ctx) return;
+    const p = recPos(ctx.currentTime);
+    const d = e.detail || {};
+    if (p == null || loop.rec.events.length >= LL.MAX_EVENTS) return;
+    loop.rec.events.push({ t: "k", p: LL.quantize(p, 0.25), tine: d.tine, v: Math.max(0.15, Math.min(1, d.v)), key: d.key || "C" });
+  });
+
+  // Kalimba layers play through the app's own kalimba (its instrument bus and
+  // volume), scheduled ahead on that engine's clock.
+  let loopKal = null, kalAt = 0;
+  function playKalimba(e, when) {
+    const K = window.CalmKalimba;
+    if (!K || !window.KalimbaEngine) return;
+    K.audioManager.ensureCtx();
+    const kc = K.audioManager.ctx;
+    if (!loopKal) {
+      const proxy = new Proxy(kc, { get: (t, prop) => (prop === "currentTime" ? Math.max(t.currentTime, kalAt) : (typeof t[prop] === "function" ? t[prop].bind(t) : t[prop])) });
+      loopKal = new window.KalimbaEngine({ ensureCtx() { K.audioManager.ensureCtx(); }, ctx: proxy, getBus: () => K.audioManager.getBus("instrument") });
+    }
+    kalAt = when + (kc.currentTime - ctx.currentTime);
+    loopKal.setKey(e.key);
+    loopKal.pluck(e.tine, e.v);
+  }
+  function playLoopStep(stepIdx, t, stepSec) {
+    if (!LL) return;
+    LL.eventsInStep(loop.layers, stepIdx).forEach(({ e, offset }) => {
+      const when = t + offset * stepSec;
+      if (e.t === "c") startChord(DEGREES[e.d], when, e.len * stepSec, { key: e.key, sound: e.s });
+      else playKalimba(e, when);
+    });
+  }
+
+  function renderLoop() {
+    const list = $("loopLayers");
+    if (!list) return;
+    list.innerHTML = "";
+    loop.layers.forEach((layer, i) => {
+      const li = document.createElement("li");
+      li.className = "loop-layer" + (layer.muted ? " muted" : "");
+      const name = document.createElement("span");
+      name.className = "loop-layer-name";
+      name.textContent = `${i + 1}. ${layer.name}`;
+      const notes = document.createElement("small");
+      notes.textContent = `${layer.events.length} note${layer.events.length === 1 ? "" : "s"}`;
+      const mute = document.createElement("button");
+      mute.type = "button"; mute.className = "pill small"; mute.textContent = layer.muted ? "Unmute" : "Mute";
+      mute.setAttribute("aria-pressed", String(layer.muted));
+      mute.addEventListener("click", () => { loop.layers = LL.toggleMute(loop.layers, layer.id); saveLoop(); renderLoop(); });
+      const del = document.createElement("button");
+      del.type = "button"; del.className = "pill small loop-del"; del.textContent = "Delete";
+      del.setAttribute("aria-label", `Delete layer ${i + 1}, ${layer.name}`);
+      let sure = null;
+      del.addEventListener("click", () => {
+        if (!sure) { del.textContent = "Sure?"; del.classList.add("sure"); sure = setTimeout(() => { del.textContent = "Delete"; del.classList.remove("sure"); sure = null; }, 3000); return; }
+        clearTimeout(sure);
+        loop.layers = LL.removeLayer(loop.layers, layer.id); saveLoop(); renderLoop();
+        loopMsg(`Deleted ${layer.name.toLowerCase()}.`);
+      });
+      li.append(name, notes, mute, del);
+      list.appendChild(li);
+    });
+    $("loopEmpty").hidden = loop.layers.length > 0;
+    const rec = $("loopRec");
+    rec.textContent = loop.rec ? "Recording…" : loop.armed ? "Starts at bar 1…" : "Record layer";
+    rec.classList.toggle("recording", !!(loop.rec || loop.armed));
+    $("loopBeat").checked = loop.beatOn;
+    $("loopBounce").disabled = !loop.layers.length && !loop.beatOn;
+  }
+
+  // "Save as song": render 2 passes of beat + layers offline, exactly in time,
+  // into a WAV take next to your voice takes (play, share, post to your profile).
+  function wavBlob(buf) {
+    const ch = buf.getChannelData(0), n = ch.length, sr = buf.sampleRate;
+    // Normalise to -1 dBFS so stacked layers never clip.
+    let peak = 0; for (let i = 0; i < n; i++) { const a = Math.abs(ch[i]); if (a > peak) peak = a; }
+    const g = peak > 0.89 ? 0.89 / peak : 1;
+    const out = new DataView(new ArrayBuffer(44 + n * 2));
+    const w = (o, str) => { for (let i = 0; i < str.length; i++) out.setUint8(o + i, str.charCodeAt(i)); };
+    w(0, "RIFF"); out.setUint32(4, 36 + n * 2, true); w(8, "WAVE"); w(12, "fmt ");
+    out.setUint32(16, 16, true); out.setUint16(20, 1, true); out.setUint16(22, 1, true);
+    out.setUint32(24, sr, true); out.setUint32(28, sr * 2, true); out.setUint16(32, 2, true); out.setUint16(34, 16, true);
+    w(36, "data"); out.setUint32(40, n * 2, true);
+    for (let i = 0; i < n; i++) { const v = Math.max(-1, Math.min(1, ch[i] * g)); out.setInt16(44 + i * 2, v < 0 ? v * 0x8000 : v * 0x7fff, true); }
+    return new Blob([out], { type: "audio/wav" });
+  }
+  async function bounceLoop() {
+    const btn = $("loopBounce");
+    if (btn.disabled) return;
+    btn.disabled = true; btn.textContent = "Saving…";
+    try {
+      const passes = 2, stepSec = D.stepSeconds(pattern.bpm), sr = 24000;
+      const len = passes * LL.LOOP_STEPS * stepSec + 2.2;
+      const off = new OfflineAudioContext(1, Math.ceil(sr * len), sr);
+      const comp = off.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 3;
+      const mix = off.createGain(); mix.gain.value = pattern.volume; mix.connect(comp).connect(off.destination);
+      const A = { c: off, out: mix, nb: makeNoise(off) };
+      const chBus = makeChordBus(off, mix, chordState.volume);
+      const kBus = off.createGain(); kBus.connect(mix);
+      try { const v = Number(localStorage.getItem("calmStudio.kalimbaVol.v1")); kBus.gain.value = Number.isFinite(v) && localStorage.getItem("calmStudio.kalimbaVol.v1") != null ? v / 100 : 0.8; } catch (e) { kBus.gain.value = 0.8; }
+      let kT = 0;
+      const kProxy = new Proxy(off, { get: (t, prop) => (prop === "currentTime" ? kT : (typeof t[prop] === "function" ? t[prop].bind(t) : t[prop])) });
+      const kal = window.KalimbaEngine ? new window.KalimbaEngine({ ensureCtx() {}, ctx: kProxy, getBus: () => kBus }) : null;
+      for (let pass = 0; pass < passes; pass++) {
+        for (let s = 0; s < LL.LOOP_STEPS; s++) {
+          const t = 0.05 + (pass * LL.LOOP_STEPS + s) * stepSec;
+          if (loop.beatOn) D.hitsAt(pattern, s % D.STEPS).forEach((tr) => VOICES[tr](A, t));
+          LL.eventsInStep(loop.layers, s).forEach(({ e, offset }) => {
+            const when = t + offset * stepSec;
+            if (e.t === "c") chordVoices(off, chBus, DEGREES[e.d], when, { key: e.key, sound: e.s })(when + e.len * stepSec);
+            else if (kal) { kT = when; kal.setKey(e.key); kal.pluck(e.tine, e.v); }
+          });
+        }
+      }
+      const buf = await off.startRendering();
+      const when = new Date().toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+      await dbPut({ fx: "natural", id: String(Date.now()), name: `Loop song ${when}`, blob: wavBlob(buf), ms: Math.round(len * 1000), withBeat: false, pattern: null, loop: true });
+      loopMsg("Saved as a song. Find it under Voice → your takes, to play, share or post.");
+      renderTakes();
+    } catch (e) {
+      loopMsg("Couldn't save the song on this device. Try again.");
+    } finally {
+      btn.textContent = "Save as song"; renderLoop();
+    }
+  }
+
   // ---- tabs + wiring --------------------------------------------------------------
   function showPanel(which) {
     document.querySelectorAll("#studioTabs [data-studio]").forEach((b) => {
@@ -573,6 +763,21 @@
   }
   document.querySelectorAll("#studioTabs [data-studio]").forEach((b) => b.addEventListener("click", () => showPanel(b.dataset.studio)));
   $("dmPlay").addEventListener("click", () => (playing ? stopDrums() : startDrums()));
+  if ($("loopBar") && LL) {
+    $("loopPlay").addEventListener("click", () => (playing ? stopDrums() : startDrums()));
+    $("loopRec").addEventListener("click", () => {
+      if (loop.rec) return;                         // a pass is already recording
+      if (loop.armed) { loop.armed = false; loopMsg("Recording cancelled."); renderLoop(); return; }
+      audio();
+      loop.armed = true;
+      if (!playing) startDrums();                   // starts at bar 1, so recording begins right away
+      else loopMsg("Recording starts at the top of the loop…");
+      renderLoop();
+    });
+    $("loopBeat").addEventListener("change", (e) => { loop.beatOn = e.target.checked; saveLoop(); renderLoop(); });
+    $("loopBounce").addEventListener("click", bounceLoop);
+    renderLoop();
+  }
   $("dmBpm").addEventListener("input", (e) => { pattern = { ...pattern, bpm: D.clampBpm(e.target.value) }; $("dmBpmLabel").textContent = pattern.bpm + " BPM"; save(); });
   $("dmVol").addEventListener("input", (e) => { pattern = { ...pattern, volume: Number(e.target.value) / 100 }; if (master) master.gain.value = pattern.volume; save(); });
   $("dmClear").addEventListener("click", () => loadPreset("empty"));
