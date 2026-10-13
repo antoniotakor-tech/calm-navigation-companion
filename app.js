@@ -1543,6 +1543,7 @@
 
   const findBtnLabel = document.getElementById("findBtnLabel");
   let isSearching = false;
+  let searchAgainAfter = false;
 
   // ---- Transit options: fetch, render as cards, draw selection ----
   const transitResultsEl = document.getElementById("transitResults");
@@ -1655,7 +1656,10 @@
     // toggle) against firing a second overlapping request while one is still
     // in flight — two concurrent fetchCalmRoute calls could otherwise race
     // and let the earlier (stale) response's drawRoute() overwrite the later one.
-    if (isSearching) return;
+    // A newer request during a search (e.g. an address typed while a pinned-
+    // spot search was loading) used to be dropped, routing to the OLD place.
+    // Now it runs right after the current one finishes (2026-10-13).
+    if (isSearching) { searchAgainAfter = true; return; }
     // Nothing to route to yet — the destination now opens empty, and an
     // empty field must not silently fall back to a stale/default endpoint.
     if (!endInput.value.trim()) {
@@ -1843,6 +1847,7 @@
       findBtn.disabled = false;
       findBtn.classList.remove("loading");
       findBtnLabel.textContent = "Find calm route";
+      if (searchAgainAfter) { searchAgainAfter = false; setTimeout(runSearch, 0); }
     }
   }
 
