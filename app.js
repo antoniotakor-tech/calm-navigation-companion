@@ -843,7 +843,8 @@
       const key = name + "|" + lon.toFixed(4) + "," + lat.toFixed(4);
       if (seen.has(key)) return;
       seen.add(key);
-      out.push({ id: "t/" + key, name, lat, lon, kind, type: sub === "beer" ? "pub" : sub });
+      // OpenMapTiles "rank": 1 = most prominent/famous in the area, higher = obscure.
+      out.push({ id: "t/" + key, name, lat, lon, kind, type: sub === "beer" ? "pub" : sub, rank: Number(p.rank) || 30 });
     });
     return out;
   }
@@ -922,11 +923,15 @@
         if (!nameMatch && !categoryKinds.includes(p.kind)) continue;
         const d = NavLogic.haversineM(here.lat, here.lon, p.lat, p.lon);
         if (d > 6000) continue;
-        hits.push({ p, d, nameMatch });
+        // Famous places first (2026-10-13): a well-known place counts as
+        // ~150 m "closer" per rank step, so a landmark bar 1 km away beats an
+        // unknown one next door. Places without a rank count as average.
+        const fame = Math.max(0, 30 - (p.rank || 25)) * 150;
+        hits.push({ p, d, nameMatch, score: d - fame });
       }
     }
     // A name match beats a category match; then nearest first.
-    hits.sort((a, b) => (b.nameMatch - a.nameMatch) || (a.d - b.d));
+    hits.sort((a, b) => (b.nameMatch - a.nameMatch) || (a.score - b.score));
     // One entry per name, the nearest: map data often holds several points
     // for one place (a station's tram/bus/metro stops, a shop mapped twice).
     const names = new Set();
