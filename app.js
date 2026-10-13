@@ -3628,7 +3628,11 @@
       layout: {
         "icon-image": ["match", ["get", "kind"], "shop", "poi-shop", "transit", "poi-transit", "calm", "poi-calm", "poi-food"],
         "icon-size": ["interpolate", ["linear"], ["zoom"], 14, 0.45, 17, 0.75],
-        "icon-allow-overlap": true,
+        // Crowded streets used to turn into a carpet of icons (2026-10-13):
+        // icons now keep a gap, and when two collide the calmer place wins.
+        "icon-allow-overlap": false,
+        "icon-padding": 6,
+        "symbol-sort-key": ["match", ["get", "kind"], "calm", 0, "food", 1, "shop", 2, "transit", 3, 4],
       },
     });
     map.on("click", "poi-circles", (e) => {
