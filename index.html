@@ -162,9 +162,13 @@
               <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M9 12a3 3 0 1 1 6 0v3a3 3 0 0 1-6 0z"/><path d="M9 12V7a3 3 0 0 1 6 0v5"/></svg>
               <span class="nav-control-label">Haptics</span>
             </button>
-            <button class="nav-control-btn" id="navKalimbaBtn" aria-label="Open the kalimba" title="Kalimba">
+            <button class="nav-control-btn" id="navSoundsBtn" aria-label="Calm sounds" title="Sounds">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M7 15a4 4 0 0 1-.5-8 5 5 0 0 1 9.6-1.4A4 4 0 1 1 17 15"/><path d="M8 18l-1 3M12 18l-1 3M16 18l-1 3"/></svg>
+              <span class="nav-control-label">Sounds</span>
+            </button>
+            <button class="nav-control-btn" id="navKalimbaBtn" aria-label="Open the music studio" title="Music">
               <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M6 20V8M10 20V4M14 20V4M18 20V8"/></svg>
-              <span class="nav-control-label">Kalimba</span>
+              <span class="nav-control-label">Music</span>
             </button>
             <button class="nav-control-btn" id="recenterBtn" aria-label="Recenter map on my location" title="Recenter">
               <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
@@ -1074,6 +1078,20 @@
   </div>
 </div>
 
+<!-- Calm sounds while navigating (2026-10-13): no need to leave the route. -->
+<div class="nav-sound-sheet" id="navSoundSheet" role="dialog" aria-label="Calm sounds" hidden>
+  <div class="nav-sound-head"><b>Calm sounds</b><button type="button" class="cm-link" id="navSoundClose" aria-label="Close">Done</button></div>
+  <div class="nav-sound-chips">
+    <button type="button" class="pill" data-navsound="rain">Rain</button>
+    <button type="button" class="pill" data-navsound="stream">Stream</button>
+    <button type="button" class="pill" data-navsound="pink">Soft noise</button>
+    <button type="button" class="pill" data-navsound="mask">City mask</button>
+    <button type="button" class="pill" data-navsound="off">Stop</button>
+  </div>
+  <label class="dm-vol">Volume<input type="range" id="navSoundVol" min="0" max="100" aria-label="Sound volume"></label>
+  <p class="cm-note">The voice still speaks over it — the sound dips for a moment, then comes back.</p>
+</div>
+
 <!-- CAPACITOR_BRIDGE --><!--
   Build-time anchor, replaced with <script src="capacitor.js"></script> by
   scripts/build-web.sh when copying this file into www/ for the native
@@ -1086,6 +1104,7 @@
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="icons.js"></script>
 <script>document.addEventListener("DOMContentLoaded",function(){CalmIcons.hydrate();});</script>
+<script src="audiokeepalive.js"></script>
 <script src="config.js"></script>
 <script src="navlogic.js"></script>
 <script src="navsim.js"></script>

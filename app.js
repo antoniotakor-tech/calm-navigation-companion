@@ -2460,6 +2460,7 @@
     currentState = NavLogic.NavState.IDLE;
     navRerouting = false;
     appShellEl.classList.remove("nav-fullscreen");
+    const nss = document.getElementById("navSoundSheet"); if (nss) nss.hidden = true;
     pageInner0.classList.remove("nav-active");
     document.body.classList.remove("nav-away");
     navBottom.classList.remove("nav-controls-hidden");
@@ -2811,6 +2812,31 @@
   }
   // Kalimba mid-walk: navigation (GPS, voice) keeps running under the page.
   document.getElementById("navKalimbaBtn").addEventListener("click", () => goToPage(2, false));
+  // Sounds panel during navigation: drives the same chips/slider as the Sound page.
+  const navSoundSheet = document.getElementById("navSoundSheet");
+  const navSoundVol = document.getElementById("navSoundVol");
+  function syncNavSoundSheet() {
+    const cur = prefs.get().audio;
+    navSoundSheet.querySelectorAll("[data-navsound]").forEach((b) => b.classList.toggle("active", cur.enabled && b.dataset.navsound === cur.soundscape && b.dataset.navsound !== "off"));
+    navSoundVol.value = String(Math.round((cur.ambientVolume != null ? cur.ambientVolume : 0.55) * 100));
+  }
+  document.getElementById("navSoundsBtn").addEventListener("click", () => {
+    syncNavSoundSheet();
+    navSoundSheet.hidden = !navSoundSheet.hidden;
+  });
+  document.getElementById("navSoundClose").addEventListener("click", () => { navSoundSheet.hidden = true; });
+  navSoundSheet.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-navsound]");
+    if (!b) return;
+    const v = b.dataset.navsound, cur = prefs.get().audio;
+    // same rule as the Sound page: tapping the sound that's playing stops it
+    setSoundscape(v !== "off" && cur.enabled && cur.soundscape === v ? "off" : v);
+    if (window.CalmAudioKeepAlive) window.CalmAudioKeepAlive.reviveAll();
+    syncNavSoundSheet();
+  });
+  navSoundVol.addEventListener("input", () => {
+    setVolumes({ ambientVolume: Number(navSoundVol.value) / 100 });
+  });
   document.getElementById("navBackBtn").addEventListener("click", () => goToPage(0, false));
   navEndBtn.addEventListener("click", finishTrip);
   document.getElementById("arrivedDoneBtn").addEventListener("click", finishTrip);
