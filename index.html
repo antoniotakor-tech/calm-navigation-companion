@@ -719,16 +719,18 @@
           <ul class="plus-perks">
             <li>Saved places, ratings and settings on all your devices</li>
             <li>Up to 20 posts a day (free: 3)</li>
+            <li>Extra sketch brushes and papers, unlimited saved sketches</li>
+            <li>Extra fidget spinner designs</li>
             <li>A Calm+ badge next to your name</li>
           </ul>
           <p class="cm-note">Pay once, keep it forever. No subscription.</p>
           <div id="plusBuy" class="cm-row ac-row" hidden>
-            <button type="button" class="pill active" id="plusOnce">Get Calm+ · €9.99 once</button>
+            <button type="button" class="pill active" id="plusOnce">Get Calm+ · €2.99 once</button>
           </div>
           <div id="plusActive" hidden><p class="cm-note"><b>You have Calm+. Thank you!</b></p></div>
           <button type="button" class="pill" id="plusManage" hidden>Receipts</button>
           <div id="plusSoon" hidden>
-            <p class="cm-note">Coming soon: €9.99, paid once.</p>
+            <p class="cm-note">Coming soon: €2.99, paid once.</p>
             <button type="button" class="pill active" id="plusNotify">Notify me when it opens</button>
           </div>
         </div>
@@ -757,6 +759,15 @@
               <button type="button" class="pill" data-tool="marker">Marker</button>
               <button type="button" class="pill" data-tool="pencil">Pencil</button>
               <button type="button" class="pill" data-tool="eraser">Eraser</button>
+              <button type="button" class="pill plus-only" data-tool="watercolor">Watercolour</button>
+              <button type="button" class="pill plus-only" data-tool="glitter">Glitter</button>
+              <button type="button" class="pill plus-only" data-tool="stamp">Stamps</button>
+            </div>
+            <div class="pill-row sk-papers" id="skPapers" aria-label="Paper">
+              <button type="button" class="pill active" data-paper="lined">Lined</button>
+              <button type="button" class="pill plus-only" data-paper="grid">Grid</button>
+              <button type="button" class="pill plus-only" data-paper="dots">Dotted</button>
+              <button type="button" class="pill plus-only" data-paper="blank">Blank</button>
             </div>
             <div class="sk-colors" id="skColors" aria-label="Colour"></div>
             <label class="dm-vol">Size<input type="range" id="skSize" min="2" max="40" value="10" aria-label="Brush size"></label>
@@ -785,6 +796,11 @@
         <div id="studio-fidget" class="studio-panel">
           <div class="fg-card">
             <div class="fg-title">Spinner <small>flick it</small></div>
+            <div class="pill-row fg-skins" id="fgSkins" aria-label="Spinner design">
+              <button type="button" class="pill active" data-skin="classic">Classic</button>
+              <button type="button" class="pill plus-only" data-skin="galaxy">Galaxy</button>
+              <button type="button" class="pill plus-only" data-skin="sunflower">Sunflower</button>
+            </div>
             <div class="fg-spin-stage">
               <div class="fg-spin-ghost" id="fgSpinGhost" aria-hidden="true"></div>
               <svg class="fg-spinner" id="fgSpinner" viewBox="0 0 240 240" role="img" aria-label="Fidget spinner — flick to spin">
@@ -796,9 +812,9 @@
                   <path d="M120 120 L120 42" stroke-width="58" stroke-linecap="round" stroke="#2D2A3E"/>
                   <path d="M120 120 L52.5 159" stroke-width="58" stroke-linecap="round" stroke="#2D2A3E"/>
                   <path d="M120 120 L187.5 159" stroke-width="58" stroke-linecap="round" stroke="#2D2A3E"/>
-                  <path d="M120 120 L120 42" stroke-width="50" stroke-linecap="round" stroke="#FF8FB8"/>
-                  <path d="M120 120 L52.5 159" stroke-width="50" stroke-linecap="round" stroke="#7CC8FF"/>
-                  <path d="M120 120 L187.5 159" stroke-width="50" stroke-linecap="round" stroke="#7ED67A"/>
+                  <path class="fg-arm fg-arm1" d="M120 120 L120 42" stroke-width="50" stroke-linecap="round" stroke="#FF8FB8"/>
+                  <path class="fg-arm fg-arm2" d="M120 120 L52.5 159" stroke-width="50" stroke-linecap="round" stroke="#7CC8FF"/>
+                  <path class="fg-arm fg-arm3" d="M120 120 L187.5 159" stroke-width="50" stroke-linecap="round" stroke="#7ED67A"/>
                   <circle cx="120" cy="42" r="21" fill="url(#fgBearing)"/><circle cx="120" cy="42" r="9" fill="#FFFAF1" stroke-width="3"/>
                   <circle cx="52.5" cy="159" r="21" fill="url(#fgBearing)"/><circle cx="52.5" cy="159" r="9" fill="#FFFAF1" stroke-width="3"/>
                   <circle cx="187.5" cy="159" r="21" fill="url(#fgBearing)"/><circle cx="187.5" cy="159" r="9" fill="#FFFAF1" stroke-width="3"/>
@@ -1103,6 +1119,7 @@
 <script src="drummachine.js"></script>
 <script src="voicefx.js"></script>
 <script src="studio.js"></script>
+<script src="plusgate.js"></script>
 <script src="sketch.js"></script>
 <script src="fidget.js"></script>
 <script src="weatherdoodles.js"></script>

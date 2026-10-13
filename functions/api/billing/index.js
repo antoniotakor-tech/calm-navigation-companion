@@ -6,7 +6,7 @@
 import { ensureAuthTables, accountFromSession, ownerHashForDeviceToken, jsonError, jsonResponse, parseJsonBody, requireDb, CORS_HEADERS } from "../auth/_store.js";
 import { billingEnabled, stripe } from "./_stripe.js";
 
-export const PRICES = { once: { label: "€9.99 once" } }; // pay once, yours forever
+export const PRICES = { once: { label: "€2.99 once" } }; // pay once, yours forever
 
 export async function onRequestOptions() { return new Response(null, { status: 204, headers: CORS_HEADERS }); }
 

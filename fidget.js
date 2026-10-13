@@ -132,6 +132,15 @@
   spin.addEventListener("pointerup", release);
   spin.addEventListener("pointercancel", release);
   try { best = Number(localStorage.getItem("calmFidget.best.v1")) || 0; $("fgBest").textContent = best.toFixed(1); } catch (e) { /* ok */ }
+  // Spinner designs (Classic free; others are Calm+ extras).
+  $("fgSkins").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-skin]");
+    if (!b) return;
+    if (b.classList.contains("plus-only") && !(window.PlusGate && PlusGate.allowed())) { window.PlusGate && PlusGate.explain(); return; }
+    spin.dataset.skin = b.dataset.skin;
+    document.querySelectorAll("#fgSkins [data-skin]").forEach((x) => x.classList.toggle("active", x === b));
+    feel("clack", 1);
+  });
 
   // ---- 2. bubble wrap ------------------------------------------------------------------
   const wrap = $("fgBubbles");

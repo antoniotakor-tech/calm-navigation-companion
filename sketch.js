@@ -13,7 +13,9 @@
   const W = 1200, H = 1500; // fixed drawing resolution; displayed responsively
   canvas.width = W; canvas.height = H;
   const g = canvas.getContext("2d", { willReadFrequently: true });
-  const state = { tool: "crayon", color: COLORS[1], size: 10, bg: null }; // bg: HTMLImageElement | null
+  const state = { tool: "crayon", color: COLORS[1], size: 10, bg: null, paper: "lined" }; // bg: HTMLImageElement | null
+  const FREE_SAVED = 10;
+  const isPlus = () => window.PlusGate && window.PlusGate.allowed();
   const undo = [];
 
   // ---- paper ------------------------------------------------------------------
@@ -26,7 +28,14 @@
       const s = Math.max(W / state.bg.naturalWidth, H / state.bg.naturalHeight);
       const w = state.bg.naturalWidth * s, h = state.bg.naturalHeight * s;
       g.drawImage(state.bg, (W - w) / 2, (H - h) / 2, w, h);
-    } else {
+    } else if (state.paper === "grid") {
+      g.strokeStyle = "rgba(77,168,255,.22)"; g.lineWidth = 1.5;
+      for (let x = 50; x < W; x += 50) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H); g.stroke(); }
+      for (let y = 50; y < H; y += 50) { g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); }
+    } else if (state.paper === "dots") {
+      g.fillStyle = "rgba(45,42,62,.22)";
+      for (let x = 40; x < W; x += 40) for (let y = 40; y < H; y += 40) { g.beginPath(); g.arc(x, y, 2.2, 0, 6.283); g.fill(); }
+    } else if (state.paper === "lined") {
       g.strokeStyle = "rgba(77,168,255,.28)"; g.lineWidth = 2;
       for (let y = 90; y < H; y += 60) { g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); }
       g.strokeStyle = "rgba(255,92,138,.45)"; g.lineWidth = 3;
@@ -56,6 +65,45 @@
     }
     g.globalAlpha = 1;
   }
+  // Calm+ brushes
+  function watercolorSeg(a, b) {
+    const dist = Math.hypot(b.x - a.x, b.y - a.y), n = Math.max(1, Math.ceil(dist / 4));
+    const r = state.size * 2.2 * (0.7 + b.p * 0.6);
+    g.fillStyle = state.color;
+    for (let i = 0; i < n; i++) {
+      const t = i / n;
+      g.globalAlpha = 0.05;
+      g.beginPath(); g.arc(a.x + (b.x - a.x) * t + (Math.random() - 0.5) * 3, a.y + (b.y - a.y) * t + (Math.random() - 0.5) * 3, r * (0.85 + Math.random() * 0.3), 0, 6.283); g.fill();
+    }
+    g.globalAlpha = 1;
+  }
+  const GLITTER = ["#FFD84D", "#FF8FB8", "#7CC8FF", "#B58CFF", "#FFFFFF"];
+  function glitterSeg(a, b) {
+    const dist = Math.hypot(b.x - a.x, b.y - a.y), n = Math.max(1, Math.ceil(dist / 3));
+    for (let i = 0; i < n; i++) {
+      const t = i / n, x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t;
+      for (let k = 0; k < 2; k++) {
+        const ang = Math.random() * 6.283, rr = Math.random() * state.size * 1.6, s = 1.5 + Math.random() * 3;
+        g.fillStyle = Math.random() < 0.5 ? state.color : GLITTER[(Math.random() * GLITTER.length) | 0];
+        g.globalAlpha = 0.6 + Math.random() * 0.4;
+        g.save(); g.translate(x + Math.cos(ang) * rr, y + Math.sin(ang) * rr); g.rotate(ang);
+        g.fillRect(-s / 2, -s / 2, s, s); g.restore();
+      }
+    }
+    g.globalAlpha = 1;
+  }
+  const STAMPS = ["flower", "sun", "sparkle", "leaf", "moon"];
+  let stampIdx = 0;
+  function stampAt(p) {
+    const name = STAMPS[stampIdx++ % STAMPS.length];
+    const svg = (window.CalmIcons && CalmIcons.html(name)) || "";
+    const size = state.size * 9;
+    const markup = svg.replace("<svg ", `<svg width="${size}" height="${size}" style="color:${state.color}" `).replace(/currentColor/g, state.color).replace(/var\(--accent, currentColor\)/g, state.color);
+    const img = new Image();
+    img.onload = () => { g.drawImage(img, p.x - size / 2, p.y - size / 2, size, size); scheduleAutosave(); };
+    img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(markup.replace("<svg ", '<svg xmlns="http://www.w3.org/2000/svg" '));
+  }
+
   function lineSeg(a, b, mid) {
     g.lineCap = "round"; g.lineJoin = "round";
     if (state.tool === "marker") { g.strokeStyle = state.color; g.globalAlpha = 0.85; g.lineWidth = state.size * 2.2 * (0.7 + b.p * 0.6); }
@@ -90,7 +138,10 @@
     pushUndo();
     drawing = true;
     last = prev = point(e);
+    if (state.tool === "stamp") { stampAt(last); drawing = false; return; }
     if (state.tool === "crayon") crayonSeg(last, last);
+    else if (state.tool === "watercolor") watercolorSeg(last, last);
+    else if (state.tool === "glitter") glitterSeg(last, last);
     else if (state.tool === "eraser") eraseSegClip(last, last);
     else lineSeg(last, { ...last, x: last.x + 0.1 }, last);
   });
@@ -102,6 +153,8 @@
       const p = point(ev);
       if (Math.hypot(p.x - last.x, p.y - last.y) < 1) return;
       if (state.tool === "crayon") crayonSeg(last, p);
+      else if (state.tool === "watercolor") watercolorSeg(last, p);
+      else if (state.tool === "glitter") glitterSeg(last, p);
       else if (state.tool === "eraser") eraseSegClip(last, p);
       else { const mid = { x: (last.x + p.x) / 2, y: (last.y + p.y) / 2 }; lineSeg(prev, mid, last); prev = mid; }
       last = p;
@@ -126,6 +179,10 @@
     if (!currentId) currentId = String(Date.now());
     const blob = await toBlob("image/jpeg", 0.88);
     await idb.put({ id: currentId, blob, updated: Date.now() });
+    if (!isPlus()) {
+      const all = (await idb.all()).sort((a, b) => b.updated - a.updated);
+      for (const old of all.slice(FREE_SAVED)) await idb.del(old.id); // free: your last 10 sketches
+    }
     renderGallery();
   }
   async function renderGallery() {
@@ -172,7 +229,20 @@
     b.addEventListener("click", () => { state.color = c; if (state.tool === "eraser") state.tool = "crayon"; renderTools(); });
     colors.appendChild(b);
   });
-  $("skTools").addEventListener("click", (e) => { const b = e.target.closest("[data-tool]"); if (b) { state.tool = b.dataset.tool; renderTools(); } });
+  $("skTools").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-tool]");
+    if (!b) return;
+    if (b.classList.contains("plus-only") && !isPlus()) { window.PlusGate && PlusGate.explain(); return; }
+    state.tool = b.dataset.tool; renderTools();
+  });
+  $("skPapers").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-paper]");
+    if (!b) return;
+    if (b.classList.contains("plus-only") && !isPlus()) { window.PlusGate && PlusGate.explain(); return; }
+    state.paper = b.dataset.paper;
+    document.querySelectorAll("#skPapers [data-paper]").forEach((x) => x.classList.toggle("active", x === b));
+    newSketch(state.bg);
+  });
   $("skSize").addEventListener("input", (e) => { state.size = Number(e.target.value); });
   $("skUndo").addEventListener("click", () => { const s = undo.pop(); if (s) { g.putImageData(s, 0, 0); scheduleAutosave(); } });
   $("skNew").addEventListener("click", () => newSketch(null));
