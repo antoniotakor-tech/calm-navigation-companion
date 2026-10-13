@@ -2490,3 +2490,5 @@ html.has-plus .plus-only::after { display: none; }
 .fb-form { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
 .fb-form textarea, .fb-form input { font: inherit; font-size: 16px; padding: 10px 12px; border-radius: 14px; border: 1.5px solid var(--edge-strong, var(--line)); background: var(--surface); color: var(--ink); }
 .fb-form #fbSend { align-self: flex-start; }
+.cm-consent { display: flex; gap: 8px; align-items: flex-start; font-size: .85rem; line-height: 1.35; }
+.cm-consent input { margin-top: 3px; width: 18px; height: 18px; flex: none; }

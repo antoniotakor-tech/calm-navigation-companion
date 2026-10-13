@@ -38,12 +38,14 @@
     const nickname = cleanText(body.nickname);
     const bio = cleanText(body.bio);
     const avatar = AVATARS.includes(body.avatar) ? body.avatar : AVATARS[0];
+    // Community is 16+ (Dutch digital-consent age; App Store 1.2.1) and needs the rules accepted.
+    if (body.ageConfirmed !== true) return { valid: false, error: "Please confirm you're 16 or older and agree to the community rules." };
     if (nickname.length < 2) return { valid: false, error: "Pick a name of at least 2 characters." };
     if (nickname.length > LIMITS.nickname) return { valid: false, error: `Name can be at most ${LIMITS.nickname} characters.` };
     if (bio.length > LIMITS.bio) return { valid: false, error: `Bio can be at most ${LIMITS.bio} characters.` };
     const problem = textProblem(nickname, "Name") || (bio && textProblem(bio, "Bio"));
     if (problem) return { valid: false, error: problem };
-    return { valid: true, value: { nickname, bio, avatar } };
+    return { valid: true, value: { nickname, bio, avatar, ageConfirmed: true } };
   }
 
   /** Keeps a route light: at most LIMITS.routePoints [lon,lat] pairs, evenly sampled, ends kept. */

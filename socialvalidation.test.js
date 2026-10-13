@@ -18,7 +18,7 @@ test("posts need a known kind, a title and a place", () => {
 
 test("links and contact details are refused like in Calm Echoes", () => {
   assert.equal(S.validatePost({ ...base, body: "visit www.spam.com" }).valid, false);
-  assert.equal(S.validateProfile({ nickname: "Ann", bio: "call 0612345678" }).valid, false);
+  assert.equal(S.validateProfile({ nickname: "Ann", bio: "call 0612345678", ageConfirmed: true }).valid, false);
 });
 
 test("route posts need a route and are simplified to the point limit", () => {
@@ -50,8 +50,9 @@ test("photos must be small image data URLs", () => {
 });
 
 test("profiles get a safe default avatar and need a name", () => {
-  assert.equal(S.validateProfile({ nickname: "A" }).valid, false);
-  const r = S.validateProfile({ nickname: "Antonio", avatar: "hacker" });
+  assert.equal(S.validateProfile({ nickname: "A", ageConfirmed: true }).valid, false);
+  assert.equal(S.validateProfile({ nickname: "Antonio" }).valid, false, "16+ confirmation is required");
+  const r = S.validateProfile({ nickname: "Antonio", avatar: "hacker", ageConfirmed: true });
   assert.equal(r.valid, true);
   assert.equal(r.value.avatar, S.AVATARS[0]);
 });

@@ -170,6 +170,7 @@
       sync();
     });
     $("cmProfileError").textContent = "";
+    $("cmAgeOk").checked = !!p; // existing profiles already confirmed
     $("cmProfileForm").hidden = false;
     $("cmProfileCard").hidden = true;
     $("cmNameInput").focus();
@@ -178,7 +179,7 @@
 
   async function saveProfile(e) {
     e.preventDefault();
-    const profile = { nickname: $("cmNameInput").value, bio: $("cmBioInput").value, avatar: chosenAvatar };
+    const profile = { nickname: $("cmNameInput").value, bio: $("cmBioInput").value, avatar: chosenAvatar, ageConfirmed: $("cmAgeOk").checked };
     const check = S.validateProfile(profile);
     if (!check.valid) { $("cmProfileError").textContent = check.error; return; }
     $("cmProfileSave").disabled = true;

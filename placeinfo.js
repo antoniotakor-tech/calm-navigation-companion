@@ -101,7 +101,8 @@
     const img = pages.map((p) => p.imageinfo && p.imageinfo[0]).find((i) => i && i.thumburl && /\.(jpe?g|png|webp)$/i.test(i.url));
     if (!img) return null;
     const artist = ((img.extmetadata && img.extmetadata.Artist && img.extmetadata.Artist.value) || "").replace(/<[^>]+>/g, "").trim();
-    return { photo: img.thumburl, credit: `Photo taken near here${artist ? " · " + artist.slice(0, 40) : ""} · Wikimedia Commons`, link: img.descriptionurl };
+    const licence = ((img.extmetadata && img.extmetadata.LicenseShortName && img.extmetadata.LicenseShortName.value) || "").replace(/<[^>]+>/g, "").trim();
+    return { photo: img.thumburl, credit: `Photo taken near here${artist ? " · " + artist.slice(0, 40) : ""}${licence ? " · " + licence : ""} · Wikimedia Commons`, link: img.descriptionurl };
   }
   // Panoramax: free, open street-level photos (growing across Europe).
   async function streetPhoto(place) {
@@ -132,7 +133,7 @@
     for (const lang of langs) {
       try {
         const a = await wiki(lang, place);
-        if (a) { Object.assign(out, { photo: a.photo, summary: a.summary, url: a.url, credit: a.photo ? "Photo: Wikipedia" : null }); break; }
+        if (a) { Object.assign(out, { photo: a.photo, summary: a.summary, url: a.url, credit: a.photo ? "Photo & text: Wikipedia (CC BY-SA)" : "Text: Wikipedia (CC BY-SA)" }); break; }
       } catch (e) { /* try next */ }
     }
     // Wider photo search, best source first; the card shows a live mini-map
