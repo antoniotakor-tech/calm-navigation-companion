@@ -334,6 +334,10 @@
   // unchanged: map.resize() is MapLibre's equivalent of invalidateSize(),
   // and a resize() call when nothing meaningfully changed is a cheap no-op.
   new ResizeObserver(() => map.resize()).observe(document.querySelector(".map-wrap"));
+  // iPhone Safari: the toolbar sliding away, rotating, or restoring the PWA from
+  // the background changes the viewport without always resizing .map-wrap.
+  ["resize", "orientationchange", "pageshow"].forEach((ev) => window.addEventListener(ev, () => requestAnimationFrame(() => map.resize())));
+  if (window.visualViewport) window.visualViewport.addEventListener("resize", () => requestAnimationFrame(() => map.resize()));
 
   function refreshMapTheme() {
     // No tile-layer swap anymore — repaint the one loaded style in place.
@@ -4447,9 +4451,20 @@
       requestAnimationFrame(syncActivePageToScroll);
       return;
     }
-    pagesWrap.style.scrollSnapType = "";
-    pagesWrap.style.scrollBehavior = "";
-    pagesWrap.scrollTo({ left: pageScrollX(i), behavior: smooth === false ? "auto" : "smooth" });
+    // Move the underline straight away, then jump with snapping off. A smooth
+    // scroll across several mandatory snap points (scroll-snap-stop: always)
+    // stops at the first page it passes on iPhone — the tab underline then
+    // looked stuck (Route -> Studio/Fidget never arrived). Snapping is put back
+    // once the jump has landed.
+    setActivePage(i);
+    pagesWrap.style.scrollSnapType = "none";
+    pagesWrap.style.scrollBehavior = "auto";
+    pagesWrap.scrollLeft = pageScrollX(i);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      pagesWrap.scrollLeft = pageScrollX(i);
+      pagesWrap.style.scrollSnapType = "";
+      pagesWrap.style.scrollBehavior = "";
+    }));
   }
 
   // The two off-screen pages stay in the DOM (scroll-snap needs them there),

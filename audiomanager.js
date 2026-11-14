@@ -82,8 +82,37 @@
       unlockSource.start(0);
 
       this._bindInterruptionHandling();
+      this._bindGestureUnlock();
     }
     if (this.ctx.state === "suspended") this.ctx.resume().catch(() => {});
+  };
+
+  // iPhone Safari only treats touchend / click / keydown as a user gesture that
+  // may start audio — NOT pointerdown. The kalimba plucks on pointerdown, so its
+  // first note created the context there, it stayed suspended, and the kalimba
+  // never made a sound (drums worked because they start from a click). Retry the
+  // resume + silent-buffer unlock on every release until the context is running.
+  AudioManager.prototype._bindGestureUnlock = function () {
+    if (this._unlockBound || typeof document === "undefined") return;
+    this._unlockBound = true;
+    const events = ["touchend", "pointerup", "click", "keydown"];
+    const unlock = () => {
+      const ctx = this.ctx;
+      if (!ctx) return;
+      if (ctx.state === "running") {
+        events.forEach((ev) => document.removeEventListener(ev, unlock, true));
+        this._unlockBound = false;
+        return;
+      }
+      try {
+        const src = ctx.createBufferSource();
+        src.buffer = ctx.createBuffer(1, 1, 22050);
+        src.connect(ctx.destination);
+        src.start(0);
+      } catch (e) { /* best effort */ }
+      ctx.resume().catch(() => {});
+    };
+    events.forEach((ev) => document.addEventListener(ev, unlock, true));
   };
 
   // "Handle incoming phone interruptions gracefully": the web platform gives

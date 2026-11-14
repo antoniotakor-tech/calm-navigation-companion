@@ -2606,3 +2606,46 @@ body[data-page="0"] .bloom-petals { display: none !important; }
 /* the old full-map sheet is now only for storms (a real downpour) */
 .map-doodles:is([data-precip="rain"], [data-precip="drizzle"]) .dd-rain { display: none; }
 @media (prefers-reduced-motion: reduce) { .dd-drips { display: none !important; } }
+
+/* ======================================================================
+   2026-11-14 — tabs, map sizing, dark-mode buttons, simpler Studio/Fidget
+   ====================================================================== */
+
+/* All six tabs fit on a phone (they used to scroll, hiding Fidget), and the
+   underline is a bar under the active label. */
+.page-dots { overflow-x: auto; justify-content: space-between; gap: 0; padding: 0 6px 4px; }
+.page-dots .dot-btn { flex: 1 1 auto; min-width: 0; padding: 0 4px; }
+.page-dots .dot-btn::after { left: 6px; right: 6px; }
+:root:is([data-theme="light"],[data-theme="dark"]) .page-dots .dot-btn { font-size: clamp(.92rem, 4.3vw, 1.1rem); }
+@media (min-width: 520px) { .page-dots { justify-content: space-between; } }
+
+/* Map: size the page by stretch, not height:100% (iPhone Safari resolves a
+   percentage height inside a flex child to auto, which left the map the wrong
+   size), and give the map the room the intro paragraph used to take. */
+.pages-wrap { position: relative; }
+.page { position: relative; height: auto; align-self: stretch; }
+#page-0 .page-inner { position: absolute; inset: 0; height: auto; }
+body[data-page="0"] .app-subtitle { display: none; }
+
+/* Studio is just Kalimba + Drums; Fidget is just the spinner. */
+.loop-bar[hidden] { display: none !important; }
+
+/* Dark mode buttons: calm, flat chips with a crisp yellow selected state
+   (same look as the light theme) instead of a muddy olive tint. */
+:root[data-theme="dark"] .pill {
+  background: #2C3250; color: var(--ink);
+  border: 1.5px solid rgba(244,241,255,.2); box-shadow: none;
+}
+:root[data-theme="dark"] .pill:hover { transform: none; background: #343B5E; }
+:root[data-theme="dark"] .pill.active,
+:root[data-theme="dark"] .pill:nth-child(n).active {
+  background: var(--crayon-yellow) !important; border-color: var(--crayon-yellow) !important;
+  color: #1E1B2E !important; box-shadow: none !important;
+}
+:root[data-theme="dark"] .pill.active .ci, :root[data-theme="dark"] .pill.active b, :root[data-theme="dark"] .pill.active small { color: #1E1B2E !important; }
+:root[data-theme="dark"] .pill:disabled { opacity: .45; box-shadow: none; }
+:root[data-theme="dark"] .icon-btn { box-shadow: none; }
+:root[data-theme="dark"] .find-btn,
+:root[data-theme="dark"] .start-nav-btn,
+:root[data-theme="dark"] .cm-share-btn,
+:root[data-theme="dark"] .echo-record-btn { box-shadow: none !important; border-color: transparent !important; }

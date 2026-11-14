@@ -36,6 +36,8 @@
 
   // ---- tiny sounds ------------------------------------------------------------------
   let ac = null;
+  // iPhone only unlocks audio inside touchend/click, not pointerdown — resume on release.
+  ["touchend", "pointerup", "click"].forEach((ev) => document.addEventListener(ev, () => { if (ac && ac.state !== "running") ac.resume().catch(() => {}); }, true));
   function sound(kind) {
     try {
       ac = ac || new (window.AudioContext || window.webkitAudioContext)({ latencyHint: "interactive" });
@@ -142,51 +144,5 @@
     feel("clack", 1);
   });
 
-  // ---- 2. bubble wrap ------------------------------------------------------------------
-  const wrap = $("fgBubbles");
-  let popped = 0;
-  function fillBubbles() {
-    wrap.innerHTML = "";
-    for (let i = 0; i < 30; i++) {
-      const b = document.createElement("button");
-      b.type = "button"; b.className = "fg-bubble"; b.setAttribute("aria-label", "Bubble");
-      b.addEventListener("pointerdown", () => {
-        if (b.classList.contains("popped")) return;
-        b.classList.add("popped"); feel("pop", 2);
-        popped++; $("fgPopped").textContent = popped;
-        if (!wrap.querySelector(".fg-bubble:not(.popped)")) setTimeout(fillBubbles, 900);
-      });
-      wrap.appendChild(b);
-    }
-  }
-  $("fgRefill").addEventListener("click", fillBubbles);
-
-  // ---- 3. clicky switches ----------------------------------------------------------------
-  document.querySelectorAll(".fg-switch").forEach((s) => s.addEventListener("click", () => {
-    const on = s.getAttribute("aria-pressed") !== "true";
-    s.setAttribute("aria-pressed", String(on));
-    feel("clack", on ? 2 : 1);
-  }));
-  $("fgClicker").addEventListener("pointerdown", () => { $("fgClicker").classList.add("down"); feel("clack", 2); });
-  const up = () => { if ($("fgClicker").classList.contains("down")) { $("fgClicker").classList.remove("down"); feel("tick", 1); } };
-  $("fgClicker").addEventListener("pointerup", up);
-  $("fgClicker").addEventListener("pointerleave", up);
-
-  // ---- 4. detent slider (a click every 10%) ---------------------------------------------
-  let lastDetent = 5;
-  $("fgSlider").addEventListener("input", (e) => {
-    const d = Math.round(Number(e.target.value) / 10);
-    if (d !== lastDetent) { lastDetent = d; feel("tick", d === 0 || d === 10 ? 2 : 1); }
-  });
-
-  // ---- 5. squishy blob ------------------------------------------------------------------
-  const blob = $("fgBlob");
-  blob.addEventListener("pointerdown", (e) => { e.preventDefault(); blob.classList.add("squish"); feel("squish-in", 2); });
-  const unsquish = () => { if (blob.classList.contains("squish")) { blob.classList.remove("squish"); feel("squish-out", 1); } };
-  blob.addEventListener("pointerup", unsquish);
-  blob.addEventListener("pointerleave", unsquish);
-  blob.addEventListener("pointercancel", unsquish);
-
-  fillBubbles();
   render();
 })();
