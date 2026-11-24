@@ -87,6 +87,17 @@ function labelForItem(item) {
 
 // ---- DOM controller ---------------------------------------------------------
 
+// Self-contained helpers (app.js injects only { rankHits } as `ranking`).
+function foldForMatch(s) {
+  return String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+}
+function distanceKm(a, b) {
+  const R = 6371, rad = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * rad, dLon = (b.lon - a.lon) * rad;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
 class AutocompleteController {
   // options:
   //   input, listEl, statusEl, wrapperEl: DOM elements (wrapperEl scopes the
@@ -191,13 +202,7 @@ class AutocompleteController {
     // Started alongside the geocoder so nearby places never add latency.
     const localPromise = this.safeLocalMatches(query);
     try {
-      const { hits } = await this.geocodingService.forwardGeocode({
-        query,
-        point: ctx.point || null,
-        limit: this.limit,
-        endpointBase: this.endpointBase,
-        signal: this.abortController.signal,
-      });
+      const { hits } = await this.fetchHits(query, ctx, this.abortController.signal);
       if (!this.sequencer.isCurrent(token)) return; // superseded by a newer keystroke
 
       const ranked = this.ranking
@@ -231,6 +236,53 @@ class AutocompleteController {
       if (local.length) { this.setItems(local); return; }
       this.setError(e, query);
     }
+  }
+
+  // Geocoder hits for a query, biased to where the user is.
+  //  1. The plain query, asking for a wider pool than we display: with only
+  //     a handful of rows a nearby branch is easily crowded out by exact-name
+  //     matches on the other side of the world ("mangia" -> hamlets in Italy).
+  //  2. When the user's city is known, the same query + the city
+  //     ("mangia Amsterdam"). The geocoder matches names AND city fields, so
+  //     this is what actually surfaces "Mangia Pizza" in Amsterdam
+  //     (2026-11-24). Its hits are only kept if they are close to the user AND
+  //     contain every word typed: "mang Amsterdam" must not bring back
+  //     streets called Amsterdam, and "rome Amsterdam" not Roemer Visscherstraat.
+  //     If this second lookup fails it is simply skipped.
+  async fetchHits(query, ctx, signal) {
+    const base = this.geocodingService.forwardGeocode({
+      query,
+      point: ctx.point || null,
+      limit: Math.max(this.limit, 10),
+      endpointBase: this.endpointBase,
+      signal,
+    });
+    const city = ctx.city ? String(ctx.city).trim() : "";
+    const norm = foldForMatch;
+    const words = norm(query).split(/[^a-z0-9]+/).filter(Boolean);
+    const wantsNear =
+      city && ctx.point && query.length >= 3 && !/[\d,]/.test(query) &&
+      !norm(query).includes(norm(city));
+    if (!wantsNear) return base;
+
+    const near = this.geocodingService.forwardGeocode({
+      query: `${query} ${city}`,
+      point: ctx.point,
+      limit: 10,
+      endpointBase: this.endpointBase,
+      signal,
+    }).then((r) => (r && Array.isArray(r.hits) ? r.hits : [])).catch(() => []);
+
+    const [main, extra] = await Promise.all([base, near]);
+    const here = { lat: ctx.point.lat, lon: ctx.point.lon };
+    const localExtra = extra.filter((h) => {
+      if (!h || !h.point) return false;
+      const km = distanceKm(here, { lat: h.point.lat, lon: h.point.lng });
+      if (!(km <= 30)) return false;
+      const name = norm(h.name || h.street);
+      return words.length > 0 && words.every((w) => name.includes(w));
+    });
+    return { hits: (main.hits || []).concat(localExtra) };
   }
 
   renderMerged(local, ranked, query) {

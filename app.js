@@ -858,10 +858,27 @@
     // first (measured: Starbucks at 468 m, 861 m, 996 m...). Overpass name
     // search was tried first but Overpass refuses/times out on these queries
     // from Cloudflare. Only real venues (amenity/shop/transit) are kept.
-    const url = `${apiBaseUrl}/api/geocode?q=${encodeURIComponent(String(query).trim())}&point=${here.lat.toFixed(5)},${here.lon.toFixed(5)}&limit=10`;
-    const resp = await fetch(url);
-    if (!resp || !resp.ok) return [];
-    const data = await resp.json();
+    const point = `${here.lat.toFixed(5)},${here.lon.toFixed(5)}`;
+    const geocodeHits = async (q) => {
+      const resp = await fetch(`${apiBaseUrl}/api/geocode?q=${encodeURIComponent(q)}&point=${point}&limit=10`);
+      if (!resp || !resp.ok) return [];
+      const body = await resp.json();
+      return Array.isArray(body.hits) ? body.hits : [];
+    };
+    // The bare name returns branches from all over the world ("mangia" ->
+    // Italy, Austin, Mandalay ...). Adding the user's city ("mangia
+    // Amsterdam") makes the geocoder return the ones in their own city, so
+    // both lookups run and their hits are merged (2026-11-24). The distance
+    // filter in nearbyPlaceMatches then keeps only what is within ~6 km.
+    const trimmed = String(query).trim();
+    const cityName = cityContext && cityContext.city ? String(cityContext.city).trim() : "";
+    const lookups = [geocodeHits(trimmed)];
+    if (cityName && !foldText(trimmed).includes(foldText(cityName)) && !/[\d,]/.test(trimmed)) {
+      lookups.push(geocodeHits(`${trimmed} ${cityName}`).catch(() => []));
+    }
+    const settled = await Promise.all(lookups);
+    if (!settled[0].length && !(settled[1] && settled[1].length)) return [];
+    const data = { hits: settled.flat() };
     const VENUE_KEYS = { amenity: "food", shop: "shop", railway: "transit", public_transport: "transit", tourism: "food", leisure: "food" };
     const places = (data.hits || [])
       .filter((h) => h && h.point && h.name && VENUE_KEYS[h.osm_key])

@@ -51,7 +51,17 @@ const WEIGHTS = {
   NEARBY_BOOST: 120,
   REGION_BOOST_KM: 40,
   REGION_BOOST: 50,
+  // 2026-11-24: typing a venue name ("mangia") in Amsterdam must show the
+  // Amsterdam venues, not an identically named hamlet in Italy that happens
+  // to be an exact match. A cafe/restaurant/shop within LOCAL_VENUE_KM whose
+  // name contains what you typed gets this boost. Cities/towns/villages
+  // (osm key place/boundary) never get it, so typing "paris" still finds Paris.
+  LOCAL_VENUE_BOOST: 300,
+  LOCAL_VENUE_KM: 25,
 };
+
+// osm keys that mean "a business or venue you could walk into".
+const VENUE_OSM_KEYS = ["amenity", "shop", "tourism", "leisure", "craft", "office", "healthcare"];
 
 const TYPE_LABELS = {
   address: "Address",
@@ -108,6 +118,12 @@ function looksLikeAddressQuery(query) {
 function classifyType(hit) {
   const key = (hit.osm_key || "").toLowerCase();
   const value = (hit.osm_value || "").toLowerCase();
+  // A named business is a place even when OpenStreetMap also records its
+  // house number. Without this, "Mangia Pizza Centrum" came back as the
+  // address "Vijzelgracht 33-H": the name was lost, so it never matched what
+  // you typed and could not be ranked as a venue (2026-11-24).
+  const isGreen = key === "leisure" && ["park", "garden", "nature_reserve", "common"].includes(value);
+  if (hit.name && VENUE_OSM_KEYS.includes(key) && !isGreen) return key === "tourism" ? "landmark" : "place";
   if (hit.housenumber) return "address";
   if (key === "highway") return "street";
   if (key === "railway" && ["station", "halt", "tram_stop", "subway_entrance"].includes(value)) return "station";
@@ -132,7 +148,7 @@ function buildSecondary(hit, primary, type) {
   // For non-address results (a park, a station, a named place) the street
   // it sits on is useful area context; for an address, the street is
   // already in the primary line so repeating it here would be redundant.
-  if (type !== "address") add(hit.street);
+  if (type !== "address") add(hit.street && hit.housenumber ? `${hit.street} ${hit.housenumber}` : hit.street);
   add(hit.district);
   add(hit.city);
   if (!parts.length) add(hit.state);
@@ -165,6 +181,8 @@ function normalizeHit(hit) {
     housenumber: hit.housenumber || null,
     street: hit.street || null,
     inNamedCity: hit.inNamedCity === true,
+    osmKey: (hit.osm_key || "").toLowerCase() || null,
+    osmValue: (hit.osm_value || "").toLowerCase() || null,
   };
 }
 
@@ -229,6 +247,12 @@ function scoreHit(hit, context) {
     score += Math.min(km, WEIGHTS.DISTANCE_DECAY_CAP_KM) * WEIGHTS.DISTANCE_DECAY_PER_KM;
     if (km <= WEIGHTS.NEARBY_BOOST_KM) score += WEIGHTS.NEARBY_BOOST;
     else if (km <= WEIGHTS.REGION_BOOST_KM) score += WEIGHTS.REGION_BOOST;
+    if (
+      km <= WEIGHTS.LOCAL_VENUE_KM &&
+      hit.type !== "address" && hit.type !== "street" &&
+      VENUE_OSM_KEYS.includes(hit.osmKey) &&
+      textMatchScore(context.queryText, hit) >= WEIGHTS.CONTAINS_TEXT_MATCH
+    ) score += WEIGHTS.LOCAL_VENUE_BOOST;
   }
 
   const q = parseAddressQuery(context.queryText);
@@ -272,7 +296,7 @@ function rankHits(rawHits, context) {
 
 if (typeof module === "object" && module.exports) {
   module.exports = {
-    WEIGHTS, TYPE_LABELS, parseAddressQuery, numberMatches,
+    WEIGHTS, VENUE_OSM_KEYS, TYPE_LABELS, parseAddressQuery, numberMatches,
     normalizeText, looksLikeAddressQuery, classifyType, buildPrimary, buildSecondary,
     normalizeHit, haversineDistanceKm, dedupeHits, textMatchScore, scoreHit, rankHits,
   };

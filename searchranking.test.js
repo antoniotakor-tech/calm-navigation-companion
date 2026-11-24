@@ -159,3 +159,60 @@ test("the right street without a recorded number beats another street with that 
   ];
   assert.equal(rankHits(hits, { queryText: "Via San Francesco 5, Assisi" })[0].primary, "Via San Francesco");
 });
+
+// ---- 2026-11-24: venues near you beat same-named places far away ----
+const AMS = { lat: 52.3676, lon: 4.9041 };
+const ctxAms = (q) => ({ queryText: q, userPoint: AMS, userCity: "Amsterdam", userState: "North Holland", userCountryCode: "NL" });
+
+test("mangia in Amsterdam: the Amsterdam restaurants rank above exact-name matches abroad (live API data)", () => {
+  const raw = [
+    { name: "Mangia", osm_key: "place", osm_value: "hamlet", city: "Sesta Godano", countrycode: "IT", point: { lat: 44.257, lng: 9.702 } },
+    { name: "Mangia", osm_key: "amenity", osm_value: "fast_food", city: "Austin", countrycode: "US", point: { lat: 30.407, lng: -97.713 } },
+    { name: "Mangia", osm_key: "amenity", osm_value: "restaurant", city: "New York", countrycode: "US", point: { lat: 40.742, lng: -73.991 } },
+    { name: "Mangia Pizza Centrum", street: "Vijzelgracht", osm_key: "amenity", osm_value: "restaurant", city: "Amsterdam", countrycode: "NL", point: { lat: 52.361, lng: 4.892 } },
+    { name: "Mangia Pizza", street: "Amstelveenseweg", osm_key: "amenity", osm_value: "restaurant", city: "Amsterdam", countrycode: "NL", point: { lat: 52.354, lng: 4.856 } },
+  ];
+  const top2 = S.rankHits(raw, ctxAms("mangia")).slice(0, 2).map((h) => h.primary).sort();
+  assert.deepEqual(top2, ["Mangia Pizza", "Mangia Pizza Centrum"]);
+});
+
+test("a city is never pushed down by the venue boost: 'paris' in Amsterdam still offers Paris", () => {
+  const raw = [
+    { name: "Paris", osm_key: "place", osm_value: "city", countrycode: "FR", point: { lat: 48.857, lng: 2.352 } },
+    { name: "Cafe de Paris", osm_key: "amenity", osm_value: "restaurant", city: "Amsterdam", countrycode: "NL", point: { lat: 52.367, lng: 4.897 } },
+  ];
+  const ranked = S.rankHits(raw, ctxAms("paris")).map((h) => h.primary);
+  assert.ok(ranked.includes("Paris"), "the city stays in the list");
+  assert.ok(ranked.indexOf("Paris") <= 1);
+});
+
+test("the venue boost needs a real text match and a nearby venue (an unrelated local venue gets nothing)", () => {
+  const unrelated = S.normalizeHit({ name: "Bakkerij Jansen", osm_key: "shop", osm_value: "bakery", city: "Amsterdam", countrycode: "NL", point: { lat: 52.37, lng: 4.9 } });
+  const withBoost = S.scoreHit(S.normalizeHit({ name: "Mangia Pizza", osm_key: "amenity", osm_value: "restaurant", city: "Amsterdam", countrycode: "NL", point: { lat: 52.37, lng: 4.9 } }), ctxAms("mangia"));
+  const without = S.scoreHit(unrelated, ctxAms("mangia"));
+  assert.ok(withBoost - without >= S.WEIGHTS.LOCAL_VENUE_BOOST);
+});
+
+test("a named restaurant with a house number stays a place called by its name, with its address underneath", () => {
+  const n = S.normalizeHit({ name: "Mangia Pizza Centrum", street: "Vijzelgracht", housenumber: "33-H", city: "Amsterdam", district: "Centrum", osm_key: "amenity", osm_value: "restaurant", countrycode: "nl", point: { lat: 52.361, lng: 4.892 } });
+  assert.equal(n.type, "place");
+  assert.equal(n.primary, "Mangia Pizza Centrum");
+  assert.equal(n.secondary, "Vijzelgracht 33-H, Centrum");
+});
+
+test("an unnamed address and a named street are still addresses / streets (only named venues change)", () => {
+  assert.equal(S.normalizeHit({ street: "Damstraat", housenumber: "12", osm_key: "place", osm_value: "house", point: { lat: 52.37, lng: 4.9 } }).type, "address");
+  assert.equal(S.normalizeHit({ name: "Damstraat", osm_key: "highway", osm_value: "residential", point: { lat: 52.37, lng: 4.9 } }).type, "street");
+});
+
+test("typing a venue name in Amsterdam: branches with house numbers rank first, by name (live API shape)", () => {
+  const ven = (name, street, nr, lat, lng, c = "Amsterdam") => ({ name, street, housenumber: nr, city: c, osm_key: "amenity", osm_value: "restaurant", countrycode: "NL", point: { lat, lng } });
+  const raw = [
+    { name: "Mangia", osm_key: "place", osm_value: "hamlet", city: "Sesta Godano", countrycode: "IT", point: { lat: 44.257, lng: 9.702 } },
+    { name: "Mangia", osm_key: "amenity", osm_value: "restaurant", street: "West 23rd Street", housenumber: "22", city: "New York", countrycode: "US", point: { lat: 40.742, lng: -73.991 } },
+    ven("Mangia Pizza Centrum", "Vijzelgracht", "33-H", 52.361, 4.892),
+    ven("Mangia Pizza", "Amstelveenseweg", "63", 52.354, 4.856),
+  ];
+  const top = S.rankHits(raw, ctxAms("mangia pizza")).slice(0, 2).map((h) => h.primary).sort();
+  assert.deepEqual(top, ["Mangia Pizza", "Mangia Pizza Centrum"]);
+});
